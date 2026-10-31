@@ -91,4 +91,22 @@ class EntryRepository(internal val db: AppDatabase) {
 
     suspend fun deleteEntry(id: Long) = dao.deleteEntry(id)
     suspend fun updateNote(id: Long, note: String) = dao.updateNote(id, note)
+
+    suspend fun exportAll(): BackupData = db.withTransaction {
+        BackupData(
+            entries = dao.allEntries(), texts = dao.allTexts(), cards = dao.allCards(),
+            logs = dao.allLogs(), tags = dao.allTags(), entryTags = dao.allEntryTags(),
+        )
+    }
+
+    suspend fun importAll(d: BackupData) = db.withTransaction {
+        dao.deleteAllEntries()
+        dao.deleteAllTags()
+        dao.insertEntries(d.entries)
+        dao.insertTexts(d.texts)
+        dao.insertCards(d.cards)
+        dao.insertLogs(d.logs)
+        dao.insertTags(d.tags)
+        dao.insertEntryTags(d.entryTags)
+    }
 }
