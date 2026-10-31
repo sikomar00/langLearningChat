@@ -1,0 +1,56 @@
+package com.chatlearn.settings
+
+import androidx.datastore.preferences.core.PreferenceDataStoreFactory
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.runBlocking
+import org.junit.Before
+import org.junit.Rule
+import org.junit.Test
+import org.junit.rules.TemporaryFolder
+import kotlin.test.assertEquals
+
+class SettingsRepositoryTest {
+    @get:Rule val tmp = TemporaryFolder()
+    private var now = 1_700_000_000_000L
+    private lateinit var repo: DataStoreSettingsRepository
+
+    private class MemSecret : SecretStore {
+        private var v = ""
+        override fun get() = v
+        override fun set(v: String) { this.v = v }
+    }
+
+    @Before fun setUp() {
+        val ds = PreferenceDataStoreFactory.create { tmp.newFile("s.preferences_pb") }
+        repo = DataStoreSettingsRepository(ds, MemSecret()) { now }
+    }
+
+    @Test fun defaults() = runBlocking {
+        val s = repo.settings.first()
+        assertEquals("", s.apiKey)
+        assertEquals("gemini-flash-latest", s.model)
+        assertEquals(10, s.newPerDay)
+        assertEquals(0, s.aiCallsToday)
+    }
+
+    @Test fun savesApiKeyModelAndLimit() = runBlocking {
+        repo.setApiKey("abc"); repo.setModel("m1"); repo.setNewPerDay(5)
+        val s = repo.settings.first()
+        assertEquals("abc", s.apiKey); assertEquals("m1", s.model); assertEquals(5, s.newPerDay)
+        assertEquals("abc", repo.currentApiKey()); assertEquals("m1", repo.currentModel())
+    }
+
+    @Test fun callCounterAccumulatesWithinADayAndResetsNextDay() = runBlocking {
+        repo.recordAiCall(); repo.recordAiCall()
+        assertEquals(2, repo.settings.first().aiCallsToday)
+        now += 86_400_000L * 2
+        assertEquals(0, repo.settings.first().aiCallsToday)
+        repo.recordAiCall()
+        assertEquals(1, repo.settings.first().aiCallsToday)
+    }
+
+    @Test fun newPerDayRejectsNegative() = runBlocking {
+        repo.setNewPerDay(-3)
+        assertEquals(0, repo.settings.first().newPerDay)
+    }
+}
