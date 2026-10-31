@@ -132,6 +132,52 @@ class GeminiAiServiceTest {
         assertTrue(text.contains(nasty))
     }
 
+    @Test fun unexpectedHttpErrorReportsStatusAndBodyForDiagnosis() = runBlocking {
+        val seen = mutableListOf<Pair<Int, String>>()
+        val diag = GeminiAiService(
+            OkHttpClient(), server.url("/").toString().trimEnd('/'),
+            apiKey = { "test-key" }, model = { "no-such-model" },
+            onHttpError = { code, body -> seen += code to body }, retryDelayMs = 0,
+        )
+        server.enqueue(MockResponse().setResponseCode(404).setBody("""{"error":{"message":"model not found"}}"""))
+        val e = diag.translateReceived("hi").exceptionOrNull() as AiException
+        assertEquals(AiError.SERVER, e.kind)
+        assertEquals(404, seen.single().first)
+        assertTrue(seen.single().second.contains("model not found"))
+    }
+
+    @Test fun networkExceptionIsReportedWithItsTypeForDiagnosis() = runBlocking {
+        val seen = mutableListOf<Pair<Int, String>>()
+        val diag = GeminiAiService(
+            OkHttpClient(), server.url("/").toString().trimEnd('/'),
+            apiKey = { "secret-key-123" }, model = { "m" },
+            onHttpError = { code, body -> seen += code to body }, retryDelayMs = 0,
+        )
+        server.shutdown()
+        val e = diag.translateReceived("hi").exceptionOrNull() as AiException
+        assertEquals(AiError.OFFLINE, e.kind)
+        assertEquals(0, seen.single().first)
+        assertTrue(seen.single().second.contains("Exception"))
+        assertFalse(seen.single().second.contains("secret-key-123"))
+    }
+
+    @Test fun slowResponseIsTimeoutNotOffline() = runBlocking {
+        val impatient = GeminiAiService(
+            OkHttpClient.Builder().readTimeout(300, java.util.concurrent.TimeUnit.MILLISECONDS).build(),
+            server.url("/").toString().trimEnd('/'),
+            apiKey = { "k" }, model = { "m" }, retryDelayMs = 0,
+        )
+        server.enqueue(ok("""{"detectedLang":"en","koTranslation":"a","note":"b"}""")
+            .setBodyDelay(2, java.util.concurrent.TimeUnit.SECONDS))
+        assertEquals(AiError.TIMEOUT, (impatient.translateReceived("hi").exceptionOrNull() as AiException).kind)
+    }
+
+    @Test fun defaultClientWaitsLongEnoughForSlowModels() {
+        val c = geminiHttpClient()
+        assertTrue(c.readTimeoutMillis >= 60_000)
+        assertTrue(c.callTimeoutMillis >= 60_000)
+    }
+
     @Test fun illegalCharacterInKeyIsBadKeyNotACrash() = runBlocking {
         val badKeyAi = GeminiAiService(
             OkHttpClient(), server.url("/").toString().trimEnd('/'),

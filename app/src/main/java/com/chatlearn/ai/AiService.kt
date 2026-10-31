@@ -3,7 +3,7 @@ package com.chatlearn.ai
 import com.chatlearn.domain.Lang
 import com.chatlearn.domain.Verdict
 
-enum class AiError { RATE_LIMIT, OFFLINE, BAD_KEY, BAD_FORMAT, SERVER }
+enum class AiError { RATE_LIMIT, OFFLINE, TIMEOUT, BAD_KEY, BAD_FORMAT, SERVER }
 
 class AiException(val kind: AiError) : Exception(kind.name)
 

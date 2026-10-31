@@ -11,6 +11,14 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import java.io.IOException
+import java.io.InterruptedIOException
+import java.util.concurrent.TimeUnit
+
+/** 응답이 느린 모델도 기다릴 수 있게 OkHttp 기본 대기(10초)보다 길게 잡는다. */
+fun geminiHttpClient(): OkHttpClient = OkHttpClient.Builder()
+    .readTimeout(60, TimeUnit.SECONDS)
+    .callTimeout(90, TimeUnit.SECONDS)
+    .build()
 
 class GeminiAiService(
     private val http: OkHttpClient,
@@ -18,6 +26,7 @@ class GeminiAiService(
     private val apiKey: () -> String,
     private val model: () -> String,
     private val onCall: () -> Unit = {},
+    private val onHttpError: (code: Int, body: String) -> Unit = { _, _ -> },
     private val retryDelayMs: Long = 1500,
 ) : AiService {
     private val json = Json { ignoreUnknownKeys = true }
@@ -76,7 +85,8 @@ class GeminiAiService(
             val (code, body) = try {
                 post(requestBody(user, schema))
             } catch (e: IOException) {
-                return fail(AiError.OFFLINE)
+                onHttpError(0, "${e.javaClass.simpleName}: ${e.message.orEmpty().take(300)}")
+                return fail(if (e is InterruptedIOException) AiError.TIMEOUT else AiError.OFFLINE)
             } catch (e: IllegalArgumentException) {
                 // OkHttp는 잘못된 헤더 값을 메시지에 그대로 담아 던진다(키 노출). 메시지는 버리고 종류만 알린다.
                 return fail(AiError.BAD_KEY)
@@ -95,7 +105,10 @@ class GeminiAiService(
                 }
                 code == 401 || code == 403 || (code == 400 && body.contains("API key", ignoreCase = true)) ->
                     return fail(AiError.BAD_KEY)
-                else -> return fail(AiError.SERVER)
+                else -> {
+                    onHttpError(code, body.take(1000)) // 진단용: 키는 요청 헤더에만 있고 응답에는 없다
+                    return fail(AiError.SERVER)
+                }
             }
         }
     }

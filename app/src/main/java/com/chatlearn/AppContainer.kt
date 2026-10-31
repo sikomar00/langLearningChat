@@ -5,6 +5,7 @@ import androidx.datastore.preferences.preferencesDataStore
 import androidx.room.Room
 import com.chatlearn.ai.AiService
 import com.chatlearn.ai.GeminiAiService
+import com.chatlearn.ai.geminiHttpClient
 import com.chatlearn.data.AppDatabase
 import com.chatlearn.data.EntryRepository
 import com.chatlearn.review.ReviewSession
@@ -27,11 +28,12 @@ class AppContainer(context: Context) {
     val repo = EntryRepository(db)
     val settings: SettingsRepository = DataStoreSettingsRepository(context.settingsStore, EncryptedSecretStore(context))
     val ai: AiService = GeminiAiService(
-        OkHttpClient.Builder().callTimeout(30, TimeUnit.SECONDS).build(),
+        geminiHttpClient(),
         "https://generativelanguage.googleapis.com",
         apiKey = { settings.currentApiKey() },
         model = { settings.currentModel() },
         onCall = { appScope.launch { settings.recordAiCall() } },
+        onHttpError = { code, body -> android.util.Log.w("GeminiAi", "HTTP $code: $body") },
     )
 
     fun reviewSession() = ReviewSession(repo, ai, System::currentTimeMillis, { settings.settings.first().newPerDay })
