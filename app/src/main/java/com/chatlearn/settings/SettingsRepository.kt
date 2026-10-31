@@ -60,7 +60,12 @@ class DataStoreSettingsRepository(
     override fun currentApiKey() = secret.get()
     override fun currentModel(): String = runBlocking { store.data.first()[MODEL] ?: DEFAULT_MODEL }
 
-    override suspend fun setApiKey(k: String) { secret.set(k.trim()); keyFlow.value = k.trim() }
+    override suspend fun setApiKey(k: String) {
+        // 공백, 줄바꿈, 보이지 않는 문자는 HTTP 헤더를 깨뜨리므로 인쇄 가능한 ASCII만 남긴다.
+        val clean = k.filter { it.code in 33..126 }
+        secret.set(clean)
+        keyFlow.value = clean
+    }
     override suspend fun setModel(m: String) { store.edit { it[MODEL] = m.trim().ifEmpty { DEFAULT_MODEL } } }
     override suspend fun setNewPerDay(n: Int) { store.edit { it[NEW_PER_DAY] = n.coerceAtLeast(0) } }
 

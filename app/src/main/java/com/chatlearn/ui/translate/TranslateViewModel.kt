@@ -28,6 +28,7 @@ sealed interface Notice {
 data class TranslateUiState(
     val mode: TranslateMode = TranslateMode.RECEIVED,
     val input: String = "",
+    val source: String = "", // 번역을 요청한 시점의 입력. 저장은 이 값으로 한다.
     val tag: String = "",
     val targetLang: Lang = Lang.EN,
     val loading: Boolean = false,
@@ -56,7 +57,7 @@ class TranslateViewModel(
         val s = _state.value
         val text = s.input.trim()
         if (text.isEmpty() || s.loading) return@launch
-        _state.update { it.copy(loading = true, error = null, notice = null, received = null, candidates = emptyList()) }
+        _state.update { it.copy(loading = true, source = text, error = null, notice = null, received = null, candidates = emptyList()) }
         if (s.mode == TranslateMode.RECEIVED) {
             ai.translateReceived(text).fold(
                 onSuccess = { r ->
@@ -77,13 +78,13 @@ class TranslateViewModel(
         val s = _state.value
         val r = s.received ?: return@launch
         val lang = r.detectedLang ?: return@launch
-        val draft = EntryDraft(Direction.RECEIVED, lang, s.input, r.koTranslation, r.note, null, listOf(s.tag))
+        val draft = EntryDraft(Direction.RECEIVED, lang, s.source, r.koTranslation, r.note, null, listOf(s.tag))
         report(repo.saveEntry(draft, clock()))
     }
 
     fun onCandidateCopied(c: SentCandidate): Job = viewModelScope.launch {
         val s = _state.value
-        val draft = EntryDraft(Direction.SENT, s.targetLang, c.text, s.input, c.toneNote, null, listOf(s.tag))
+        val draft = EntryDraft(Direction.SENT, s.targetLang, c.text, s.source, c.toneNote, null, listOf(s.tag))
         report(repo.saveEntry(draft, clock()))
     }
 

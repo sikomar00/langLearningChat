@@ -15,7 +15,7 @@ import com.chatlearn.review.GradeOutcome
 @Composable
 fun ReviewScreen(vm: ReviewViewModel) {
     val state by vm.state.collectAsStateWithLifecycle()
-    LaunchedEffect(Unit) { vm.start() }
+    LaunchedEffect(Unit) { vm.ensureStarted() }
 
     Column(Modifier.fillMaxSize().padding(16.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         when (val s = state) {

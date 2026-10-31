@@ -59,6 +59,27 @@ class ReviewViewModelTest {
         assertTrue("grade" !in ai.calls)
     }
 
+    @Test fun ensureStartedDoesNotResetAReviewInProgress() = runBlocking {
+        repo.saveEntry(EntryDraft(Direction.RECEIVED, Lang.EN, "Hi", "안녕", "", null, emptyList()), now - 1)
+        vm.ensureStarted().join()
+        vm.setAnswer("Hi"); vm.submit().join()
+        assertIs<ReviewUi.Graded>(vm.state.value)
+        vm.ensureStarted().join() // 탭을 다녀와도 채점 결과가 남아 있어야 한다
+        assertIs<ReviewUi.Graded>(vm.state.value)
+        Unit
+    }
+
+    @Test fun doubleTapOnRatingRecordsOnlyOnce() = runBlocking {
+        repo.saveEntry(EntryDraft(Direction.RECEIVED, Lang.EN, "Hi", "안녕", "", null, emptyList()), now - 1)
+        vm.start().join()
+        vm.setAnswer("Hi"); vm.submit().join()
+        val first = vm.rate(Rating.GOOD)
+        val second = vm.rate(Rating.GOOD)
+        first.join(); second.join()
+        assertEquals(1, db.dao().allLogs().size)
+        assertEquals(ReviewUi.Done(1), vm.state.value)
+    }
+
     @Test fun againRequeuesCardAtTheEnd() = runBlocking {
         repo.saveEntry(EntryDraft(Direction.RECEIVED, Lang.EN, "Hi", "안녕", "", null, emptyList()), now - 1)
         vm.start().join()

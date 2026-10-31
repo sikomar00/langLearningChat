@@ -49,6 +49,12 @@ class SettingsRepositoryTest {
         assertEquals(1, repo.settings.first().aiCallsToday)
     }
 
+    @Test fun apiKeyDropsWhitespaceAndInvisibleCharacters() = runBlocking {
+        repo.setApiKey("  AIza​sy Key\n9 ")
+        assertEquals("AIzasyKey9", repo.currentApiKey())
+        assertEquals("AIzasyKey9", repo.settings.first().apiKey)
+    }
+
     @Test fun newPerDayRejectsNegative() = runBlocking {
         repo.setNewPerDay(-3)
         assertEquals(0, repo.settings.first().newPerDay)

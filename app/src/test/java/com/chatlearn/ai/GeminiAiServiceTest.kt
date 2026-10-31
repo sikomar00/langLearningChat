@@ -132,6 +132,16 @@ class GeminiAiServiceTest {
         assertTrue(text.contains(nasty))
     }
 
+    @Test fun illegalCharacterInKeyIsBadKeyNotACrash() = runBlocking {
+        val badKeyAi = GeminiAiService(
+            OkHttpClient(), server.url("/").toString().trimEnd('/'),
+            apiKey = { "ab​cd" }, model = { "test-model" }, retryDelayMs = 0,
+        )
+        val e = badKeyAi.translateReceived("hi").exceptionOrNull() as AiException
+        assertEquals(AiError.BAD_KEY, e.kind)
+        assertFalse(e.message.orEmpty().contains("ab"))
+    }
+
     @Test fun translateToReturnsText() = runBlocking {
         server.enqueue(ok("""{"text":"Hola"}"""))
         assertEquals("Hola", ai.translateTo("Hello", Lang.EN, Lang.ES).getOrThrow())

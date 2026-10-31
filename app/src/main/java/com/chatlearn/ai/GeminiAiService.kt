@@ -77,6 +77,9 @@ class GeminiAiService(
                 post(requestBody(user, schema))
             } catch (e: IOException) {
                 return fail(AiError.OFFLINE)
+            } catch (e: IllegalArgumentException) {
+                // OkHttp는 잘못된 헤더 값을 메시지에 그대로 담아 던진다(키 노출). 메시지는 버리고 종류만 알린다.
+                return fail(AiError.BAD_KEY)
             }
             when {
                 code == 429 -> {

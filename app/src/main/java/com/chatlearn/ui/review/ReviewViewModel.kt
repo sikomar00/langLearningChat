@@ -25,13 +25,22 @@ class ReviewViewModel(private val session: ReviewSession) : ViewModel() {
 
     private val queue = ArrayDeque<DueCard>()
     private var reviewed = 0
+    private var started = false
+    private var rating = false
 
     fun start(): Job = viewModelScope.launch {
+        started = true
         _state.value = ReviewUi.Loading
         reviewed = 0
         queue.clear()
         queue.addAll(session.loadQueue())
         if (queue.isEmpty()) _state.value = ReviewUi.Empty else showNext()
+    }
+
+    /** 화면이 다시 그려져도(탭 이동, 회전) 진행 중인 복습을 되돌리지 않는다. */
+    fun ensureStarted(): Job {
+        if (started) return Job().apply { complete() }
+        return start()
     }
 
     private suspend fun showNext() {
@@ -52,12 +61,21 @@ class ReviewViewModel(private val session: ReviewSession) : ViewModel() {
         _state.value = ReviewUi.Graded(p.item, outcome, p.answer, suggested)
     }
 
-    fun rate(r: Rating): Job = viewModelScope.launch {
-        val g = _state.value as? ReviewUi.Graded ?: return@launch
-        val updated = session.rate(g.item, r, g.outcome, g.answer)
-        reviewed++
-        // 다시: 갱신된 카드 상태로 같은 세션 끝에 한 번 더 낸다
-        if (r == Rating.AGAIN) queue.addLast(DueCard(updated, g.item.texts))
-        showNext()
+    fun rate(r: Rating): Job {
+        val g = _state.value as? ReviewUi.Graded
+        // 저장이 끝나기 전의 두 번째 탭은 무시한다(같은 복습이 두 번 기록되지 않게).
+        if (g == null || rating) return Job().apply { complete() }
+        rating = true
+        return viewModelScope.launch {
+            try {
+                val updated = session.rate(g.item, r, g.outcome, g.answer)
+                reviewed++
+                // 다시: 갱신된 카드 상태로 같은 세션 끝에 한 번 더 낸다
+                if (r == Rating.AGAIN) queue.addLast(DueCard(updated, g.item.texts))
+                showNext()
+            } finally {
+                rating = false
+            }
+        }
     }
 }

@@ -93,6 +93,25 @@ class TranslateViewModelTest {
         assertEquals("곧 보자", item.texts[Lang.KO])
     }
 
+    @Test fun saveUsesTheTranslatedTextEvenIfInputWasEditedAfterwards() = runBlocking {
+        vm.setInput("How are you?")
+        vm.translate().join()
+        vm.setInput("Something completely different")
+        vm.saveReceived().join()
+        val item = repo.observeLibrary().first().single()
+        assertEquals("How are you?", item.texts[Lang.EN])
+    }
+
+    @Test fun sentCandidateSavesTheKoreanThatWasTranslated() = runBlocking {
+        vm.setMode(TranslateMode.SENT)
+        vm.setInput("곧 보자")
+        vm.translate().join()
+        val c = vm.state.value.candidates.single()
+        vm.setInput("다른 말")
+        vm.onCandidateCopied(c).join()
+        assertEquals("곧 보자", repo.observeLibrary().first().single().texts[Lang.KO])
+    }
+
     @Test fun switchingModeClearsResults() = runBlocking {
         vm.setInput("hi"); vm.translate().join()
         vm.setMode(TranslateMode.SENT)
