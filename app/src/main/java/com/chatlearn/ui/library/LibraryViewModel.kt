@@ -6,6 +6,7 @@ import com.chatlearn.data.EntryRepository
 import com.chatlearn.data.LibraryItem
 import com.chatlearn.data.RenameResult
 import com.chatlearn.data.StatsInput
+import com.chatlearn.expansion.ExpansionService
 import kotlinx.coroutines.async
 import com.chatlearn.domain.Lang
 import com.chatlearn.domain.TextOrigin
@@ -23,6 +24,7 @@ fun filterLibrary(items: List<LibraryItem>, query: String, lang: Lang?, tag: Str
 
 class LibraryViewModel(
     private val repo: EntryRepository,
+    private val expansion: ExpansionService,
     private val clock: () -> Long = System::currentTimeMillis,
 ) : ViewModel() {
     val query = MutableStateFlow("")
@@ -40,6 +42,14 @@ class LibraryViewModel(
     /** 문장별 통계(복습 횟수, 기억 비율 등)를 계산할 재료. 상세 창에서 쓴다. */
     val statsInput: StateFlow<StatsInput?> =
         repo.observeStatsInput().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
+
+    /** 반대 언어 카드가 아직 없는 문장 수. "전체 확장" 버튼 표시에 쓴다. */
+    val unexpanded: StateFlow<Int> = repo.observeStatsInput()
+        .map { si -> si.items.count { item -> si.cards.count { it.entryId == item.entry.id } < 2 } }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
+
+    fun expandAll() = viewModelScope.async { expansion.expandAll() }
+    fun expandOne(id: Long) = viewModelScope.async { expansion.expandOne(id) }
 
     /** 태그 자동완성 후보(최근 사용 순). */
     val recentTags: StateFlow<List<String>> =

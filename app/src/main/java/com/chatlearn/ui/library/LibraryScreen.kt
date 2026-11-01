@@ -10,6 +10,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.ui.Alignment
 import com.chatlearn.data.RenameResult
+import com.chatlearn.domain.TextOrigin
 import com.chatlearn.stats.StatsCalculator
 import java.time.Instant
 import java.time.ZoneId
@@ -40,7 +41,23 @@ fun LibraryScreen(vm: LibraryViewModel) {
 
     Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         OutlinedTextField(value = query, onValueChange = { vm.query.value = it }, modifier = Modifier.fillMaxWidth(), singleLine = true, label = { Text("검색") })
-        if (tags.isNotEmpty()) TextButton(onClick = { managingTags = true }) { Text("태그 관리") }
+        val unexpanded by vm.unexpanded.collectAsStateWithLifecycle()
+        var expandMessage by remember { mutableStateOf<String?>(null) }
+        var expanding by remember { mutableStateOf(false) }
+        val scope = rememberCoroutineScope()
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            if (tags.isNotEmpty()) TextButton(onClick = { managingTags = true }) { Text("태그 관리") }
+            if (unexpanded > 0) TextButton(enabled = !expanding, onClick = {
+                expanding = true
+                scope.launch {
+                    val r = vm.expandAll().await()
+                    expandMessage = "다른 언어 카드 ${r.created}개를 만들었어요." +
+                        if (r.failedBatches > 0) " (실패한 묶음 ${r.failedBatches}개는 다시 눌러 보세요)" else ""
+                    expanding = false
+                }
+            }) { Text(if (expanding) "확장 중…" else "전체 확장 ($unexpanded)") }
+        }
+        expandMessage?.let { Text(it, color = MaterialTheme.colorScheme.primary) }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             listOf(Lang.EN to "영어", Lang.ES to "스페인어").forEach { (l, label) ->
                 FilterChip(selected = lang == l, onClick = { vm.langFilter.value = if (lang == l) null else l }, label = { Text(label) })
@@ -72,6 +89,9 @@ fun LibraryScreen(vm: LibraryViewModel) {
 private fun DetailDialog(item: LibraryItem, recentTags: List<String>, vm: LibraryViewModel, onClose: () -> Unit) {
     var ko by remember(item.entry.id) { mutableStateOf(item.texts[Lang.KO].orEmpty()) }
     var note by remember(item.entry.id) { mutableStateOf(item.entry.note) }
+    val altLang = if (item.entry.chatLang == Lang.EN) Lang.ES else Lang.EN
+    val altText = item.texts[altLang]
+    var alt by remember(item.entry.id) { mutableStateOf(altText.orEmpty()) }
     val editedTags = remember(item.entry.id) { mutableStateListOf(*item.tags.toTypedArray()) }
     var tagInput by remember(item.entry.id) { mutableStateOf("") }
     var confirmDelete by remember { mutableStateOf(false) }
@@ -84,6 +104,20 @@ private fun DetailDialog(item: LibraryItem, recentTags: List<String>, vm: Librar
         text = {
             Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 SentenceStatsLine(item.entry.id, vm)
+                if (altText != null) {
+                    OutlinedTextField(
+                        alt, { alt = it }, modifier = Modifier.fillMaxWidth(),
+                        label = { Text(if (altLang == Lang.ES) "스페인어 확장" else "영어 확장") },
+                        supportingText = { if (item.origins[altLang] == TextOrigin.AI) Text("AI 번역 · 고치면 내 문장으로 저장돼요") },
+                    )
+                } else {
+                    var making by remember { mutableStateOf(false) }
+                    val scope2 = rememberCoroutineScope()
+                    OutlinedButton(enabled = !making, onClick = {
+                        making = true
+                        scope2.launch { vm.expandOne(item.entry.id).await(); making = false }
+                    }) { Text(if (making) "만드는 중…" else "다른 언어 카드 만들기") }
+                }
                 OutlinedTextField(ko, { ko = it }, label = { Text("한국어") }, modifier = Modifier.fillMaxWidth())
                 OutlinedTextField(note, { note = it }, label = { Text("설명") }, modifier = Modifier.fillMaxWidth())
                 Text("태그", style = MaterialTheme.typography.labelLarge)
@@ -117,6 +151,7 @@ private fun DetailDialog(item: LibraryItem, recentTags: List<String>, vm: Librar
         confirmButton = {
             TextButton(onClick = {
                 vm.saveText(item.entry.id, Lang.KO, ko); vm.saveNote(item.entry.id, note)
+                if (altText != null && alt.isNotBlank() && alt != altText) vm.saveText(item.entry.id, altLang, alt)
                 // 입력창에 쓰다 만 태그도 잃지 않게 함께 저장한다.
                 vm.saveTags(item.entry.id, (editedTags + parseTags(tagInput)).distinct())
                 onClose()

@@ -1,6 +1,8 @@
 package com.chatlearn.ui.library
 
+import com.chatlearn.ai.FakeAiService
 import com.chatlearn.data.*
+import com.chatlearn.expansion.ExpansionService
 import com.chatlearn.domain.Direction
 import com.chatlearn.domain.Lang
 import kotlinx.coroutines.Dispatchers
@@ -27,7 +29,7 @@ class LibraryViewModelTest {
     @Before fun setUp() {
         Dispatchers.setMain(UnconfinedTestDispatcher())
         db = inMemoryDb(); repo = EntryRepository(db)
-        vm = LibraryViewModel(repo)
+        vm = LibraryViewModel(repo, ExpansionService(repo, FakeAiService(), { 1L }))
     }
     @After fun tearDown() { Dispatchers.resetMain(); db.close() }
 
@@ -45,6 +47,15 @@ class LibraryViewModelTest {
         save("b", listOf("알렉스"), 2)
         assertEquals(RenameResult.Merged, vm.renameTag("Alex", "알렉스").await())
         assertEquals(listOf("알렉스"), repo.observeLibrary().first().flatMap { it.tags }.distinct())
+    }
+
+    @Test fun unexpandedCountDropsAfterExpandAll() = runBlocking {
+        repo.saveEntry(EntryDraft(Direction.RECEIVED, Lang.EN, "a", "한", "", null, emptyList()), 1)
+        repo.saveEntry(EntryDraft(Direction.RECEIVED, Lang.EN, "b", "한", "", null, emptyList()), 2)
+        assertEquals(2, vm.unexpanded.first { it == 2 })
+        val report = vm.expandAll().await()
+        assertEquals(2, report.created)
+        assertEquals(0, vm.unexpanded.first { it == 0 })
     }
 
     @Test fun tagFilterIsClearedWhenItsTagDisappears() = runBlocking {

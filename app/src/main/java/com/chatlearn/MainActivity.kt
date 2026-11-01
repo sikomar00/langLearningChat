@@ -33,7 +33,7 @@ class MainActivity : ComponentActivity() {
             @Suppress("UNCHECKED_CAST")
             override fun <T : ViewModel> create(modelClass: Class<T>): T = when (modelClass) {
                 TranslateViewModel::class.java -> TranslateViewModel(c.ai, c.repo, System::currentTimeMillis)
-                LibraryViewModel::class.java -> LibraryViewModel(c.repo)
+                LibraryViewModel::class.java -> LibraryViewModel(c.repo, c.expansion)
                 ReviewViewModel::class.java -> ReviewViewModel(c.reviewSession())
                 SettingsViewModel::class.java -> SettingsViewModel(c.settings, c.repo)
                 StatsViewModel::class.java -> StatsViewModel(c.repo)

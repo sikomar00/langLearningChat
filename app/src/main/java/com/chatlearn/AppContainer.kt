@@ -9,6 +9,7 @@ import com.chatlearn.ai.geminiHttpClient
 import com.chatlearn.data.AppDatabase
 import com.chatlearn.data.EntryRepository
 import com.chatlearn.data.Migrations
+import com.chatlearn.expansion.ExpansionService
 import com.chatlearn.review.ReviewSession
 import com.chatlearn.settings.DataStoreSettingsRepository
 import com.chatlearn.settings.EncryptedSecretStore
@@ -38,6 +39,8 @@ class AppContainer(context: Context) {
         onCall = { appScope.launch { settings.recordAiCall() } },
         onHttpError = { code, body -> android.util.Log.w("GeminiAi", "HTTP $code: $body") },
     )
+
+    val expansion = ExpansionService(repo, ai, System::currentTimeMillis)
 
     fun reviewSession() = ReviewSession(repo, ai, System::currentTimeMillis, { settings.settings.first().newPerDay })
 }
