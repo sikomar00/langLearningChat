@@ -3,6 +3,7 @@ package com.chatlearn.ui.review
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.chatlearn.data.DueCard
+import com.chatlearn.domain.Lang
 import com.chatlearn.domain.Rating
 import com.chatlearn.review.*
 import kotlinx.coroutines.Job
@@ -36,6 +37,10 @@ class ReviewViewModel(private val session: ReviewSession) : ViewModel() {
     private val _state = MutableStateFlow<ReviewUi>(ReviewUi.Loading)
     val state: StateFlow<ReviewUi> = _state.asStateFlow()
 
+    /** 라이브러리에서 고른 복습이면 그 카드 수, 평소 복습이면 null. */
+    private val _custom = MutableStateFlow<Int?>(null)
+    val custom: StateFlow<Int?> = _custom.asStateFlow()
+
     private val queue = ArrayDeque<DueCard>()
     private var reviewed = 0
     private var started = false
@@ -50,9 +55,21 @@ class ReviewViewModel(private val session: ReviewSession) : ViewModel() {
     fun start(): Job = viewModelScope.launch {
         started = true
         _state.value = ReviewUi.Loading
+        _custom.value = null
         reviewed = 0
         queue.clear()
         queue.addAll(session.loadQueue())
+        if (queue.isEmpty()) _state.value = ReviewUi.Empty else showNext()
+    }
+
+    /** 라이브러리에서 고른 문장만 복습한다. 채점과 일정 반영은 평소 복습과 같다. */
+    fun startWith(entryIds: Set<Long>, answerLang: Lang?): Job = viewModelScope.launch {
+        started = true
+        _state.value = ReviewUi.Loading
+        reviewed = 0
+        queue.clear()
+        queue.addAll(session.loadSelected(entryIds, answerLang))
+        _custom.value = queue.size
         if (queue.isEmpty()) _state.value = ReviewUi.Empty else showNext()
     }
 

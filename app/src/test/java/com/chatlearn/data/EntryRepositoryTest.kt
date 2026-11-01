@@ -210,4 +210,21 @@ class EntryRepositoryTest {
     private fun logFor(card: ReviewCardEntity, at: Long) =
         ReviewLogEntity(cardId = card.id, reviewedAt = at, promptLang = Lang.KO, userAnswer = "x",
             aiVerdict = null, aiFeedback = null, rating = Rating.GOOD)
+
+    @Test fun cardsForSelectedEntriesIgnoreDueDateAndFilterByLanguage() = runBlocking {
+        val a = (repo.saveEntry(draft("Alpha one", "하나", alt = "Alfa uno"), 1_000) as SaveResult.Saved).id
+        val b = (repo.saveEntry(draft("Beta two", "둘", alt = "Beta dos"), 1_000) as SaveResult.Saved).id
+        repo.saveEntry(draft("Gamma three", "셋"), 1_000)
+        val ids = setOf(a, b)
+        val future = db.dao().allCards().map { it.copy(dueAt = 9_999_999_999L, lastReviewedAt = 5) }
+        future.forEach { db.dao().updateCard(it) }
+        val all = repo.cardsFor(ids, null)
+        assertEquals(4, all.size)
+        assertTrue(all.all { it.card.entryId in ids })
+        assertTrue(all.all { it.texts.isNotEmpty() })
+        val es = repo.cardsFor(ids, Lang.ES)
+        assertEquals(2, es.size)
+        assertTrue(es.all { it.card.answerLang == Lang.ES })
+        assertTrue(repo.cardsFor(emptySet(), null).isEmpty())
+    }
 }

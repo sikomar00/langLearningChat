@@ -42,18 +42,20 @@ fun ReviewScreen(vm: ReviewViewModel, statsVm: StatsViewModel) {
 @Composable
 private fun ReviewPane(vm: ReviewViewModel) {
     val state by vm.state.collectAsStateWithLifecycle()
+    val custom by vm.custom.collectAsStateWithLifecycle()
     LaunchedEffect(Unit) { vm.ensureStarted() }
 
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        custom?.let { Text("선택 복습 ${it}장", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary) }
         when (val s = state) {
             ReviewUi.Loading -> CircularProgressIndicator()
             ReviewUi.Empty -> {
-                Text("오늘 복습할 카드가 없어요.", style = MaterialTheme.typography.titleMedium)
-                OutlinedButton(onClick = { vm.start() }) { Text("다시 확인") }
+                Text(if (custom != null) "고른 문장에 복습할 카드가 없어요." else "오늘 복습할 카드가 없어요.", style = MaterialTheme.typography.titleMedium)
+                OutlinedButton(onClick = { vm.start() }) { Text(if (custom != null) "평소 복습으로" else "다시 확인") }
             }
             is ReviewUi.Done -> {
                 Text("오늘 ${s.count}개를 복습했어요.", style = MaterialTheme.typography.titleMedium)
-                OutlinedButton(onClick = { vm.start() }) { Text("더 있는지 확인") }
+                OutlinedButton(onClick = { vm.start() }) { Text(if (custom != null) "평소 복습으로" else "더 있는지 확인") }
             }
             is ReviewUi.Prompt -> {
                 when (s.item.exercise) {

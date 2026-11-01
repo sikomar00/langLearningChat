@@ -47,6 +47,7 @@ class MainActivity : ComponentActivity() {
                 val settings by c.settings.settings.collectAsStateWithLifecycle(initialValue = null)
                 var tab by remember { mutableStateOf<Tab?>(null) }
                 // 키가 없으면 첫 화면을 설정으로 안내한다
+                val reviewVm: ReviewViewModel = viewModel(factory = factory)
                 val current = tab ?: if (settings != null && settings!!.apiKey.isBlank()) Tab.SETTINGS else Tab.TRANSLATE
                 Scaffold(
                     bottomBar = {
@@ -72,8 +73,11 @@ class MainActivity : ComponentActivity() {
                     Surface(Modifier.padding(pad)) {
                         when (current) {
                             Tab.TRANSLATE -> TranslateScreen(viewModel(factory = factory))
-                            Tab.LIBRARY -> LibraryScreen(viewModel(factory = factory))
-                            Tab.REVIEW -> ReviewScreen(viewModel(factory = factory), viewModel(factory = factory))
+                            Tab.LIBRARY -> LibraryScreen(viewModel(factory = factory)) { ids, lang ->
+                                reviewVm.startWith(ids, lang)
+                                tab = Tab.REVIEW
+                            }
+                            Tab.REVIEW -> ReviewScreen(reviewVm, viewModel(factory = factory))
                             Tab.SETTINGS -> SettingsScreen(viewModel(factory = factory))
                         }
                     }

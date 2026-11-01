@@ -59,6 +59,8 @@ class ReviewSession(
         return repo.queue(now, dayStart, newPerDay())
     }
 
+    suspend fun loadSelected(entryIds: Set<Long>, answerLang: Lang?): List<DueCard> = repo.cardsFor(entryIds, answerLang)
+
     suspend fun prepare(due: DueCard): ReviewItem {
         val answerLang = due.card.answerLang
         val reference = due.texts.getValue(answerLang)

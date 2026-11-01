@@ -121,4 +121,30 @@ class ReviewViewModelTest {
         assertIs<ReviewUi.Prompt>(vm.state.value)
         Unit
     }
+
+    @Test fun startWithQueuesSelectedCardsEvenWhenNotDue() = runBlocking {
+        val a = (repo.saveEntry(EntryDraft(Direction.RECEIVED, Lang.EN, "Hi", "안녕", "", null, emptyList()), now + 99_000_000) as SaveResult.Saved).id
+        repo.saveEntry(EntryDraft(Direction.RECEIVED, Lang.EN, "Bye", "잘가", "", null, emptyList()), now - 1)
+        vm.startWith(setOf(a), null).join()
+        val p = assertIs<ReviewUi.Prompt>(vm.state.value)
+        assertEquals("Hi", p.item.reference)
+        assertEquals(1, vm.custom.value)
+        vm.setAnswer("Hi"); vm.submit().join(); vm.rate(Rating.GOOD).join()
+        assertEquals(ReviewUi.Done(1), vm.state.value)
+        assertEquals(1, db.dao().allLogs().size)
+    }
+
+    @Test fun startWithAgainRequeuesAndPlainStartReturnsToNormalQueue() = runBlocking {
+        val a = (repo.saveEntry(EntryDraft(Direction.RECEIVED, Lang.EN, "Hi", "안녕", "", null, emptyList()), now - 1) as SaveResult.Saved).id
+        vm.startWith(setOf(a), null).join()
+        vm.setAnswer("x"); vm.submit().join(); vm.rate(Rating.AGAIN).join()
+        assertIs<ReviewUi.Prompt>(vm.state.value) // 같은 세션에서 다시 나온다
+        vm.start().join()
+        assertNull(vm.custom.value)
+    }
+
+    @Test fun startWithNothingMatchingShowsEmpty() = runBlocking {
+        vm.startWith(setOf(12345L), null).join()
+        assertEquals(ReviewUi.Empty, vm.state.value)
+    }
 }

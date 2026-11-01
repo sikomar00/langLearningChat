@@ -55,6 +55,8 @@ interface AppDao {
     @Query("SELECT * FROM review_card") fun observeCards(): Flow<List<ReviewCardEntity>>
 
     @Query("SELECT * FROM entry_text WHERE entryId = :id") suspend fun textsFor(id: Long): List<EntryTextEntity>
+    @Query("SELECT * FROM review_card WHERE entryId IN (:ids) AND (:lang IS NULL OR answerLang = :lang) ORDER BY dueAt, id")
+    suspend fun cardsForEntries(ids: List<Long>, lang: Lang?): List<ReviewCardEntity>
     @Query("SELECT * FROM review_card WHERE lastReviewedAt IS NOT NULL AND dueAt <= :now ORDER BY dueAt LIMIT :limit")
     suspend fun dueReviewed(now: Long, limit: Int): List<ReviewCardEntity>
     @Query("SELECT * FROM review_card WHERE lastReviewedAt IS NULL AND dueAt <= :now ORDER BY dueAt LIMIT :limit")

@@ -1,6 +1,8 @@
 package com.chatlearn.ui.library
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.rememberScrollState
@@ -28,8 +30,9 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.chatlearn.data.LibraryItem
 import com.chatlearn.domain.Lang
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun LibraryScreen(vm: LibraryViewModel) {
+fun LibraryScreen(vm: LibraryViewModel, onStartReview: (Set<Long>, Lang?) -> Unit = { _, _ -> }) {
     val items by vm.items.collectAsStateWithLifecycle()
     val query by vm.query.collectAsStateWithLifecycle()
     val lang by vm.langFilter.collectAsStateWithLifecycle()
@@ -41,8 +44,22 @@ fun LibraryScreen(vm: LibraryViewModel) {
     val selected = items.firstOrNull { it.entry.id == selectedId }
     val expandedIds by vm.expandedIds.collectAsStateWithLifecycle()
     var managingTags by remember { mutableStateOf(false) }
+    // 길게 눌러 들어가는 선택 모드. 필터가 바뀌어 사라진 항목은 선택에서 뺀다.
+    var picked by remember { mutableStateOf<Set<Long>?>(null) }
+    val visibleIds = items.map { it.entry.id }.toSet()
+    val chosen = picked?.intersect(visibleIds).orEmpty()
 
     Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        if (picked != null) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                Text("${chosen.size}개 선택", style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
+                TextButton(onClick = { picked = if (chosen.size == visibleIds.size) emptySet() else visibleIds }) {
+                    Text(if (chosen.size == visibleIds.size) "선택 해제" else "전체 선택")
+                }
+                TextButton(onClick = { picked = null }) { Text("취소") }
+                Button(enabled = chosen.isNotEmpty(), onClick = { onStartReview(chosen, lang); picked = null }) { Text("선택 복습") }
+            }
+        }
         OutlinedTextField(value = query, onValueChange = { vm.query.value = it }, modifier = Modifier.fillMaxWidth(), singleLine = true, label = { Text("검색") })
         val unexpanded by vm.unexpanded.collectAsStateWithLifecycle()
         var expandMessage by remember { mutableStateOf<String?>(null) }
@@ -72,10 +89,17 @@ fun LibraryScreen(vm: LibraryViewModel) {
         }
         LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             items(items, key = { it.entry.id }) { item ->
-                Card(Modifier.fillMaxWidth().clickable { selectedId = item.entry.id }) {
-                    Column(Modifier.padding(12.dp)) {
-                        Text(item.texts[item.entry.chatLang].orEmpty(), style = MaterialTheme.typography.titleMedium)
-                        Text(item.texts[Lang.KO].orEmpty(), style = MaterialTheme.typography.bodyMedium)
+                val id = item.entry.id
+                Card(Modifier.fillMaxWidth().combinedClickable(
+                    onClick = { if (picked != null) picked = if (id in chosen) chosen - id else chosen + id else selectedId = id },
+                    onLongClick = { if (picked == null) picked = setOf(id) },
+                )) {
+                    Row(Modifier.padding(12.dp), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                        if (picked != null) Checkbox(checked = id in chosen, onCheckedChange = null)
+                        Column(Modifier.weight(1f)) {
+                            Text(item.texts[item.entry.chatLang].orEmpty(), style = MaterialTheme.typography.titleMedium)
+                            Text(item.texts[Lang.KO].orEmpty(), style = MaterialTheme.typography.bodyMedium)
+                        }
                     }
                 }
             }

@@ -153,6 +153,14 @@ class EntryRepository(internal val db: AppDatabase) {
         }
     }
 
+    /** 라이브러리에서 고른 문장의 카드. 기한과 하루 새 카드 수 제한은 보지 않는다. */
+    suspend fun cardsFor(entryIds: Set<Long>, answerLang: Lang?): List<DueCard> {
+        if (entryIds.isEmpty()) return emptyList()
+        return dao.cardsForEntries(entryIds.toList(), answerLang).map { c ->
+            DueCard(c, dao.textsFor(c.entryId).associate { it.lang to it.text })
+        }
+    }
+
     suspend fun putText(entryId: Long, lang: Lang, text: String, origin: TextOrigin) =
         dao.upsertText(EntryTextEntity(entryId, lang, text.trim(), origin))
 
