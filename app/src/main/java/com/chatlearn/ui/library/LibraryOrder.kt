@@ -3,6 +3,11 @@ package com.chatlearn.ui.library
 import com.chatlearn.data.LibraryItem
 import com.chatlearn.data.ReviewCardEntity
 import com.chatlearn.domain.intervalLabel
+import java.time.Instant
+import java.time.LocalDate
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 
 enum class EntryState { NEW, DUE, LATER }
 
@@ -61,4 +66,29 @@ fun stateTitle(s: EntryState): String = when (s) {
     EntryState.DUE -> "복습할 차례"
     EntryState.NEW -> "새 카드"
     EntryState.LATER -> "나중에 복습"
+}
+
+enum class GroupBy(val label: String) { STATE("상태"), DATE("날짜"), TAG("태그"), NONE("묶지 않음") }
+
+private val DATE_TITLE = DateTimeFormatter.ofPattern("M월 d일 (E)", Locale.KOREAN)
+
+/** 저장한 날짜별로 묶는다. 묶음과 묶음 안의 순서는 주어진 순서(처음 나온 순)를 그대로 따른다. */
+fun groupByDate(items: List<LibraryItem>, zone: ZoneId, today: LocalDate): List<Pair<String, List<LibraryItem>>> =
+    items.groupBy { Instant.ofEpochMilli(it.entry.createdAt).atZone(zone).toLocalDate() }
+        .map { (d, list) ->
+            val title = when (d) {
+                today -> "오늘"
+                today.minusDays(1) -> "어제"
+                else -> DATE_TITLE.format(d)
+            }
+            title to list
+        }
+
+const val NO_TAG_TITLE = "태그 없음"
+
+/** 첫 번째 태그로 묶는다. 태그가 없는 문장은 마지막 묶음. */
+fun groupByTag(items: List<LibraryItem>): List<Pair<String, List<LibraryItem>>> {
+    val byTag = items.groupBy { it.tags.firstOrNull() ?: NO_TAG_TITLE }
+    return byTag.entries.filter { it.key != NO_TAG_TITLE }.map { it.key to it.value } +
+        listOfNotNull(byTag[NO_TAG_TITLE]?.let { NO_TAG_TITLE to it })
 }

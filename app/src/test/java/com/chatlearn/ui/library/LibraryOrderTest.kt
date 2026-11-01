@@ -5,6 +5,8 @@ import com.chatlearn.data.LibraryItem
 import com.chatlearn.data.ReviewCardEntity
 import com.chatlearn.domain.Direction
 import com.chatlearn.domain.Lang
+import java.time.LocalDate
+import java.time.ZoneId
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
@@ -105,5 +107,27 @@ class LibraryOrderTest {
         assertEquals(listOf(4L), groups[1].second.map { it.entry.id })
         assertEquals(listOf(1L), groups[2].second.map { it.entry.id })
         assertEquals(listOf(EntryState.LATER), groupByState(listOf(items[0]), progress).map { it.first })
+    }
+
+    private val seoul = ZoneId.of("Asia/Seoul")
+    private fun ms(y: Int, m: Int, d: Int, h: Int = 12) = java.time.LocalDateTime.of(y, m, d, h, 0).atZone(seoul).toInstant().toEpochMilli()
+    private fun tagged(id: Long, created: Long, vararg tags: String) =
+        LibraryItem(EntryEntity(id, created, Direction.RECEIVED, Lang.EN, "", null), mapOf(Lang.EN to "t$id", Lang.KO to "k$id"), tags.toList())
+
+    @Test fun groupsByDateWithTodayAndYesterdayTitlesKeepingOrder() {
+        val today = LocalDate.of(2026, 11, 1)
+        val items = listOf(item(1, ms(2026, 11, 1)), item(2, ms(2026, 11, 1, 8)), item(3, ms(2026, 10, 31)), item(4, ms(2026, 10, 20)))
+        val g = groupByDate(items, seoul, today)
+        assertEquals(listOf("오늘", "어제", "10월 20일"), g.map { it.first.substringBefore(" (") })
+        assertEquals(listOf(1L, 2L), g[0].second.map { it.entry.id })
+        assertEquals(listOf(4L), g[2].second.map { it.entry.id })
+    }
+
+    @Test fun groupsByFirstTagAndPutsUntaggedLast() {
+        val items = listOf(tagged(1, 1), tagged(2, 2, "여행", "음식"), tagged(3, 3, "일상"), tagged(4, 4, "여행"))
+        val g = groupByTag(items)
+        assertEquals(listOf("일상", "여행", "태그 없음").sorted(), g.map { it.first }.sorted())
+        assertEquals("태그 없음", g.last().first)
+        assertEquals(listOf(2L, 4L), g.first { it.first == "여행" }.second.map { it.entry.id })
     }
 }

@@ -96,6 +96,8 @@ fun LibraryScreen(vm: LibraryViewModel, onGoTranslate: () -> Unit = {}, onStartR
         var message by remember { mutableStateOf<String?>(null) }
         val scope = rememberCoroutineScope()
         var showFilters by rememberSaveable { mutableStateOf(false) }
+        var groupBy by rememberSaveable { mutableStateOf(GroupBy.STATE) }
+        var compact by rememberSaveable { mutableStateOf(true) }
         var menuOpen by remember { mutableStateOf(false) }
         val activeFilters = listOf(lang != null, tag != null, statusFilter != StatusFilter.ALL, sort != LibrarySort.RECENT).count { it }
 
@@ -160,6 +162,17 @@ fun LibraryScreen(vm: LibraryViewModel, onGoTranslate: () -> Unit = {}, onStartR
                     }) { Text("초기화") }
                 }
             }
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                item { Text("묶기", style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(end = 4.dp)) }
+                items(GroupBy.entries.toList()) { g ->
+                    FilterChip(selected = groupBy == g, onClick = { groupBy = g }, label = { Text(g.label) })
+                }
+            }
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                item { Text("보기", style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(end = 4.dp)) }
+                item { FilterChip(selected = compact, onClick = { compact = true }, label = { Text("촘촘히") }) }
+                item { FilterChip(selected = !compact, onClick = { compact = false }, label = { Text("카드") }) }
+            }
         } else if (activeFilters > 0) {
             // 접어 둔 상태에서도 걸려 있는 조건을 알 수 있게 한 줄로 보여 준다.
             val summary = listOfNotNull(
@@ -180,28 +193,27 @@ fun LibraryScreen(vm: LibraryViewModel, onGoTranslate: () -> Unit = {}, onStartR
         } else if (picked == null) {
             Text("문장을 길게 누르면 여러 개를 골라 복습할 수 있어요.", style = MaterialTheme.typography.bodySmall)
         }
-        // 많이 틀린 순으로 볼 때는 순서가 의미라서 묶지 않고, 나머지는 상태별로 묶는다.
-        val grouped = sort != LibrarySort.LAPSES
-        val groups = if (grouped) groupByState(items, progress) else listOf(null to items)
+        // 많이 틀린 순으로 볼 때는 순서 자체가 의미라서 묶지 않는다.
+        val effective = if (sort == LibrarySort.LAPSES) GroupBy.NONE else groupBy
         val now = System.currentTimeMillis()
-        LazyColumn(state = listState, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            groups.forEach { (state, groupItems) ->
-                if (state != null) stickyHeader(key = "header-$state") {
-                    GroupHeader(stateTitle(state), groupItems.size)
-                }
-                items(groupItems, key = { it.entry.id }) { item ->
+        val groups: List<LibGroup> = when (effective) {
+            GroupBy.STATE -> groupByState(items, progress).map { (st, l) -> LibGroup("s-$st", stateTitle(st), l, st) }
+            GroupBy.DATE -> groupByDate(items, ZoneId.systemDefault(), java.time.LocalDate.now()).map { (t, l) -> LibGroup("d-$t", t, l, null) }
+            GroupBy.TAG -> groupByTag(items).map { (t, l) -> LibGroup("t-$t", t, l, null) }
+            GroupBy.NONE -> listOf(LibGroup("all", null, items, null))
+        }
+        LazyColumn(state = listState, verticalArrangement = Arrangement.spacedBy(if (compact) 0.dp else 8.dp)) {
+            groups.forEach { g ->
+                if (g.title != null) stickyHeader(key = "header-${g.key}") { GroupHeader(g.title, g.items.size) }
+                items(g.items, key = { it.entry.id }) { item ->
                     val id = item.entry.id
                     val p = progress[id]
-                    EntryCard(
-                        item = item,
-                        // 묶음 제목에 이미 상태가 있으니, 묶지 않을 때와 "나중에" 묶음(남은 기간)에서만 배지를 보여 준다.
-                        badge = p?.let { if (!grouped || state == EntryState.LATER) dueBadge(it, now) else null },
-                        badgeAccent = p?.state == EntryState.DUE,
-                        state = p?.state ?: EntryState.NEW,
-                        selectionMode = picked != null, checked = id in chosen,
-                        onClick = { if (picked != null) picked = if (id in chosen) chosen - id else chosen + id else selectedId = id },
-                        onLongClick = { if (picked == null) picked = setOf(id) },
-                    )
+                    // 묶음 제목이 상태를 말해 주면 배지는 중복이라 생략한다. "나중에" 묶음은 남은 기간을 보여 준다.
+                    val badge = p?.let { if (g.state == null || g.state == EntryState.LATER) dueBadge(it, now) else null }
+                    val onClick = { if (picked != null) picked = if (id in chosen) chosen - id else chosen + id else selectedId = id }
+                    val onLongClick = { if (picked == null) picked = setOf(id) }
+                    if (compact) CompactRow(item, badge, p?.state == EntryState.DUE, p?.state ?: EntryState.NEW, picked != null, id in chosen, onClick, onLongClick)
+                    else EntryCard(item, badge, p?.state == EntryState.DUE, p?.state ?: EntryState.NEW, picked != null, id in chosen, onClick, onLongClick)
                 }
             }
         }
@@ -436,5 +448,38 @@ private fun EntryCard(
             }
             }
         }
+    }
+}
+
+private class LibGroup(val key: String, val title: String?, val items: List<LibraryItem>, val state: EntryState?)
+
+/** 한 줄에 한 문장: 외국어 한 줄 + 한국어 한 줄. 정보 밀도를 높인 기본 보기. */
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun CompactRow(
+    item: LibraryItem, badge: String?, badgeAccent: Boolean, state: EntryState,
+    selectionMode: Boolean, checked: Boolean, onClick: () -> Unit, onLongClick: () -> Unit,
+) {
+    val barColor = when (state) {
+        EntryState.DUE -> MaterialTheme.colorScheme.primary
+        EntryState.NEW -> MaterialTheme.colorScheme.outline
+        EntryState.LATER -> MaterialTheme.statusColors.success
+    }
+    Column(Modifier.fillMaxWidth().combinedClickable(onClick = onClick, onLongClick = onLongClick)) {
+        Row(Modifier.height(IntrinsicSize.Min).heightIn(min = 56.dp), verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.width(4.dp).fillMaxHeight().padding(vertical = 6.dp).background(barColor, MaterialTheme.shapes.extraSmall))
+            if (selectionMode) Checkbox(checked = checked, onCheckedChange = null, modifier = Modifier.padding(start = 8.dp))
+            Column(Modifier.weight(1f).padding(horizontal = 12.dp, vertical = 8.dp)) {
+                Text(item.texts[item.entry.chatLang].orEmpty(), style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                Text(item.texts[Lang.KO].orEmpty(), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+            }
+            Column(Modifier.padding(end = 4.dp), horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Pill(if (item.entry.chatLang == Lang.EN) "EN" else "ES", MaterialTheme.colorScheme.primaryContainer, MaterialTheme.colorScheme.onPrimaryContainer)
+                badge?.let {
+                    Text(it, style = MaterialTheme.typography.labelSmall, color = if (badgeAccent) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+        }
+        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
     }
 }
