@@ -281,4 +281,20 @@ class EntryRepositoryTest {
         repo.setKeyPhrase(id, Lang.EN, "See you")
         assertEquals(listOf(Lang.ES), repo.keyPhraseTargets().map { it.lang })
     }
+
+    @Test fun cardsReviewedSinceCountsDistinctCards() = runBlocking {
+        val id = (repo.saveEntry(draft(), 1_000) as SaveResult.Saved).id
+        val due = repo.queue(1_000, 0, 10).first { it.card.entryId == id }
+        suspend fun log(at: Long) = repo.applyReview(due.card, Scheduler.next(due.card.toState(), Rating.AGAIN, at),
+            ReviewLogEntity(cardId = due.card.id, reviewedAt = at, promptLang = Lang.KO, userAnswer = "x",
+                aiVerdict = null, aiFeedback = null, rating = Rating.AGAIN))
+        log(5_000); log(6_000)
+        assertEquals(1, repo.cardsReviewedSince(0))
+        assertEquals(0, repo.cardsReviewedSince(7_000))
+    }
+
+    @Test fun dueCardCarriesTheEntryNote() = runBlocking {
+        repo.saveEntry(draft(), 1_000)
+        assertEquals("안부 인사", repo.queue(1_000, 0, 10).single().note)
+    }
 }

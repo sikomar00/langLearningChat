@@ -28,6 +28,7 @@ interface AppDao {
     suspend fun setKeyPhrase(entryId: Long, lang: Lang, phrase: String?)
     @Query("SELECT * FROM entry_text WHERE lang != 'KO' AND keyPhrase IS NULL") suspend fun textsWithoutKeyPhrase(): List<EntryTextEntity>
     @Query("SELECT COUNT(*) FROM entry_text WHERE lang != 'KO' AND keyPhrase IS NULL") fun observeMissingKeyPhrases(): Flow<Int>
+    @Query("SELECT COUNT(DISTINCT cardId) FROM review_log WHERE reviewedAt >= :since") suspend fun distinctCardsSince(since: Long): Int
     @Query("DELETE FROM review_log WHERE id = :id") suspend fun deleteLog(id: Long)
     @Query("SELECT COUNT(*) FROM review_card WHERE entryId = :entryId") suspend fun cardCount(entryId: Long): Int
     @Query("SELECT COUNT(*) FROM review_log WHERE reviewedAt >= :since") suspend fun reviewsSince(since: Long): Int

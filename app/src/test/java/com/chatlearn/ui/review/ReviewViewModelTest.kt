@@ -6,6 +6,8 @@ import com.chatlearn.domain.*
 import com.chatlearn.review.FakeTts
 import com.chatlearn.review.GradeOutcome
 import com.chatlearn.review.ReviewSession
+import com.chatlearn.review.exercise.ExercisePolicy
+import com.chatlearn.review.GoalProgress
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
@@ -63,6 +65,10 @@ class ReviewViewModelTest {
     }
 
     private var clockMs = now
+
+    private fun goalVm(goal: Int) = ReviewViewModel(
+        ReviewSession(repo, ai, { clockMs }, { 10 }, { false }, { 0.0 }, FakeTts(), ExercisePolicy::choose, { 0.99 }, dailyGoal = { goal })
+    )
 
     private fun clozeVm(): ReviewViewModel = ReviewViewModel(
         ReviewSession(repo, ai, { clockMs }, { 10 }, { false }, { 0.0 }, FakeTts(), { _, _, _, _ -> ExerciseKind.CLOZE }, { 0.0 })
@@ -304,5 +310,46 @@ class ReviewViewModelTest {
         assertEquals("Lo pensé _____ que me dirías eso", p.item.cloze!!.display)
         assertEquals(listOf("por un momento"), p.item.cloze!!.answers)
         assertEquals("por un momento", p.item.keyPhrase)
+    }
+
+    @Test fun goalCountsDistinctCardsReviewedTodayAndUndoTakesItBack() = runBlocking {
+        two()
+        val v = goalVm(2)
+        v.start().join()
+        assertEquals(GoalProgress(0, 2), v.goal.value)
+        v.setAnswer("x"); v.submit().join(); v.rate(Rating.GOOD).join()
+        assertEquals(GoalProgress(1, 2), v.goal.value)
+        v.setAnswer("y"); v.submit().join(); v.rate(Rating.GOOD).join()
+        assertTrue(v.goal.value.reached)
+        v.undo().join()
+        assertEquals(GoalProgress(1, 2), v.goal.value)
+    }
+
+    @Test fun anAgainRepeatDoesNotCountTheCardTwice() = runBlocking {
+        repo.saveEntry(EntryDraft(Direction.RECEIVED, Lang.EN, "Hi", "안녕", "", null, emptyList()), now - 1)
+        val v = goalVm(5)
+        v.start().join()
+        v.setAnswer("x"); v.submit().join(); v.rate(Rating.AGAIN).join()
+        v.setAnswer("x"); v.submit().join(); v.rate(Rating.GOOD).join()
+        assertEquals(1, v.goal.value.done)
+    }
+
+    @Test fun snoozeMonthPushesTheCardOutWithoutRecording() = runBlocking {
+        two()
+        vm.start().join()
+        val card = assertIs<ReviewUi.Prompt>(vm.state.value).item.card.id
+        vm.snoozeMonth().join()
+        val due = db.dao().allCards().single { it.id == card }.dueAt
+        assertTrue(due >= now + 29L * 86_400_000L)
+        assertTrue(db.dao().allLogs().isEmpty())
+        assertNotEquals(card, assertIs<ReviewUi.Prompt>(vm.state.value).item.card.id)
+    }
+
+    @Test fun theNoteTravelsWithTheCardAndCanBeEdited() = runBlocking {
+        repo.saveEntry(EntryDraft(Direction.RECEIVED, Lang.EN, "Hi", "안녕", "친근한 인사", null, emptyList()), now - 1)
+        vm.start().join()
+        assertEquals("친근한 인사", assertIs<ReviewUi.Prompt>(vm.state.value).item.note)
+        vm.editCurrent("Hi", "안녕", note = "새 메모").join()
+        assertEquals("새 메모", assertIs<ReviewUi.Prompt>(vm.state.value).item.note)
     }
 }

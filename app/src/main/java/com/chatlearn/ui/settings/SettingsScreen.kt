@@ -25,6 +25,7 @@ fun SettingsScreen(vm: SettingsViewModel) {
     var key by remember(s.apiKey) { mutableStateOf(s.apiKey) }
     var model by remember(s.model) { mutableStateOf(s.model) }
     var perDay by remember(s.newPerDay) { mutableStateOf(s.newPerDay.toString()) }
+    var goalText by remember(s.dailyGoal) { mutableStateOf(s.dailyGoal.toString()) }
     var message by remember { mutableStateOf<String?>(null) }
 
     val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
@@ -69,6 +70,9 @@ fun SettingsScreen(vm: SettingsViewModel) {
 
         OutlinedTextField(perDay, { perDay = it.filter(Char::isDigit) }, Modifier.fillMaxWidth(), singleLine = true, label = { Text("하루 새 카드 수") })
         Button(onClick = { vm.saveNewPerDay(perDay.toIntOrNull() ?: 10); message = "저장했어요." }) { Text("새 카드 수 저장") }
+
+        OutlinedTextField(goalText, { goalText = it.filter(Char::isDigit) }, Modifier.fillMaxWidth(), singleLine = true, label = { Text("하루 복습 목표(장, 0이면 끔)") })
+        Button(onClick = { vm.saveDailyGoal(goalText.toIntOrNull() ?: 10); message = "목표를 저장했어요." }) { Text("목표 저장") }
 
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {

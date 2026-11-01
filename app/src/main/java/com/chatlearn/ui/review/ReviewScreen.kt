@@ -30,6 +30,7 @@ import com.chatlearn.domain.ratingLabel
 import com.chatlearn.domain.ratingPreviews
 import com.chatlearn.review.GradeOutcome
 import com.chatlearn.review.specialChars
+import com.chatlearn.review.isLeech
 import com.chatlearn.stats.StatsScreen
 import com.chatlearn.stats.StatsViewModel
 
@@ -58,6 +59,7 @@ private fun ReviewPane(vm: ReviewViewModel) {
     val progress by vm.progress.collectAsStateWithLifecycle()
     val done = ImeAction.Done
     val canUndo by vm.canUndo.collectAsStateWithLifecycle()
+    val goal by vm.goal.collectAsStateWithLifecycle()
     var focusedBlank by remember { mutableIntStateOf(0) }
     var menuOpen by remember { mutableStateOf(false) }
     var editing by remember { mutableStateOf(false) }
@@ -69,12 +71,20 @@ private fun ReviewPane(vm: ReviewViewModel) {
         if (state is ReviewUi.Prompt || state is ReviewUi.Graded) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
                 Text("${minOf(progress.done + 1, progress.total)} / ${progress.total}", Modifier.weight(1f), style = MaterialTheme.typography.labelMedium)
+                if (goal.enabled) {
+                    Text(
+                        "오늘 ${goal.done}/${goal.goal}${if (goal.reached) " ✓" else ""}",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = if (goal.reached) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
                 if (state is ReviewUi.Prompt) {
                     Box {
                         IconButton(onClick = { menuOpen = true }) { Icon(Icons.Default.MoreVert, contentDescription = "카드 메뉴") }
                         DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
                             DropdownMenuItem(text = { Text("문장 수정") }, onClick = { menuOpen = false; editing = true })
                             DropdownMenuItem(text = { Text("오늘은 건너뛰기") }, onClick = { menuOpen = false; vm.skipToday() })
+                            DropdownMenuItem(text = { Text("한 달 쉬기") }, onClick = { menuOpen = false; vm.snoozeMonth() })
                             DropdownMenuItem(text = { Text("이 문장 삭제") }, onClick = { menuOpen = false; confirmDelete = true })
                         }
                     }
@@ -93,13 +103,31 @@ private fun ReviewPane(vm: ReviewViewModel) {
             is ReviewUi.Ready -> {
                 Text("오늘 복습할 카드 ${s.total}장", style = MaterialTheme.typography.titleLarge)
                 Text(if (s.newCards > 0) "복습 ${s.total - s.newCards}장 · 새 카드 ${s.newCards}장" else "모두 복습 카드예요.")
+                if (goal.enabled) {
+                    Text(
+                        if (goal.reached) "오늘 목표 ${goal.goal}장을 달성했어요 ✓" else "오늘 목표 ${goal.done} / ${goal.goal}장",
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                    LinearProgressIndicator(progress = { goal.fraction }, modifier = Modifier.fillMaxWidth())
+                }
                 Button(onClick = { vm.begin() }, Modifier.fillMaxWidth()) { Text("시작") }
             }
             is ReviewUi.Done -> {
                 Text("오늘 ${s.count}개를 복습했어요.", style = MaterialTheme.typography.titleMedium)
+                if (goal.reached) Text("🎉 오늘 목표를 달성했어요! 더 해도 좋아요.", color = MaterialTheme.colorScheme.primary)
+                else if (goal.enabled) Text("오늘 목표까지 ${goal.goal - goal.done}장 남았어요.")
                 OutlinedButton(onClick = { vm.start(preview = true) }) { Text(if (custom != null) "평소 복습으로" else "더 있는지 확인") }
             }
             is ReviewUi.Prompt -> {
+                if (isLeech(s.item.card)) {
+                    Card(Modifier.fillMaxWidth()) {
+                        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text("이 카드를 ${s.item.card.lapses}번 틀렸어요.", style = MaterialTheme.typography.labelLarge)
+                            Text("정답을 확인한 뒤 설명을 읽어 보거나, 한 달 쉬었다가 다시 만나 볼 수 있어요.", style = MaterialTheme.typography.bodySmall)
+                            TextButton(onClick = { vm.snoozeMonth() }, contentPadding = PaddingValues(horizontal = 4.dp)) { Text("한 달 쉬기") }
+                        }
+                    }
+                }
                 when (s.item.exercise) {
                     ExerciseKind.TRANSLATE -> {
                         Text("${langLabel(s.item.promptLang)} → ${langLabel(s.item.card.answerLang)}로 써 보세요", style = MaterialTheme.typography.labelLarge)
@@ -160,6 +188,7 @@ private fun ReviewPane(vm: ReviewViewModel) {
                     ExerciseKind.DICTATION -> Text("뜻: ${s.item.hintKo}", style = MaterialTheme.typography.titleMedium)
                 }
                 Text("내 답: ${s.answer}")
+                if (s.item.note.isNotBlank()) Text("설명: ${s.item.note}", style = MaterialTheme.typography.bodyMedium)
                 s.item.keyPhrase?.let { Text("핵심 표현: $it", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary) }
                 when (val o = s.outcome) {
                     is GradeOutcome.Ai -> {
@@ -212,6 +241,7 @@ private fun ReviewPane(vm: ReviewViewModel) {
     if (editing && promptItem != null) {
         var answerText by remember(promptItem.card.id) { mutableStateOf(promptItem.reference) }
         var koText by remember(promptItem.card.id) { mutableStateOf(promptItem.hintKo) }
+        var noteText by remember(promptItem.card.id) { mutableStateOf(promptItem.note) }
         AlertDialog(
             onDismissRequest = { editing = false },
             title = { Text("문장 수정") },
@@ -219,9 +249,10 @@ private fun ReviewPane(vm: ReviewViewModel) {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedTextField(answerText, { answerText = it }, label = { Text("${langLabel(promptItem.card.answerLang)} 문장") }, modifier = Modifier.fillMaxWidth())
                     OutlinedTextField(koText, { koText = it }, label = { Text("한국어 뜻") }, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(noteText, { noteText = it }, label = { Text("설명 · 메모") }, modifier = Modifier.fillMaxWidth())
                 }
             },
-            confirmButton = { TextButton(enabled = answerText.isNotBlank(), onClick = { vm.editCurrent(answerText, koText); editing = false }) { Text("저장") } },
+            confirmButton = { TextButton(enabled = answerText.isNotBlank(), onClick = { vm.editCurrent(answerText, koText, noteText); editing = false }) { Text("저장") } },
             dismissButton = { TextButton(onClick = { editing = false }) { Text("취소") } },
         )
     }

@@ -49,5 +49,6 @@ class AppContainer(context: Context) {
 
     fun reviewSession() = ReviewSession(
         repo, ai, System::currentTimeMillis, { settings.settings.first().newPerDay }, tts = tts,
+        dailyGoal = { settings.settings.first().dailyGoal },
     )
 }

@@ -27,7 +27,7 @@ enum class RenameResult { Renamed, Merged, Unchanged }
 
 data class StatsInput(val logs: List<ReviewLogEntity>, val cards: List<ReviewCardEntity>, val items: List<LibraryItem>)
 
-data class DueCard(val card: ReviewCardEntity, val texts: Map<Lang, String>, val keyPhrases: Map<Lang, String> = emptyMap())
+data class DueCard(val card: ReviewCardEntity, val texts: Map<Lang, String>, val keyPhrases: Map<Lang, String> = emptyMap(), val note: String = "")
 data class KeyPhrasePending(val entryId: Long, val lang: Lang, val text: String)
 data class LibraryItem(
     val entry: EntryEntity,
@@ -168,7 +168,8 @@ class EntryRepository(internal val db: AppDatabase) {
 
     suspend fun dueCardOf(card: ReviewCardEntity): DueCard {
         val texts = dao.textsFor(card.entryId)
-        return DueCard(card, texts.associate { it.lang to it.text }, texts.mapNotNull { t -> t.keyPhrase?.takeIf { it.isNotEmpty() }?.let { t.lang to it } }.toMap())
+        return DueCard(card, texts.associate { it.lang to it.text }, texts.mapNotNull { t -> t.keyPhrase?.takeIf { it.isNotEmpty() }?.let { t.lang to it } }.toMap(),
+            dao.getEntry(card.entryId)?.note.orEmpty())
     }
 
     /** 텍스트를 바꾼다. 핵심 표현은 새 문장에도 들어 있을 때만 남긴다. */
@@ -206,6 +207,7 @@ class EntryRepository(internal val db: AppDatabase) {
 
     suspend fun postponeCard(cardId: Long, dueAt: Long) = dao.setDue(cardId, dueAt)
     suspend fun cardCount(entryId: Long): Int = dao.cardCount(entryId)
+    suspend fun cardsReviewedSince(since: Long): Int = dao.distinctCardsSince(since)
     suspend fun reviewedSince(since: Long): Boolean = dao.reviewsSince(since) > 0
     suspend fun textsOf(entryId: Long): Map<Lang, String> = dao.textsFor(entryId).associate { it.lang to it.text }
 

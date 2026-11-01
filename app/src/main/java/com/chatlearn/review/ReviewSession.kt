@@ -21,6 +21,7 @@ data class ReviewItem(
     val exercise: ExerciseKind = ExerciseKind.TRANSLATE,
     val cloze: Cloze? = null,
     val keyPhrases: Map<Lang, String> = emptyMap(),
+    val note: String = "",
 ) {
     /** 정답 언어 문장의 핵심 표현. 없으면 null. */
     val keyPhrase: String? get() = keyPhrases[card.answerLang]
@@ -52,6 +53,7 @@ class ReviewSession(
     private val tts: Tts = NoTts,
     private val policy: ExercisePolicyFn = ExercisePolicy::choose,
     private val roll: () -> Double = { Random.nextDouble() },
+    private val dailyGoal: suspend () -> Int = { 0 },
 ) {
     fun now(): Long = clock()
 
@@ -80,10 +82,20 @@ class ReviewSession(
         repo.postponeCard(card.id, tomorrow)
     }
 
+    private fun dayStart(): Long = Instant.ofEpochMilli(clock()).atZone(ZoneId.systemDefault()).toLocalDate()
+        .atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
+
+    /** 오늘 복습한 카드 수와 하루 목표. */
+    suspend fun todayProgress(): GoalProgress = GoalProgress(repo.cardsReviewedSince(dayStart()), dailyGoal())
+
+    /** 여러 번 틀린 카드를 한 달 쉰다: 평가 기록 없이 30일 뒤로 미룬다. */
+    suspend fun snoozeMonth(card: ReviewCardEntity) = repo.postponeCard(card.id, clock() + 30L * 86_400_000L)
+
     suspend fun deleteEntry(entryId: Long) = repo.deleteEntry(entryId)
 
     /** 정답 문장과 한국어 뜻을 고치고, 새 텍스트가 반영된 카드를 돌려준다. */
-    suspend fun edit(card: ReviewCardEntity, answerText: String, ko: String): DueCard {
+    suspend fun edit(card: ReviewCardEntity, answerText: String, ko: String, note: String? = null): DueCard {
+        if (note != null) repo.updateNote(card.entryId, note.trim())
         if (answerText.isNotBlank()) repo.putText(card.entryId, card.answerLang, answerText, TextOrigin.USER)
         if (ko.isNotBlank()) repo.putText(card.entryId, Lang.KO, ko, TextOrigin.USER)
         return repo.dueCardOf(card)
@@ -98,7 +110,7 @@ class ReviewSession(
         val kind = policy(due.card, cloze != null, tts.isAvailable(answerLang), roll())
         if (kind != ExerciseKind.TRANSLATE) {
             // 빈칸 채우기와 받아쓰기는 한국어 뜻이 힌트다.
-            return ReviewItem(due.card, due.texts, Lang.KO, kind, cloze.takeIf { kind == ExerciseKind.CLOZE }, due.keyPhrases)
+            return ReviewItem(due.card, due.texts, Lang.KO, kind, cloze.takeIf { kind == ExerciseKind.CLOZE }, due.keyPhrases, due.note)
         }
         val otherLang = answerLang.otherForeign()
         var texts = due.texts
@@ -112,7 +124,7 @@ class ReviewSession(
             }
             if (otherLang in texts) promptLang = otherLang
         }
-        return ReviewItem(due.card, texts, promptLang, keyPhrases = due.keyPhrases)
+        return ReviewItem(due.card, texts, promptLang, keyPhrases = due.keyPhrases, note = due.note)
     }
 
     fun speak(item: ReviewItem, slow: Boolean) = tts.speak(item.reference, item.card.answerLang, slow)

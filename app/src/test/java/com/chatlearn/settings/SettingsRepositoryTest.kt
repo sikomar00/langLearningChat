@@ -84,4 +84,11 @@ class SettingsRepositoryTest {
         repo.setReminder(false, -3)
         assertEquals(0, repo.settings.first().reminderHour)
     }
+
+    @Test fun dailyGoalDefaultsToTenAndIsClamped() = runBlocking {
+        assertEquals(10, repo.settings.first().dailyGoal)
+        repo.setDailyGoal(25); assertEquals(25, repo.settings.first().dailyGoal)
+        repo.setDailyGoal(-4); assertEquals(0, repo.settings.first().dailyGoal)
+        repo.setDailyGoal(9999); assertEquals(200, repo.settings.first().dailyGoal)
+    }
 }

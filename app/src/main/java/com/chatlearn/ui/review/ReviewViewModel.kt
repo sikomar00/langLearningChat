@@ -54,6 +54,11 @@ class ReviewViewModel(private val session: ReviewSession) : ViewModel() {
     val canUndo: StateFlow<Boolean> = _canUndo.asStateFlow()
     private var lastGraded: ReviewUi.Graded? = null
 
+    private val _goal = MutableStateFlow(GoalProgress(0, 0))
+    /** 오늘 복습한 카드 수와 하루 목표. */
+    val goal: StateFlow<GoalProgress> = _goal.asStateFlow()
+    private suspend fun refreshGoal() { _goal.value = session.todayProgress() }
+
     private val queue = ArrayDeque<DueCard>()
     private var reviewed = 0
     private var started = false
@@ -74,6 +79,7 @@ class ReviewViewModel(private val session: ReviewSession) : ViewModel() {
         reviewed = 0
         queue.clear()
         queue.addAll(session.loadQueue())
+        refreshGoal()
         if (queue.isEmpty()) {
             _progress.value = ReviewProgress(0, 0); _state.value = ReviewUi.Empty
         } else if (preview) {
@@ -96,6 +102,7 @@ class ReviewViewModel(private val session: ReviewSession) : ViewModel() {
         queue.clear()
         queue.addAll(session.loadSelected(entryIds, answerLang))
         _custom.value = queue.size
+        refreshGoal()
         if (queue.isEmpty()) { _progress.value = ReviewProgress(0, 0); _state.value = ReviewUi.Empty } else showNext()
     }
 
@@ -122,12 +129,13 @@ class ReviewViewModel(private val session: ReviewSession) : ViewModel() {
         if (rating || (cur !is ReviewUi.Prompt && cur !is ReviewUi.Done)) return@launch
         if (!session.undoLast()) return@launch
         // 평가 뒤 새로 나온 카드는 큐 맨 앞으로 돌려놓고, "다시"로 뒤에 붙었던 같은 카드는 뺀다.
-        if (cur is ReviewUi.Prompt && cur.item.card.id != g.item.card.id) queue.addFirst(DueCard(cur.item.card, cur.item.texts, cur.item.keyPhrases))
+        if (cur is ReviewUi.Prompt && cur.item.card.id != g.item.card.id) queue.addFirst(DueCard(cur.item.card, cur.item.texts, cur.item.keyPhrases, cur.item.note))
         queue.removeAll { it.card.id == g.item.card.id }
         reviewed = (reviewed - 1).coerceAtLeast(0)
         clearUndo()
         _state.value = g
         refreshProgress()
+        refreshGoal()
     }
 
     /** 복습 중 카드 메뉴: 오늘은 건너뛰기(평가 기록 없이 내일로). */
@@ -135,6 +143,14 @@ class ReviewViewModel(private val session: ReviewSession) : ViewModel() {
         val p = _state.value as? ReviewUi.Prompt ?: return@launch
         if (p.checking) return@launch
         session.skipToday(p.item.card)
+        showNext()
+    }
+
+    /** 자주 틀리는 카드를 한 달 쉰다(평가 기록 없이). */
+    fun snoozeMonth(): Job = viewModelScope.launch {
+        val p = _state.value as? ReviewUi.Prompt ?: return@launch
+        if (p.checking) return@launch
+        session.snoozeMonth(p.item.card)
         showNext()
     }
 
@@ -149,10 +165,10 @@ class ReviewViewModel(private val session: ReviewSession) : ViewModel() {
     }
 
     /** 복습 중 카드 메뉴: 정답 문장과 한국어 뜻을 고친다. 같은 카드를 새 내용으로 다시 낸다. */
-    fun editCurrent(answerText: String, ko: String): Job = viewModelScope.launch {
+    fun editCurrent(answerText: String, ko: String, note: String? = null): Job = viewModelScope.launch {
         val p = _state.value as? ReviewUi.Prompt ?: return@launch
         if (p.checking) return@launch
-        queue.addFirst(session.edit(p.item.card, answerText, ko))
+        queue.addFirst(session.edit(p.item.card, answerText, ko, note))
         showNext()
     }
 
@@ -176,7 +192,7 @@ class ReviewViewModel(private val session: ReviewSession) : ViewModel() {
     fun postpone(): Job = viewModelScope.launch {
         val p = _state.value as? ReviewUi.Prompt ?: return@launch
         if (p.checking) return@launch
-        queue.addLast(DueCard(p.item.card, p.item.texts, p.item.keyPhrases))
+        queue.addLast(DueCard(p.item.card, p.item.texts, p.item.keyPhrases, p.item.note))
         showNext()
     }
 
@@ -219,8 +235,9 @@ class ReviewViewModel(private val session: ReviewSession) : ViewModel() {
                 reviewed++
                 lastGraded = g
                 _canUndo.value = true
+                refreshGoal()
                 // 다시: 갱신된 카드 상태로 같은 세션 끝에 한 번 더 낸다
-                if (r == Rating.AGAIN) queue.addLast(DueCard(updated, g.item.texts, g.item.keyPhrases))
+                if (r == Rating.AGAIN) queue.addLast(DueCard(updated, g.item.texts, g.item.keyPhrases, g.item.note))
                 showNext()
             } finally {
                 rating = false
