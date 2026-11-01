@@ -20,7 +20,7 @@ import com.chatlearn.domain.Lang
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun TranslateScreen(vm: TranslateViewModel) {
+fun TranslateScreen(vm: TranslateViewModel, onSpeak: (String, Lang) -> Unit = { _, _ -> }) {
     val s by vm.state.collectAsStateWithLifecycle()
     val clipboard = LocalClipboardManager.current
 
@@ -77,11 +77,21 @@ fun TranslateScreen(vm: TranslateViewModel) {
                 OutlinedButton(onClick = { vm.translate() }, enabled = !s.loading) { Text("다시 시도") }
             }
         }
-        s.notice?.let { Text(if (it == Notice.Saved) "저장했어요." else "이미 저장된 문장이에요.", color = MaterialTheme.colorScheme.primary) }
+        s.notice?.let {
+            Text(
+                when (it) {
+                    is Notice.Saved -> if (it.cards >= 2) "저장했어요. 영어·스페인어 카드 ${it.cards}장을 만들었어요." else "저장했어요."
+                    Notice.Duplicate -> "이미 저장된 문장이에요."
+                },
+                color = MaterialTheme.colorScheme.primary,
+            )
+        }
 
         s.received?.let { r ->
             Card(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(s.source, style = MaterialTheme.typography.bodyLarge)
+                    r.detectedLang?.let { l -> TextButton(onClick = { onSpeak(s.source, l) }) { Text("원문 듣기") } }
                     Text(r.koTranslation, style = MaterialTheme.typography.titleMedium)
                     Text(r.note, style = MaterialTheme.typography.bodyMedium)
                     Button(onClick = { vm.saveReceived() }) { Text("저장") }
@@ -93,6 +103,7 @@ fun TranslateScreen(vm: TranslateViewModel) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(c.text, style = MaterialTheme.typography.titleMedium)
                     Text(c.toneNote, style = MaterialTheme.typography.bodyMedium)
+                    TextButton(onClick = { onSpeak(c.text, s.targetLang) }) { Text("들어보기") }
                     OutlinedButton(onClick = {
                         clipboard.setText(AnnotatedString(c.text))
                         vm.onCandidateCopied(c)

@@ -26,7 +26,7 @@ sealed interface TranslateError {
 }
 
 sealed interface Notice {
-    data object Saved : Notice
+    data class Saved(val cards: Int) : Notice
     data object Duplicate : Notice
 }
 
@@ -119,11 +119,14 @@ class TranslateViewModel(
     }
 
     // 저장에 성공하면 다음 표현을 바로 입력할 수 있게 입력과 결과를 비운다. 중복이면 그대로 둔다.
-    private fun report(r: SaveResult) = _state.update {
-        if (r is SaveResult.Saved) {
-            it.copy(input = "", source = "", received = null, candidates = emptyList(), error = null, notice = Notice.Saved)
-        } else {
-            it.copy(notice = Notice.Duplicate)
+    private suspend fun report(r: SaveResult) {
+        val cards = if (r is SaveResult.Saved) repo.cardCount(r.id) else 0
+        _state.update {
+            if (r is SaveResult.Saved) {
+                it.copy(input = "", source = "", received = null, candidates = emptyList(), error = null, notice = Notice.Saved(cards))
+            } else {
+                it.copy(notice = Notice.Duplicate)
+            }
         }
     }
 

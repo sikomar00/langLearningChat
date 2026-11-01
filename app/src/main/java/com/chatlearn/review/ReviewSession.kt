@@ -59,6 +59,33 @@ class ReviewSession(
         return repo.queue(now, dayStart, newPerDay())
     }
 
+    private data class Undo(val before: ReviewCardEntity, val logId: Long)
+    private var lastUndo: Undo? = null
+
+    /** 마지막 평가를 취소한다. 취소할 게 없으면 false. */
+    suspend fun undoLast(): Boolean {
+        val u = lastUndo ?: return false
+        repo.undoReview(u.before, u.logId)
+        lastUndo = null
+        return true
+    }
+
+    /** 오늘은 건너뛴다: 평가 기록 없이 다음 날 0시로 미룬다. */
+    suspend fun skipToday(card: ReviewCardEntity) {
+        val tomorrow = Instant.ofEpochMilli(clock()).atZone(ZoneId.systemDefault()).toLocalDate().plusDays(1)
+            .atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
+        repo.postponeCard(card.id, tomorrow)
+    }
+
+    suspend fun deleteEntry(entryId: Long) = repo.deleteEntry(entryId)
+
+    /** 정답 문장과 한국어 뜻을 고치고, 새 텍스트가 반영된 카드를 돌려준다. */
+    suspend fun edit(card: ReviewCardEntity, answerText: String, ko: String): DueCard {
+        if (answerText.isNotBlank()) repo.putText(card.entryId, card.answerLang, answerText, TextOrigin.USER)
+        if (ko.isNotBlank()) repo.putText(card.entryId, Lang.KO, ko, TextOrigin.USER)
+        return DueCard(card, repo.textsOf(card.entryId))
+    }
+
     suspend fun loadSelected(entryIds: Set<Long>, answerLang: Lang?): List<DueCard> = repo.cardsFor(entryIds, answerLang)
 
     suspend fun prepare(due: DueCard): ReviewItem {
@@ -118,7 +145,7 @@ class ReviewSession(
             is GradeOutcome.Local -> outcome.verdict to null
             is GradeOutcome.SelfGrade -> null to null
         }
-        repo.applyReview(
+        val logId = repo.applyReview(
             item.card, next,
             ReviewLogEntity(
                 cardId = item.card.id, reviewedAt = now, promptLang = item.promptLang, userAnswer = answer.trim(),
@@ -126,6 +153,7 @@ class ReviewSession(
                 responseMs = responseMs, exercise = item.exercise,
             ),
         )
+        lastUndo = Undo(item.card, logId)
         return item.card.withState(next)
     }
 

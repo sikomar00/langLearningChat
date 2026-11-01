@@ -227,4 +227,20 @@ class EntryRepositoryTest {
         assertTrue(es.all { it.card.answerLang == Lang.ES })
         assertTrue(repo.cardsFor(emptySet(), null).isEmpty())
     }
+
+    @Test fun reviewedSinceIsTrueOnlyAfterALogInTheWindow() = runBlocking {
+        val id = (repo.saveEntry(draft(), 1_000) as SaveResult.Saved).id
+        assertFalse(repo.reviewedSince(0))
+        val due = repo.queue(1_000, 0, 10).first { it.card.entryId == id }
+        repo.applyReview(due.card, Scheduler.next(due.card.toState(), Rating.GOOD, 5_000),
+            ReviewLogEntity(cardId = due.card.id, reviewedAt = 5_000, promptLang = Lang.KO, userAnswer = "x",
+                aiVerdict = Verdict.CORRECT, aiFeedback = null, rating = Rating.GOOD))
+        assertTrue(repo.reviewedSince(5_000))
+        assertFalse(repo.reviewedSince(5_001))
+    }
+
+    @Test fun cardCountCountsAllLanguages() = runBlocking {
+        val id = (repo.saveEntry(draft(alt = "Hola"), 1_000) as SaveResult.Saved).id
+        assertEquals(2, repo.cardCount(id))
+    }
 }

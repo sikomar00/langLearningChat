@@ -29,8 +29,12 @@ class ReminderReceiver : BroadcastReceiver() {
                 val s = container.settings.settings.first()
                 if (!s.reminderEnabled) return@launch
                 if (intent.action == ACTION_REMINDER) {
-                    val queue = container.reviewSession().loadQueue()
-                    reminderText(queue.size, queue.count { it.card.lastReviewedAt == null })?.let { show(context, it) }
+                    val dayStart = java.time.LocalDate.now().atStartOfDay(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
+                    // 오늘 이미 복습했다면 알리지 않는다.
+                    if (!container.repo.reviewedSince(dayStart)) {
+                        val queue = container.reviewSession().loadQueue()
+                        reminderText(queue.size, queue.count { it.card.lastReviewedAt == null })?.let { show(context, it) }
+                    }
                 }
                 ReminderScheduler(context).apply(true, s.reminderHour)
             } finally {

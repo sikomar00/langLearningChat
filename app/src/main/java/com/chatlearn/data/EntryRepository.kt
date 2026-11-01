@@ -164,11 +164,23 @@ class EntryRepository(internal val db: AppDatabase) {
     suspend fun putText(entryId: Long, lang: Lang, text: String, origin: TextOrigin) =
         dao.upsertText(EntryTextEntity(entryId, lang, text.trim(), origin))
 
-    suspend fun applyReview(card: ReviewCardEntity, newState: CardState, log: ReviewLogEntity) =
+    /** 평가를 저장하고 새 기록의 id를 돌려준다(되돌리기에 쓴다). */
+    suspend fun applyReview(card: ReviewCardEntity, newState: CardState, log: ReviewLogEntity): Long =
         db.withTransaction {
             dao.updateCard(card.withState(newState))
             dao.insertLog(log)
         }
+
+    /** [applyReview]를 취소한다: 카드를 평가 전 상태로 되돌리고 그 기록을 지운다. */
+    suspend fun undoReview(before: ReviewCardEntity, logId: Long) = db.withTransaction {
+        dao.updateCard(before)
+        dao.deleteLog(logId)
+    }
+
+    suspend fun postponeCard(cardId: Long, dueAt: Long) = dao.setDue(cardId, dueAt)
+    suspend fun cardCount(entryId: Long): Int = dao.cardCount(entryId)
+    suspend fun reviewedSince(since: Long): Boolean = dao.reviewsSince(since) > 0
+    suspend fun textsOf(entryId: Long): Map<Lang, String> = dao.textsFor(entryId).associate { it.lang to it.text }
 
     suspend fun deleteEntry(id: Long) = dao.deleteEntry(id)
     suspend fun updateNote(id: Long, note: String) = dao.updateNote(id, note)

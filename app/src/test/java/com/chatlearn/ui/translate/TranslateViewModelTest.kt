@@ -46,7 +46,7 @@ class TranslateViewModelTest {
         assertEquals("번역문", vm.state.value.received?.koTranslation)
         vm.setTag("Alex")
         vm.saveReceived().join()
-        assertEquals(Notice.Saved, vm.state.value.notice)
+        assertEquals(Notice.Saved(2), vm.state.value.notice)
         val item = repo.observeLibrary().first().single()
         assertEquals("How are you?", item.texts[Lang.EN])
         assertEquals(listOf("Alex"), item.tags)
@@ -93,7 +93,7 @@ class TranslateViewModelTest {
         assertEquals("", s.input)
         assertNull(s.received)
         assertEquals("Alex", s.tag)
-        assertEquals(Notice.Saved, s.notice)
+        assertEquals(Notice.Saved(2), s.notice)
     }
 
     @Test fun copyingACandidateClearsInputAndCandidates() = runBlocking {
@@ -215,5 +215,13 @@ class TranslateViewModelTest {
         vm.receiveShared("second").join()
         assertEquals("second", vm.state.value.source)
         assertEquals(2, ai.calls.size)
+    }
+
+    @Test fun savedNoticeCountsTheCardsThatWereCreated() = runBlocking {
+        vm.setInput("Hello"); vm.translate().join(); vm.saveReceived().join()
+        assertEquals(Notice.Saved(2), vm.state.value.notice) // 영어 + 스페인어 확장
+        val off = TranslateViewModel(ai, repo, { 2_000L }) { false }
+        off.setInput("Good night"); off.translate().join(); off.saveReceived().join()
+        assertEquals(Notice.Saved(1), off.state.value.notice)
     }
 }

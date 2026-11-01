@@ -49,6 +49,11 @@ class ReviewViewModel(private val session: ReviewSession) : ViewModel() {
     private val _progress = MutableStateFlow(ReviewProgress(0, 0))
     val progress: StateFlow<ReviewProgress> = _progress.asStateFlow()
 
+    /** 방금 한 평가를 취소할 수 있는가. */
+    private val _canUndo = MutableStateFlow(false)
+    val canUndo: StateFlow<Boolean> = _canUndo.asStateFlow()
+    private var lastGraded: ReviewUi.Graded? = null
+
     private val queue = ArrayDeque<DueCard>()
     private var reviewed = 0
     private var started = false
@@ -65,6 +70,7 @@ class ReviewViewModel(private val session: ReviewSession) : ViewModel() {
         started = true
         _state.value = ReviewUi.Loading
         _custom.value = null
+        clearUndo()
         reviewed = 0
         queue.clear()
         queue.addAll(session.loadQueue())
@@ -85,6 +91,7 @@ class ReviewViewModel(private val session: ReviewSession) : ViewModel() {
     fun startWith(entryIds: Set<Long>, answerLang: Lang?): Job = viewModelScope.launch {
         started = true
         _state.value = ReviewUi.Loading
+        clearUndo()
         reviewed = 0
         queue.clear()
         queue.addAll(session.loadSelected(entryIds, answerLang))
@@ -99,6 +106,61 @@ class ReviewViewModel(private val session: ReviewSession) : ViewModel() {
             val item = session.prepare(next)
             ReviewUi.Prompt(item, List(item.blankCount) { "" }, session.now())
         }
+    }
+
+    private fun clearUndo() { lastGraded = null; _canUndo.value = false }
+
+    private fun refreshProgress() {
+        val cur = _state.value is ReviewUi.Prompt || _state.value is ReviewUi.Graded
+        _progress.value = ReviewProgress(reviewed, reviewed + queue.size + if (cur) 1 else 0)
+    }
+
+    /** 방금 한 평가를 취소하고, 그 카드를 평가 직전 화면으로 되돌려 다시 고르게 한다. */
+    fun undo(): Job = viewModelScope.launch {
+        val g = lastGraded ?: return@launch
+        val cur = _state.value
+        if (rating || (cur !is ReviewUi.Prompt && cur !is ReviewUi.Done)) return@launch
+        if (!session.undoLast()) return@launch
+        // 평가 뒤 새로 나온 카드는 큐 맨 앞으로 돌려놓고, "다시"로 뒤에 붙었던 같은 카드는 뺀다.
+        if (cur is ReviewUi.Prompt && cur.item.card.id != g.item.card.id) queue.addFirst(DueCard(cur.item.card, cur.item.texts))
+        queue.removeAll { it.card.id == g.item.card.id }
+        reviewed = (reviewed - 1).coerceAtLeast(0)
+        clearUndo()
+        _state.value = g
+        refreshProgress()
+    }
+
+    /** 복습 중 카드 메뉴: 오늘은 건너뛰기(평가 기록 없이 내일로). */
+    fun skipToday(): Job = viewModelScope.launch {
+        val p = _state.value as? ReviewUi.Prompt ?: return@launch
+        if (p.checking) return@launch
+        session.skipToday(p.item.card)
+        showNext()
+    }
+
+    /** 복습 중 카드 메뉴: 이 문장을 라이브러리에서 지운다(같은 문장의 다른 언어 카드도 큐에서 뺀다). */
+    fun deleteCurrent(): Job = viewModelScope.launch {
+        val p = _state.value as? ReviewUi.Prompt ?: return@launch
+        if (p.checking) return@launch
+        session.deleteEntry(p.item.card.entryId)
+        queue.removeAll { it.card.entryId == p.item.card.entryId }
+        clearUndo()
+        showNext()
+    }
+
+    /** 복습 중 카드 메뉴: 정답 문장과 한국어 뜻을 고친다. 같은 카드를 새 내용으로 다시 낸다. */
+    fun editCurrent(answerText: String, ko: String): Job = viewModelScope.launch {
+        val p = _state.value as? ReviewUi.Prompt ?: return@launch
+        if (p.checking) return@launch
+        queue.addFirst(session.edit(p.item.card, answerText, ko))
+        showNext()
+    }
+
+    /** 특수문자 버튼: 고른 빈칸(기본 첫 칸)의 끝에 글자를 붙인다. */
+    fun appendToAnswer(text: String, index: Int = 0) {
+        val p = _state.value as? ReviewUi.Prompt ?: return
+        if (index !in p.answers.indices) return
+        setAnswer(p.answers[index] + text, index)
     }
 
     /** 모르겠을 때: 정답을 보여 주고 "다시"를 권한다. 기록은 평가를 누를 때 남는다. */
@@ -155,6 +217,8 @@ class ReviewViewModel(private val session: ReviewSession) : ViewModel() {
             try {
                 val updated = session.rate(g.item, r, g.outcome, g.answer, g.responseMs)
                 reviewed++
+                lastGraded = g
+                _canUndo.value = true
                 // 다시: 갱신된 카드 상태로 같은 세션 끝에 한 번 더 낸다
                 if (r == Rating.AGAIN) queue.addLast(DueCard(updated, g.item.texts))
                 showNext()

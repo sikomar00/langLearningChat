@@ -23,6 +23,10 @@ interface AppDao {
     suspend fun expansionTargets(): List<ExpansionTarget>
     @Update suspend fun updateCard(c: ReviewCardEntity)
     @Insert suspend fun insertLog(l: ReviewLogEntity): Long
+    @Query("DELETE FROM review_log WHERE id = :id") suspend fun deleteLog(id: Long)
+    @Query("SELECT COUNT(*) FROM review_card WHERE entryId = :entryId") suspend fun cardCount(entryId: Long): Int
+    @Query("SELECT COUNT(*) FROM review_log WHERE reviewedAt >= :since") suspend fun reviewsSince(since: Long): Int
+    @Query("UPDATE review_card SET dueAt = :dueAt WHERE id = :id") suspend fun setDue(id: Long, dueAt: Long)
     @Insert suspend fun insertTag(t: TagEntity): Long
     @Insert(onConflict = OnConflictStrategy.IGNORE) suspend fun insertEntryTag(et: EntryTagEntity)
 

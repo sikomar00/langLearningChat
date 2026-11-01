@@ -8,6 +8,7 @@ import com.chatlearn.review.GradeOutcome
 import com.chatlearn.review.ReviewSession
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
@@ -215,5 +216,80 @@ class ReviewViewModelTest {
         vm.ensureStarted().join()
         assertIs<ReviewUi.Ready>(vm.state.value)
         Unit
+    }
+
+    private suspend fun firstCardId() = db.dao().allCards().minOf { it.id }
+
+    @Test fun undoRestoresCardAndLogAndShowsTheSameCardAgain() = runBlocking {
+        two()
+        vm.start().join()
+        val before = assertIs<ReviewUi.Prompt>(vm.state.value).item.card
+        assertFalse(vm.canUndo.value)
+        vm.setAnswer("x"); vm.submit().join(); vm.rate(Rating.GOOD).join()
+        assertEquals(1, db.dao().allLogs().size)
+        assertTrue(vm.canUndo.value)
+        vm.undo().join()
+        assertTrue(db.dao().allLogs().isEmpty())
+        val restored = db.dao().allCards().single { it.id == before.id }
+        assertEquals(before.reps, restored.reps)
+        assertEquals(before.lastReviewedAt, restored.lastReviewedAt)
+        val g = assertIs<ReviewUi.Graded>(vm.state.value)
+        assertEquals(before.id, g.item.card.id)
+        assertEquals(ReviewProgress(0, 2), vm.progress.value)
+        assertFalse(vm.canUndo.value)
+        vm.rate(Rating.EASY).join()
+        assertEquals(Rating.EASY, db.dao().allLogs().single().rating)
+    }
+
+    @Test fun undoAfterAgainLeavesNoDuplicateInTheQueue() = runBlocking {
+        val a = (repo.saveEntry(EntryDraft(Direction.RECEIVED, Lang.EN, "Hi", "안녕", "", null, emptyList()), now - 1) as SaveResult.Saved).id
+        vm.start().join()
+        vm.setAnswer("x"); vm.submit().join(); vm.rate(Rating.AGAIN).join()
+        assertIs<ReviewUi.Prompt>(vm.state.value) // 같은 세션에서 다시 나옴
+        vm.undo().join()
+        assertIs<ReviewUi.Graded>(vm.state.value)
+        vm.rate(Rating.GOOD).join()
+        assertEquals(ReviewUi.Done(1), vm.state.value)
+        assertEquals(1, db.dao().allLogs().size)
+        assertNotNull(a)
+        Unit
+    }
+
+    @Test fun skipTodayMovesTheCardToTomorrowWithoutRecording() = runBlocking {
+        two()
+        vm.start().join()
+        val skipped = assertIs<ReviewUi.Prompt>(vm.state.value).item.card.id
+        vm.skipToday().join()
+        assertNotEquals(skipped, assertIs<ReviewUi.Prompt>(vm.state.value).item.card.id)
+        val due = db.dao().allCards().single { it.id == skipped }.dueAt
+        assertTrue(due > now && due - now <= 86_400_000L)
+        assertTrue(db.dao().allLogs().isEmpty())
+        assertEquals(ReviewProgress(0, 1), vm.progress.value)
+    }
+
+    @Test fun deleteCurrentRemovesTheSentenceAndMovesOn() = runBlocking {
+        two()
+        vm.start().join()
+        val gone = assertIs<ReviewUi.Prompt>(vm.state.value).item.card.entryId
+        vm.deleteCurrent().join()
+        assertEquals(1, repo.observeLibrary().first().size)
+        assertNotEquals(gone, assertIs<ReviewUi.Prompt>(vm.state.value).item.card.entryId)
+    }
+
+    @Test fun editCurrentChangesTheShownSentence() = runBlocking {
+        two()
+        vm.start().join()
+        val p = assertIs<ReviewUi.Prompt>(vm.state.value)
+        vm.editCurrent("Fixed text", "고친 뜻").join()
+        val after = assertIs<ReviewUi.Prompt>(vm.state.value)
+        assertEquals(p.item.card.id, after.item.card.id)
+        assertEquals("Fixed text", after.item.reference)
+    }
+
+    @Test fun appendToAnswerAddsTheCharacterToTheChosenBlank() = runBlocking {
+        two()
+        vm.start().join()
+        vm.setAnswer("ma"); vm.appendToAnswer("ñ")
+        assertEquals("mañ", assertIs<ReviewUi.Prompt>(vm.state.value).answers[0])
     }
 }

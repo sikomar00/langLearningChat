@@ -6,7 +6,12 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.input.ImeAction
@@ -24,6 +29,7 @@ import com.chatlearn.domain.ratingChoices
 import com.chatlearn.domain.ratingLabel
 import com.chatlearn.domain.ratingPreviews
 import com.chatlearn.review.GradeOutcome
+import com.chatlearn.review.specialChars
 import com.chatlearn.stats.StatsScreen
 import com.chatlearn.stats.StatsViewModel
 
@@ -51,12 +57,32 @@ private fun ReviewPane(vm: ReviewViewModel) {
     val custom by vm.custom.collectAsStateWithLifecycle()
     val progress by vm.progress.collectAsStateWithLifecycle()
     val done = ImeAction.Done
+    val canUndo by vm.canUndo.collectAsStateWithLifecycle()
+    var focusedBlank by remember { mutableIntStateOf(0) }
+    var menuOpen by remember { mutableStateOf(false) }
+    var editing by remember { mutableStateOf(false) }
+    var confirmDelete by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) { vm.ensureStarted() }
 
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         custom?.let { Text("선택 복습 ${it}장", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary) }
         if (state is ReviewUi.Prompt || state is ReviewUi.Graded) {
-            Text("${minOf(progress.done + 1, progress.total)} / ${progress.total}", style = MaterialTheme.typography.labelMedium)
+            Row(Modifier.fillMaxWidth(), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                Text("${minOf(progress.done + 1, progress.total)} / ${progress.total}", Modifier.weight(1f), style = MaterialTheme.typography.labelMedium)
+                if (state is ReviewUi.Prompt) {
+                    Box {
+                        IconButton(onClick = { menuOpen = true }) { Icon(Icons.Default.MoreVert, contentDescription = "카드 메뉴") }
+                        DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                            DropdownMenuItem(text = { Text("문장 수정") }, onClick = { menuOpen = false; editing = true })
+                            DropdownMenuItem(text = { Text("오늘은 건너뛰기") }, onClick = { menuOpen = false; vm.skipToday() })
+                            DropdownMenuItem(text = { Text("이 문장 삭제") }, onClick = { menuOpen = false; confirmDelete = true })
+                        }
+                    }
+                }
+            }
+        }
+        if (canUndo && (state is ReviewUi.Prompt || state is ReviewUi.Done)) {
+            TextButton(onClick = { vm.undo() }, contentPadding = PaddingValues(horizontal = 4.dp)) { Text("방금 평가 취소") }
         }
         when (val s = state) {
             ReviewUi.Loading -> CircularProgressIndicator()
@@ -79,7 +105,7 @@ private fun ReviewPane(vm: ReviewViewModel) {
                         Text("${langLabel(s.item.promptLang)} → ${langLabel(s.item.card.answerLang)}로 써 보세요", style = MaterialTheme.typography.labelLarge)
                         Text(s.item.promptText, style = MaterialTheme.typography.headlineSmall)
                         OutlinedTextField(
-                            s.answers[0], { vm.setAnswer(it) }, Modifier.fillMaxWidth(), minLines = 2, label = { Text("내 답") },
+                            s.answers[0], { vm.setAnswer(it) }, Modifier.fillMaxWidth().onFocusChanged { if (it.isFocused) focusedBlank = 0 }, minLines = 2, label = { Text("내 답") },
                             keyboardOptions = KeyboardOptions(imeAction = done), keyboardActions = KeyboardActions(onDone = { vm.submit() }),
                         )
                     }
@@ -90,7 +116,7 @@ private fun ReviewPane(vm: ReviewViewModel) {
                         s.answers.forEachIndexed { i, a ->
                             val last = i == s.answers.lastIndex
                             OutlinedTextField(
-                                a, { vm.setAnswer(it, i) }, Modifier.fillMaxWidth(), singleLine = true, label = { Text("빈칸 ${i + 1}") },
+                                a, { vm.setAnswer(it, i) }, Modifier.fillMaxWidth().onFocusChanged { if (it.isFocused) focusedBlank = i }, singleLine = true, label = { Text("빈칸 ${i + 1}") },
                                 keyboardOptions = KeyboardOptions(imeAction = if (last) done else ImeAction.Next),
                                 keyboardActions = KeyboardActions(onDone = { vm.submit() }),
                             )
@@ -104,9 +130,17 @@ private fun ReviewPane(vm: ReviewViewModel) {
                             OutlinedButton(onClick = { vm.speak(true) }) { Text("느리게 듣기") }
                         }
                         OutlinedTextField(
-                            s.answers[0], { vm.setAnswer(it) }, Modifier.fillMaxWidth(), minLines = 2, label = { Text("들은 문장") },
+                            s.answers[0], { vm.setAnswer(it) }, Modifier.fillMaxWidth().onFocusChanged { if (it.isFocused) focusedBlank = 0 }, minLines = 2, label = { Text("들은 문장") },
                             keyboardOptions = KeyboardOptions(imeAction = done), keyboardActions = KeyboardActions(onDone = { vm.submit() }),
                         )
+                    }
+                }
+                val chars = if (s.item.exercise == ExerciseKind.DICTATION || s.item.exercise == ExerciseKind.CLOZE || s.item.exercise == ExerciseKind.TRANSLATE) specialChars(s.item.card.answerLang) else emptyList()
+                if (chars.isNotEmpty()) {
+                    androidx.compose.foundation.lazy.LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        items(chars) { ch ->
+                            OutlinedButton(onClick = { vm.appendToAnswer(ch, focusedBlank.coerceIn(0, s.answers.lastIndex)) }, contentPadding = PaddingValues(horizontal = 12.dp)) { Text(ch) }
+                        }
                     }
                 }
                 Button(onClick = { vm.submit() }, enabled = s.answers.none { it.isBlank() } && !s.checking, modifier = Modifier.fillMaxWidth()) {
@@ -171,6 +205,33 @@ private fun ReviewPane(vm: ReviewViewModel) {
                 }
             }
         }
+    }
+
+    val promptItem = (state as? ReviewUi.Prompt)?.item
+    if (editing && promptItem != null) {
+        var answerText by remember(promptItem.card.id) { mutableStateOf(promptItem.reference) }
+        var koText by remember(promptItem.card.id) { mutableStateOf(promptItem.hintKo) }
+        AlertDialog(
+            onDismissRequest = { editing = false },
+            title = { Text("문장 수정") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(answerText, { answerText = it }, label = { Text("${langLabel(promptItem.card.answerLang)} 문장") }, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(koText, { koText = it }, label = { Text("한국어 뜻") }, modifier = Modifier.fillMaxWidth())
+                }
+            },
+            confirmButton = { TextButton(enabled = answerText.isNotBlank(), onClick = { vm.editCurrent(answerText, koText); editing = false }) { Text("저장") } },
+            dismissButton = { TextButton(onClick = { editing = false }) { Text("취소") } },
+        )
+    }
+    if (confirmDelete) {
+        AlertDialog(
+            onDismissRequest = { confirmDelete = false },
+            title = { Text("이 문장을 삭제할까요?") },
+            text = { Text("라이브러리에서도 지워지고 되돌릴 수 없어요.") },
+            confirmButton = { TextButton(onClick = { confirmDelete = false; vm.deleteCurrent() }) { Text("삭제") } },
+            dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text("취소") } },
+        )
     }
 }
 

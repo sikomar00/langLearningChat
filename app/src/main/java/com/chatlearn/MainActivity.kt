@@ -93,7 +93,7 @@ class MainActivity : ComponentActivity() {
                 ) { pad ->
                     Surface(Modifier.padding(pad)) {
                         when (current) {
-                            Tab.TRANSLATE -> TranslateScreen(translateVm)
+                            Tab.TRANSLATE -> TranslateScreen(translateVm) { text, lang -> c.tts.speak(text, lang, false) }
                             Tab.LIBRARY -> LibraryScreen(viewModel(factory = factory)) { ids, lang ->
                                 reviewVm.startWith(ids, lang)
                                 tab = Tab.REVIEW
