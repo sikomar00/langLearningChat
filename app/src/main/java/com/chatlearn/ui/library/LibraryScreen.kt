@@ -11,6 +11,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Book
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.SearchOff
+import androidx.compose.foundation.background
+import com.chatlearn.ui.theme.statusColors
 import com.chatlearn.ui.components.EmptyState
 import com.chatlearn.ui.components.LabeledText
 import com.chatlearn.ui.components.SectionCard
@@ -195,6 +197,7 @@ fun LibraryScreen(vm: LibraryViewModel, onGoTranslate: () -> Unit = {}, onStartR
                         // 묶음 제목에 이미 상태가 있으니, 묶지 않을 때와 "나중에" 묶음(남은 기간)에서만 배지를 보여 준다.
                         badge = p?.let { if (!grouped || state == EntryState.LATER) dueBadge(it, now) else null },
                         badgeAccent = p?.state == EntryState.DUE,
+                        state = p?.state ?: EntryState.NEW,
                         selectionMode = picked != null, checked = id in chosen,
                         onClick = { if (picked != null) picked = if (id in chosen) chosen - id else chosen + id else selectedId = id },
                         onLongClick = { if (picked == null) picked = setOf(id) },
@@ -400,11 +403,19 @@ private fun Pill(text: String, container: androidx.compose.ui.graphics.Color, co
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun EntryCard(
-    item: LibraryItem, badge: String?, badgeAccent: Boolean,
+    item: LibraryItem, badge: String?, badgeAccent: Boolean, state: EntryState,
     selectionMode: Boolean, checked: Boolean, onClick: () -> Unit, onLongClick: () -> Unit,
 ) {
     Card(Modifier.fillMaxWidth().combinedClickable(onClick = onClick, onLongClick = onLongClick)) {
-        Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+        // 왼쪽 색 막대: 복습할 차례=보라, 새 카드=회색, 나중에 복습(이미 복습함)=초록
+        val barColor = when (state) {
+            EntryState.DUE -> MaterialTheme.colorScheme.primary
+            EntryState.NEW -> MaterialTheme.colorScheme.outline
+            EntryState.LATER -> MaterialTheme.statusColors.success
+        }
+        Row(Modifier.height(IntrinsicSize.Min)) {
+            Box(Modifier.width(5.dp).fillMaxHeight().background(barColor))
+            Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
             if (selectionMode) Checkbox(checked = checked, onCheckedChange = null)
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 // 1줄: 언어·태그 칩, 오른쪽에 상태 배지
@@ -422,6 +433,7 @@ private fun EntryCard(
                 }
                 Text(item.texts[item.entry.chatLang].orEmpty(), style = MaterialTheme.typography.titleMedium, maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
                 Text(item.texts[Lang.KO].orEmpty(), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+            }
             }
         }
     }
