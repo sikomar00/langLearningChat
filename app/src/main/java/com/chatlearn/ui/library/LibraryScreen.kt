@@ -96,8 +96,10 @@ fun LibraryScreen(vm: LibraryViewModel, onGoTranslate: () -> Unit = {}, onStartR
         var message by remember { mutableStateOf<String?>(null) }
         val scope = rememberCoroutineScope()
         var showFilters by rememberSaveable { mutableStateOf(false) }
-        var groupBy by rememberSaveable { mutableStateOf(GroupBy.STATE) }
-        var compact by rememberSaveable { mutableStateOf(true) }
+        // 보기·묶기 선택은 화면 취향이라 앱을 껐다 켜도 유지되게 따로 저장한다.
+        val uiPrefs = androidx.compose.ui.platform.LocalContext.current.getSharedPreferences("ui_prefs", android.content.Context.MODE_PRIVATE)
+        var groupBy by remember { mutableStateOf(GroupBy.entries.firstOrNull { it.name == uiPrefs.getString("library_group", null) } ?: GroupBy.STATE) }
+        var compact by remember { mutableStateOf(uiPrefs.getBoolean("library_compact", true)) }
         var menuOpen by remember { mutableStateOf(false) }
         val activeFilters = listOf(lang != null, tag != null, statusFilter != StatusFilter.ALL, sort != LibrarySort.RECENT).count { it }
 
@@ -165,13 +167,13 @@ fun LibraryScreen(vm: LibraryViewModel, onGoTranslate: () -> Unit = {}, onStartR
             LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                 item { Text("묶기", style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(end = 4.dp)) }
                 items(GroupBy.entries.toList()) { g ->
-                    FilterChip(selected = groupBy == g, onClick = { groupBy = g }, label = { Text(g.label) })
+                    FilterChip(selected = groupBy == g, onClick = { groupBy = g; uiPrefs.edit().putString("library_group", g.name).apply() }, label = { Text(g.label) })
                 }
             }
             LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                 item { Text("보기", style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(end = 4.dp)) }
-                item { FilterChip(selected = compact, onClick = { compact = true }, label = { Text("촘촘히") }) }
-                item { FilterChip(selected = !compact, onClick = { compact = false }, label = { Text("카드") }) }
+                item { FilterChip(selected = compact, onClick = { compact = true; uiPrefs.edit().putBoolean("library_compact", true).apply() }, label = { Text("촘촘히") }) }
+                item { FilterChip(selected = !compact, onClick = { compact = false; uiPrefs.edit().putBoolean("library_compact", false).apply() }, label = { Text("카드") }) }
             }
         } else if (activeFilters > 0) {
             // 접어 둔 상태에서도 걸려 있는 조건을 알 수 있게 한 줄로 보여 준다.
