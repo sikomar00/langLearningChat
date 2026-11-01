@@ -48,7 +48,24 @@ fun SettingsScreen(vm: SettingsViewModel) {
         Button(onClick = { vm.saveKey(key); message = "키를 저장했어요." }) { Text("키 저장") }
 
         OutlinedTextField(model, { model = it }, Modifier.fillMaxWidth(), singleLine = true, label = { Text("모델 이름") })
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            listOf("gemini-flash-latest", "gemini-flash-lite-latest").forEach { preset ->
+                FilterChip(selected = model == preset, onClick = { model = preset }, label = { Text(preset) })
+            }
+        }
         Button(onClick = { vm.saveModel(model); message = "모델을 저장했어요." }) { Text("모델 저장") }
+
+        var checking by remember { mutableStateOf(false) }
+        var checkResult by remember { mutableStateOf<String?>(null) }
+        OutlinedButton(enabled = !checking, onClick = {
+            checking = true; checkResult = null
+            scope.launch {
+                checkResult = vm.checkConnection()?.let(::connectionMessage) ?: "연결됐어요. 키와 모델이 잘 동작해요."
+                checking = false
+            }
+        }) { Text(if (checking) "확인 중…" else "연결 확인") }
+        Text("저장한 키와 모델로 확인해요. 먼저 저장해 주세요.", style = MaterialTheme.typography.bodySmall)
+        checkResult?.let { Text(it, color = MaterialTheme.colorScheme.primary) }
 
         OutlinedTextField(perDay, { perDay = it.filter(Char::isDigit) }, Modifier.fillMaxWidth(), singleLine = true, label = { Text("하루 새 카드 수") })
         Button(onClick = { vm.saveNewPerDay(perDay.toIntOrNull() ?: 10); message = "저장했어요." }) { Text("새 카드 수 저장") }
@@ -72,4 +89,13 @@ fun SettingsScreen(vm: SettingsViewModel) {
         Text("가져오면 지금 있는 데이터가 백업 파일의 내용으로 바뀝니다.", style = MaterialTheme.typography.bodySmall)
         message?.let { Text(it, color = MaterialTheme.colorScheme.primary) }
     }
+}
+
+private fun connectionMessage(e: com.chatlearn.ai.AiError) = when (e) {
+    com.chatlearn.ai.AiError.BAD_KEY -> "API 키나 모델 이름이 올바르지 않아요."
+    com.chatlearn.ai.AiError.OFFLINE -> "인터넷에 연결되어 있지 않아요."
+    com.chatlearn.ai.AiError.TIMEOUT -> "응답이 너무 오래 걸려요. 잠시 후 다시 확인해 보세요."
+    com.chatlearn.ai.AiError.RATE_LIMIT -> "한도에 도달했어요. 키는 유효해 보여요. 잠시 후 다시 시도해 주세요."
+    com.chatlearn.ai.AiError.OVERLOADED -> "지금 이 모델에 요청이 몰려 있어요. 다른 모델로 바꿔 보세요."
+    com.chatlearn.ai.AiError.BAD_FORMAT, com.chatlearn.ai.AiError.SERVER -> "AI 서버 응답에 문제가 있어요. 잠시 후 다시 시도해 주세요."
 }

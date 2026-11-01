@@ -37,7 +37,7 @@ class MainActivity : ComponentActivity() {
                     TranslateViewModel(c.ai, c.repo, System::currentTimeMillis) { c.settings.settings.first().autoExpand }
                 LibraryViewModel::class.java -> LibraryViewModel(c.repo, c.expansion)
                 ReviewViewModel::class.java -> ReviewViewModel(c.reviewSession())
-                SettingsViewModel::class.java -> SettingsViewModel(c.settings, c.repo)
+                SettingsViewModel::class.java -> SettingsViewModel(c.settings, c.repo, c.ai)
                 StatsViewModel::class.java -> StatsViewModel(c.repo)
                 else -> error("unknown ViewModel")
             } as T

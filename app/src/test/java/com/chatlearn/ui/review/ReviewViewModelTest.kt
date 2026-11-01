@@ -4,6 +4,7 @@ import com.chatlearn.ai.*
 import com.chatlearn.data.*
 import com.chatlearn.domain.*
 import com.chatlearn.review.FakeTts
+import com.chatlearn.review.GradeOutcome
 import com.chatlearn.review.ReviewSession
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -146,5 +147,43 @@ class ReviewViewModelTest {
     @Test fun startWithNothingMatchingShowsEmpty() = runBlocking {
         vm.startWith(setOf(12345L), null).join()
         assertEquals(ReviewUi.Empty, vm.state.value)
+    }
+
+    private suspend fun two(): Pair<Long, Long> {
+        val a = (repo.saveEntry(EntryDraft(Direction.RECEIVED, Lang.EN, "Hi", "안녕", "", null, emptyList()), now - 2) as SaveResult.Saved).id
+        val b = (repo.saveEntry(EntryDraft(Direction.RECEIVED, Lang.EN, "Bye", "잘가", "", null, emptyList()), now - 1) as SaveResult.Saved).id
+        return a to b
+    }
+
+    @Test fun progressCountsFinishedAndTotal() = runBlocking {
+        two()
+        vm.start().join()
+        assertEquals(ReviewProgress(0, 2), vm.progress.value)
+        vm.setAnswer("Hi"); vm.submit().join(); vm.rate(Rating.GOOD).join()
+        assertEquals(ReviewProgress(1, 2), vm.progress.value)
+    }
+
+    @Test fun giveUpShowsTheAnswerAndSuggestsAgain() = runBlocking {
+        two()
+        vm.start().join()
+        vm.giveUp().join()
+        val g = assertIs<ReviewUi.Graded>(vm.state.value)
+        assertEquals(Rating.AGAIN, g.suggested)
+        assertIs<GradeOutcome.SelfGrade>(g.outcome)
+        assertEquals("", g.answer)
+        assertTrue(db.dao().allLogs().isEmpty()) // 평가를 누르기 전에는 기록하지 않는다
+        vm.rate(Rating.AGAIN).join()
+        assertEquals(Rating.AGAIN, db.dao().allLogs().single().rating)
+    }
+
+    @Test fun postponeMovesTheCardToTheEndWithoutRecording() = runBlocking {
+        two()
+        vm.start().join()
+        val first = assertIs<ReviewUi.Prompt>(vm.state.value).item.card.id
+        vm.postpone().join()
+        val second = assertIs<ReviewUi.Prompt>(vm.state.value).item.card.id
+        assertNotEquals(first, second)
+        assertTrue(db.dao().allLogs().isEmpty())
+        assertEquals(ReviewProgress(0, 2), vm.progress.value)
     }
 }

@@ -71,7 +71,12 @@ fun TranslateScreen(vm: TranslateViewModel) {
             if (s.loading) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp) else Text("번역")
         }
 
-        s.error?.let { Text(errorText(it), color = MaterialTheme.colorScheme.error) }
+        s.error?.let {
+            Text(errorText(it), color = MaterialTheme.colorScheme.error)
+            if (it is TranslateError.Ai && it.kind != AiError.BAD_KEY) {
+                OutlinedButton(onClick = { vm.translate() }, enabled = !s.loading) { Text("다시 시도") }
+            }
+        }
         s.notice?.let { Text(if (it == Notice.Saved) "저장했어요." else "이미 저장된 문장이에요.", color = MaterialTheme.colorScheme.primary) }
 
         s.received?.let { r ->

@@ -33,6 +33,9 @@ sealed interface ReviewUi {
     data class Done(val count: Int) : ReviewUi
 }
 
+/** [done]개를 끝냈고 이번 세션에서 낼 카드가 [total]장(다시 평가한 카드 포함). */
+data class ReviewProgress(val done: Int, val total: Int)
+
 class ReviewViewModel(private val session: ReviewSession) : ViewModel() {
     private val _state = MutableStateFlow<ReviewUi>(ReviewUi.Loading)
     val state: StateFlow<ReviewUi> = _state.asStateFlow()
@@ -40,6 +43,9 @@ class ReviewViewModel(private val session: ReviewSession) : ViewModel() {
     /** 라이브러리에서 고른 복습이면 그 카드 수, 평소 복습이면 null. */
     private val _custom = MutableStateFlow<Int?>(null)
     val custom: StateFlow<Int?> = _custom.asStateFlow()
+
+    private val _progress = MutableStateFlow(ReviewProgress(0, 0))
+    val progress: StateFlow<ReviewProgress> = _progress.asStateFlow()
 
     private val queue = ArrayDeque<DueCard>()
     private var reviewed = 0
@@ -59,7 +65,7 @@ class ReviewViewModel(private val session: ReviewSession) : ViewModel() {
         reviewed = 0
         queue.clear()
         queue.addAll(session.loadQueue())
-        if (queue.isEmpty()) _state.value = ReviewUi.Empty else showNext()
+        if (queue.isEmpty()) { _progress.value = ReviewProgress(0, 0); _state.value = ReviewUi.Empty } else showNext()
     }
 
     /** 라이브러리에서 고른 문장만 복습한다. 채점과 일정 반영은 평소 복습과 같다. */
@@ -70,15 +76,33 @@ class ReviewViewModel(private val session: ReviewSession) : ViewModel() {
         queue.clear()
         queue.addAll(session.loadSelected(entryIds, answerLang))
         _custom.value = queue.size
-        if (queue.isEmpty()) _state.value = ReviewUi.Empty else showNext()
+        if (queue.isEmpty()) { _progress.value = ReviewProgress(0, 0); _state.value = ReviewUi.Empty } else showNext()
     }
 
     private suspend fun showNext() {
         val next = queue.removeFirstOrNull()
+        _progress.value = ReviewProgress(reviewed, reviewed + queue.size + if (next == null) 0 else 1)
         _state.value = if (next == null) ReviewUi.Done(reviewed) else {
             val item = session.prepare(next)
             ReviewUi.Prompt(item, List(item.blankCount) { "" }, session.now())
         }
+    }
+
+    /** 모르겠을 때: 정답을 보여 주고 "다시"를 권한다. 기록은 평가를 누를 때 남는다. */
+    fun giveUp(): Job = viewModelScope.launch {
+        val p = _state.value as? ReviewUi.Prompt ?: return@launch
+        if (p.checking) return@launch
+        _state.value = ReviewUi.Graded(
+            p.item, GradeOutcome.SelfGrade(p.item.reference, null), "", Rating.AGAIN, session.now() - p.shownAt,
+        )
+    }
+
+    /** 지금 카드를 기록 없이 큐 맨 뒤로 보낸다. */
+    fun postpone(): Job = viewModelScope.launch {
+        val p = _state.value as? ReviewUi.Prompt ?: return@launch
+        if (p.checking) return@launch
+        queue.addLast(DueCard(p.item.card, p.item.texts))
+        showNext()
     }
 
     fun setAnswer(s: String, index: Int = 0) {

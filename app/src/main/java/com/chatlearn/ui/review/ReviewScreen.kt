@@ -7,6 +7,9 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.graphics.Color
@@ -17,6 +20,7 @@ import androidx.compose.ui.text.withStyle
 import com.chatlearn.domain.ExerciseKind
 import com.chatlearn.domain.Lang
 import com.chatlearn.domain.Rating
+import com.chatlearn.domain.ratingPreviews
 import com.chatlearn.review.GradeOutcome
 import com.chatlearn.stats.StatsScreen
 import com.chatlearn.stats.StatsViewModel
@@ -43,10 +47,15 @@ fun ReviewScreen(vm: ReviewViewModel, statsVm: StatsViewModel) {
 private fun ReviewPane(vm: ReviewViewModel) {
     val state by vm.state.collectAsStateWithLifecycle()
     val custom by vm.custom.collectAsStateWithLifecycle()
+    val progress by vm.progress.collectAsStateWithLifecycle()
+    val done = ImeAction.Done
     LaunchedEffect(Unit) { vm.ensureStarted() }
 
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         custom?.let { Text("선택 복습 ${it}장", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary) }
+        if (state is ReviewUi.Prompt || state is ReviewUi.Graded) {
+            Text("${minOf(progress.done + 1, progress.total)} / ${progress.total}", style = MaterialTheme.typography.labelMedium)
+        }
         when (val s = state) {
             ReviewUi.Loading -> CircularProgressIndicator()
             ReviewUi.Empty -> {
@@ -62,14 +71,22 @@ private fun ReviewPane(vm: ReviewViewModel) {
                     ExerciseKind.TRANSLATE -> {
                         Text("${langLabel(s.item.promptLang)} → ${langLabel(s.item.card.answerLang)}로 써 보세요", style = MaterialTheme.typography.labelLarge)
                         Text(s.item.promptText, style = MaterialTheme.typography.headlineSmall)
-                        OutlinedTextField(s.answers[0], { vm.setAnswer(it) }, Modifier.fillMaxWidth(), minLines = 2, label = { Text("내 답") })
+                        OutlinedTextField(
+                            s.answers[0], { vm.setAnswer(it) }, Modifier.fillMaxWidth(), minLines = 2, label = { Text("내 답") },
+                            keyboardOptions = KeyboardOptions(imeAction = done), keyboardActions = KeyboardActions(onDone = { vm.submit() }),
+                        )
                     }
                     ExerciseKind.CLOZE -> {
                         Text("빈칸을 채워 보세요 (${langLabel(s.item.card.answerLang)})", style = MaterialTheme.typography.labelLarge)
                         Text(s.item.cloze!!.display, style = MaterialTheme.typography.headlineSmall)
                         Text("뜻: ${s.item.hintKo}", style = MaterialTheme.typography.bodyMedium)
                         s.answers.forEachIndexed { i, a ->
-                            OutlinedTextField(a, { vm.setAnswer(it, i) }, Modifier.fillMaxWidth(), singleLine = true, label = { Text("빈칸 ${i + 1}") })
+                            val last = i == s.answers.lastIndex
+                            OutlinedTextField(
+                                a, { vm.setAnswer(it, i) }, Modifier.fillMaxWidth(), singleLine = true, label = { Text("빈칸 ${i + 1}") },
+                                keyboardOptions = KeyboardOptions(imeAction = if (last) done else ImeAction.Next),
+                                keyboardActions = KeyboardActions(onDone = { vm.submit() }),
+                            )
                         }
                     }
                     ExerciseKind.DICTATION -> {
@@ -79,11 +96,20 @@ private fun ReviewPane(vm: ReviewViewModel) {
                             OutlinedButton(onClick = { vm.speak(false) }) { Text("다시 듣기") }
                             OutlinedButton(onClick = { vm.speak(true) }) { Text("느리게 듣기") }
                         }
-                        OutlinedTextField(s.answers[0], { vm.setAnswer(it) }, Modifier.fillMaxWidth(), minLines = 2, label = { Text("들은 문장") })
+                        OutlinedTextField(
+                            s.answers[0], { vm.setAnswer(it) }, Modifier.fillMaxWidth(), minLines = 2, label = { Text("들은 문장") },
+                            keyboardOptions = KeyboardOptions(imeAction = done), keyboardActions = KeyboardActions(onDone = { vm.submit() }),
+                        )
                     }
                 }
                 Button(onClick = { vm.submit() }, enabled = s.answers.none { it.isBlank() } && !s.checking, modifier = Modifier.fillMaxWidth()) {
                     if (s.checking) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp) else Text("제출")
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(enabled = !s.checking, onClick = { vm.giveUp() }) { Text("정답 보기") }
+                    if (progress.total - progress.done > 1) {
+                        OutlinedButton(enabled = !s.checking, onClick = { vm.postpone() }) { Text("나중에") }
+                    }
                 }
             }
             is ReviewUi.Graded -> {
@@ -118,10 +144,14 @@ private fun ReviewPane(vm: ReviewViewModel) {
                         if (s.item.hintKo.isNotBlank() && s.item.exercise == ExerciseKind.CLOZE) Text("뜻: ${s.item.hintKo}")
                     }
                 }
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                val previews = remember(s.item.card) { ratingPreviews(s.item.card.toState(), System.currentTimeMillis()) }
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     listOf(Rating.AGAIN to "다시", Rating.HARD to "어려움", Rating.GOOD to "좋음", Rating.EASY to "쉬움").forEach { (r, label) ->
-                        if (r == s.suggested) Button(onClick = { vm.rate(r) }) { Text(label) }
-                        else OutlinedButton(onClick = { vm.rate(r) }) { Text(label) }
+                        Column(Modifier.weight(1f), horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally) {
+                            if (r == s.suggested) Button(onClick = { vm.rate(r) }, Modifier.fillMaxWidth(), contentPadding = PaddingValues(horizontal = 4.dp)) { Text(label, maxLines = 1) }
+                            else OutlinedButton(onClick = { vm.rate(r) }, Modifier.fillMaxWidth(), contentPadding = PaddingValues(horizontal = 4.dp)) { Text(label, maxLines = 1) }
+                            Text(previews.getValue(r), style = MaterialTheme.typography.labelSmall)
+                        }
                     }
                 }
             }
