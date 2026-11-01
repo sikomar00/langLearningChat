@@ -8,7 +8,11 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Book
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.SearchOff
+import com.chatlearn.ui.components.EmptyState
+import com.chatlearn.ui.components.LoadingBox
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -39,7 +43,7 @@ private const val AI_FAILED_HINT = "AI에 연결하지 못했어요. 설정 탭�
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun LibraryScreen(vm: LibraryViewModel, onStartReview: (Set<Long>, Lang?) -> Unit = { _, _ -> }) {
+fun LibraryScreen(vm: LibraryViewModel, onGoTranslate: () -> Unit = {}, onStartReview: (Set<Long>, Lang?) -> Unit = { _, _ -> }) {
     val items by vm.items.collectAsStateWithLifecycle()
     val query by vm.query.collectAsStateWithLifecycle()
     val lang by vm.langFilter.collectAsStateWithLifecycle()
@@ -72,7 +76,7 @@ fun LibraryScreen(vm: LibraryViewModel, onStartReview: (Set<Long>, Lang?) -> Uni
 
     Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         if (picked != null) {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text("${chosen.size}개 선택", style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
                 TextButton(onClick = { picked = if (chosen.size == visibleIds.size) emptySet() else visibleIds }) {
                     Text(if (chosen.size == visibleIds.size) "선택 해제" else "전체 선택")
@@ -91,7 +95,7 @@ fun LibraryScreen(vm: LibraryViewModel, onStartReview: (Set<Long>, Lang?) -> Uni
         var menuOpen by remember { mutableStateOf(false) }
         val activeFilters = listOf(lang != null, tag != null, statusFilter != StatusFilter.ALL, sort != LibrarySort.RECENT).count { it }
 
-        Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
             OutlinedTextField(value = query, onValueChange = { vm.query.value = it }, modifier = Modifier.weight(1f), singleLine = true, label = { Text("검색") })
             TextButton(onClick = { showFilters = !showFilters }) { Text(if (activeFilters > 0) "필터 · $activeFilters" else "필터") }
             if (tags.isNotEmpty() || unexpanded > 0 || missingKeys > 0) {
@@ -141,7 +145,7 @@ fun LibraryScreen(vm: LibraryViewModel, onStartReview: (Set<Long>, Lang?) -> Uni
                     FilterChip(selected = statusFilter == f, onClick = { vm.statusFilter.value = f }, label = { Text(f.label) })
                 }
             }
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                 items(LibrarySort.entries.toList()) { o ->
                     FilterChip(selected = sort == o, onClick = { vm.sort.value = o }, label = { Text(o.label) })
                 }
@@ -161,8 +165,14 @@ fun LibraryScreen(vm: LibraryViewModel, onStartReview: (Set<Long>, Lang?) -> Uni
             Text(summary, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
         }
         message?.let { Text(it, color = MaterialTheme.colorScheme.primary, modifier = Modifier.clickable { message = null }) }
+        // 첫 목록이 오기 전 잠깐 비어 보이는 것을 "없음"으로 오해하지 않게 한다.
+        var settled by remember { mutableStateOf(false) }
+        LaunchedEffect(Unit) { kotlinx.coroutines.delay(350); settled = true }
         if (items.isEmpty()) {
-            Text(if (statusFilter != StatusFilter.ALL) "조건에 맞는 문장이 없어요." else "저장된 문장이 없어요. 번역 탭에서 문장을 저장해 보세요.")
+            if (!settled) LoadingBox()
+            else if (statusFilter != StatusFilter.ALL || query.isNotBlank() || lang != null || tag != null) {
+                EmptyState("조건에 맞는 문장이 없어요.", icon = Icons.Default.SearchOff)
+            } else EmptyState("저장된 문장이 없어요.\n번역 탭에서 문장을 저장해 보세요.", icon = Icons.Default.Book, actionLabel = "번역하러 가기", onAction = onGoTranslate)
         } else if (picked == null) {
             Text("문장을 길게 누르면 여러 개를 골라 복습할 수 있어요.", style = MaterialTheme.typography.bodySmall)
         }
@@ -173,7 +183,7 @@ fun LibraryScreen(vm: LibraryViewModel, onStartReview: (Set<Long>, Lang?) -> Uni
                     onClick = { if (picked != null) picked = if (id in chosen) chosen - id else chosen + id else selectedId = id },
                     onLongClick = { if (picked == null) picked = setOf(id) },
                 )) {
-                    Row(Modifier.padding(12.dp), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                    Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
                         if (picked != null) Checkbox(checked = id in chosen, onCheckedChange = null)
                         Column(Modifier.weight(1f)) {
                             Text(item.texts[item.entry.chatLang].orEmpty(), style = MaterialTheme.typography.titleMedium)
@@ -210,7 +220,7 @@ private fun DetailDialog(item: LibraryItem, hasAltCard: Boolean, recentTags: Lis
 
     Dialog(onDismissRequest = onClose, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Surface(Modifier.fillMaxSize()) {
-            Column(Modifier.fillMaxSize().systemBarsPadding()) {
+            Column(Modifier.fillMaxSize().systemBarsPadding().imePadding()) {
                 Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                     IconButton(onClick = onClose) { Icon(Icons.Default.Close, contentDescription = "닫기") }
                     Text(item.texts[item.entry.chatLang].orEmpty(), Modifier.weight(1f), style = MaterialTheme.typography.titleMedium, maxLines = 2)
@@ -262,7 +272,7 @@ private fun DetailDialog(item: LibraryItem, hasAltCard: Boolean, recentTags: Lis
                         items(editedTags.toList()) { tag ->
                             InputChip(
                                 selected = false, onClick = { editedTags.remove(tag) }, label = { Text(tag) },
-                                trailingIcon = { Icon(Icons.Default.Close, contentDescription = "$tag 제거", modifier = Modifier.size(16.dp)) },
+                                trailingIcon = { Icon(Icons.Default.Close, contentDescription = "$tag 제거", modifier = Modifier.size(18.dp)) },
                             )
                         }
                     }

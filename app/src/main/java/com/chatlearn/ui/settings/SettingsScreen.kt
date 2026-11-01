@@ -8,6 +8,15 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.VisualTransformation
+import com.chatlearn.ui.components.InfoMessage
+import com.chatlearn.ui.components.MessageKind
+import com.chatlearn.ui.components.SwitchRow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -18,6 +27,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun SettingsScreen(vm: SettingsViewModel) {
     val s by vm.state.collectAsStateWithLifecycle()
@@ -28,6 +38,7 @@ fun SettingsScreen(vm: SettingsViewModel) {
     var perDay by remember(s.newPerDay) { mutableStateOf(s.newPerDay.toString()) }
     var goalText by remember(s.dailyGoal) { mutableStateOf(s.dailyGoal.toString()) }
     var message by remember { mutableStateOf<String?>(null) }
+    var pendingImport by remember { mutableStateOf<android.net.Uri?>(null) }
 
     val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
         if (uri != null) scope.launch {
@@ -37,10 +48,8 @@ fun SettingsScreen(vm: SettingsViewModel) {
         }
     }
     val importLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        if (uri != null) scope.launch {
-            val text = withContext(Dispatchers.IO) { ctx.contentResolver.openInputStream(uri)?.use { String(it.readBytes()) }.orEmpty() }
-            message = vm.importJson(text).fold({ "가져왔어요." }, { it.message ?: "가져오지 못했어요. 기존 데이터는 그대로예요." })
-        }
+        // 기존 데이터를 덮어쓰므로 한 번 더 확인받는다.
+        if (uri != null) pendingImport = uri
     }
 
     var tab by rememberSaveable { mutableIntStateOf(0) }
@@ -53,11 +62,21 @@ fun SettingsScreen(vm: SettingsViewModel) {
     if (tab == 0) {
         Text("Gemini API 키", style = MaterialTheme.typography.titleMedium)
         Text("Google AI Studio에서 무료 키를 발급받아 붙여넣으세요.", style = MaterialTheme.typography.bodySmall)
-        OutlinedTextField(key, { key = it }, Modifier.fillMaxWidth(), singleLine = true, visualTransformation = PasswordVisualTransformation(), label = { Text("API 키") })
+        var showKey by remember { mutableStateOf(false) }
+        OutlinedTextField(
+            key, { key = it }, Modifier.fillMaxWidth(), singleLine = true, label = { Text("API 키") },
+            visualTransformation = if (showKey) VisualTransformation.None else PasswordVisualTransformation(),
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+            trailingIcon = {
+                IconButton(onClick = { showKey = !showKey }) {
+                    Icon(if (showKey) Icons.Default.VisibilityOff else Icons.Default.Visibility, contentDescription = if (showKey) "API 키 숨기기" else "API 키 보기")
+                }
+            },
+        )
         Button(onClick = { vm.saveKey(key); message = "키를 저장했어요." }) { Text("키 저장") }
 
         OutlinedTextField(model, { model = it }, Modifier.fillMaxWidth(), singleLine = true, label = { Text("모델 이름") })
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             listOf("gemini-flash-latest", "gemini-flash-lite-latest").forEach { preset ->
                 FilterChip(selected = model == preset, onClick = { model = preset }, label = { Text(preset) })
             }
@@ -66,41 +85,38 @@ fun SettingsScreen(vm: SettingsViewModel) {
 
         var checking by remember { mutableStateOf(false) }
         var checkResult by remember { mutableStateOf<String?>(null) }
+        var checkOk by remember { mutableStateOf(false) }
         OutlinedButton(enabled = !checking, onClick = {
             checking = true; checkResult = null
             scope.launch {
-                checkResult = vm.checkConnection()?.let(::connectionMessage) ?: "연결됐어요. 키와 모델이 잘 동작해요."
+                val err = vm.checkConnection()
+                checkOk = err == null
+                checkResult = err?.let(::connectionMessage) ?: "연결됐어요. 키와 모델이 잘 동작해요."
                 checking = false
             }
         }) { Text(if (checking) "확인 중…" else "연결 확인") }
         Text("저장한 키와 모델로 확인해요. 먼저 저장해 주세요.", style = MaterialTheme.typography.bodySmall)
-        checkResult?.let { Text(it, color = MaterialTheme.colorScheme.primary) }
+        checkResult?.let { InfoMessage(it, if (checkOk) MessageKind.SUCCESS else MessageKind.ERROR) }
 
     }
     if (tab == 1) {
-        OutlinedTextField(perDay, { perDay = it.filter(Char::isDigit) }, Modifier.fillMaxWidth(), singleLine = true, label = { Text("하루 새 카드 수") })
+        OutlinedTextField(perDay, { perDay = it.filter(Char::isDigit) }, Modifier.fillMaxWidth(), singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), label = { Text("하루 새 카드 수") })
         Button(onClick = { vm.saveNewPerDay(perDay.toIntOrNull() ?: 10); message = "저장했어요." }) { Text("새 카드 수 저장") }
 
-        OutlinedTextField(goalText, { goalText = it.filter(Char::isDigit) }, Modifier.fillMaxWidth(), singleLine = true, label = { Text("하루 복습 목표(장, 0이면 끔)") })
+        OutlinedTextField(goalText, { goalText = it.filter(Char::isDigit) }, Modifier.fillMaxWidth(), singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), label = { Text("하루 복습 목표(장, 0이면 끔)") })
         Button(onClick = { vm.saveDailyGoal(goalText.toIntOrNull() ?: 10); message = "목표를 저장했어요." }) { Text("목표 저장") }
 
         val notifPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
             if (!granted) message = "알림 권한이 꺼져 있어요. 휴대폰 설정 > 앱 > ChatLearn > 알림에서 켜 주세요."
         }
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f)) {
-                Text("복습 알림")
-                Text("정해둔 시각에 복습할 카드가 있으면 알려 줘요.", style = MaterialTheme.typography.bodySmall)
-            }
-            Switch(checked = s.reminderEnabled, onCheckedChange = { on ->
-                vm.saveReminder(on, s.reminderHour)
-                if (on && android.os.Build.VERSION.SDK_INT >= 33 &&
-                    androidx.core.content.ContextCompat.checkSelfPermission(ctx, android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED
-                ) notifPermission.launch(android.Manifest.permission.POST_NOTIFICATIONS)
-            })
-        }
+        SwitchRow("복습 알림", "정해둔 시각에 복습할 카드가 있으면 알려 줘요.", s.reminderEnabled, { on ->
+            vm.saveReminder(on, s.reminderHour)
+            if (on && android.os.Build.VERSION.SDK_INT >= 33 &&
+                androidx.core.content.ContextCompat.checkSelfPermission(ctx, android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED
+            ) notifPermission.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+        })
         if (s.reminderEnabled) {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 listOf(8, 12, 18, 20, 22).forEach { h ->
                     FilterChip(selected = s.reminderHour == h, onClick = { vm.saveReminder(true, h) }, label = { Text(if (h < 12) "오전 ${h}시" else if (h == 12) "낮 12시" else "오후 ${h - 12}시") })
                 }
@@ -109,22 +125,8 @@ fun SettingsScreen(vm: SettingsViewModel) {
 
     }
     if (tab == 2) {
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f)) {
-                Text("저장할 때 다른 언어도 만들기")
-                Text("영어 문장이면 스페인어 카드도, 스페인어 문장이면 영어 카드도 함께 만들어요.", style = MaterialTheme.typography.bodySmall)
-            }
-            Switch(checked = s.autoExpand, onCheckedChange = { vm.saveAutoExpand(it) })
-        }
-
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f)) {
-                Text("보낼 말에 내 표현 쓰기")
-                Text("보낼 말 후보를 만들 때 내가 저장한 핵심 표현을 자연스러울 때만 넣어 줘요.", style = MaterialTheme.typography.bodySmall)
-            }
-            Switch(checked = s.useSavedExpressions, onCheckedChange = { vm.saveUseSaved(it) })
-        }
-
+        SwitchRow("저장할 때 다른 언어도 만들기", "영어 문장이면 스페인어 카드도, 스페인어 문장이면 영어 카드도 함께 만들어요.", s.autoExpand, { vm.saveAutoExpand(it) })
+        SwitchRow("보낼 말에 내 표현 쓰기", "보낼 말 후보를 만들 때 내가 저장한 핵심 표현을 자연스러울 때만 넣어 줘요.", s.useSavedExpressions, { vm.saveUseSaved(it) })
     }
     if (tab == 3) {
         Text("오늘 AI 호출: ${s.aiCallsToday}회")
@@ -136,8 +138,25 @@ fun SettingsScreen(vm: SettingsViewModel) {
         }
         Text("가져오면 지금 있는 데이터가 백업 파일의 내용으로 바뀝니다.", style = MaterialTheme.typography.bodySmall)
     }
-        message?.let { Text(it, color = MaterialTheme.colorScheme.primary) }
+        message?.let { InfoMessage(it, if (it.contains("못했") || it.contains("꺼져")) MessageKind.ERROR else MessageKind.SUCCESS) }
     }
+    }
+    pendingImport?.let { uri ->
+        AlertDialog(
+            onDismissRequest = { pendingImport = null },
+            title = { Text("백업 파일로 바꿀까요?") },
+            text = { Text("지금 있는 데이터가 백업 파일의 내용으로 바뀌고 되돌릴 수 없어요. 먼저 내보내기로 현재 데이터를 저장해 두면 안전해요.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    pendingImport = null
+                    scope.launch {
+                        val text = withContext(Dispatchers.IO) { ctx.contentResolver.openInputStream(uri)?.use { String(it.readBytes()) }.orEmpty() }
+                        message = vm.importJson(text).fold({ "가져왔어요." }, { it.message ?: "가져오지 못했어요. 기존 데이터는 그대로예요." })
+                    }
+                }) { Text("가져오기") }
+            },
+            dismissButton = { TextButton(onClick = { pendingImport = null }) { Text("취소") } },
+        )
     }
 }
 

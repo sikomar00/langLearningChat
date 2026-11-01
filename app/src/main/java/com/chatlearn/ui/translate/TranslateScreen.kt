@@ -1,6 +1,14 @@
 package com.chatlearn.ui.translate
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.semantics.Role
+import com.chatlearn.ui.components.ButtonSpinner
+import com.chatlearn.ui.components.InfoMessage
+import com.chatlearn.ui.components.MessageKind
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -26,7 +34,7 @@ fun TranslateScreen(vm: TranslateViewModel, onSpeak: (String, Lang) -> Unit = { 
     val s by vm.state.collectAsStateWithLifecycle()
     val clipboard = LocalClipboardManager.current
 
-    Column(Modifier.fillMaxSize().padding(16.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    Column(Modifier.fillMaxSize().imePadding().padding(16.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
             TranslateMode.entries.forEachIndexed { i, m ->
                 SegmentedButton(
@@ -56,27 +64,32 @@ fun TranslateScreen(vm: TranslateViewModel, onSpeak: (String, Lang) -> Unit = { 
             modifier = Modifier.fillMaxWidth(),
         ) { Text("클립보드 내용으로 바꾸기") }
         var tagFocused by remember { mutableStateOf(false) }
+        var showTag by rememberSaveable { mutableStateOf(false) }
         val suggestions by vm.tagSuggestions.collectAsStateWithLifecycle()
-        OutlinedTextField(
-            value = s.tag, onValueChange = vm::setTag, singleLine = true,
-            modifier = Modifier.fillMaxWidth().onFocusChanged { tagFocused = it.isFocused },
-            label = { Text("태그(선택, 쉼표로 여러 개)") },
-        )
-        if (tagFocused && suggestions.isNotEmpty()) {
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                items(suggestions) { tag ->
-                    SuggestionChip(onClick = { vm.pickTag(tag) }, label = { Text(tag) })
+        if (showTag || s.tag.isNotBlank()) {
+            OutlinedTextField(
+                value = s.tag, onValueChange = vm::setTag, singleLine = true,
+                modifier = Modifier.fillMaxWidth().onFocusChanged { tagFocused = it.isFocused },
+                label = { Text("태그(선택, 쉼표로 여러 개)") },
+            )
+            if (tagFocused && suggestions.isNotEmpty()) {
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    items(suggestions) { tag ->
+                        SuggestionChip(onClick = { vm.pickTag(tag) }, label = { Text(tag) })
+                    }
                 }
             }
+        } else {
+            TextButton(onClick = { showTag = true }) { Text("+ 태그 추가") }
         }
         Button(onClick = { vm.translate() }, enabled = s.input.isNotBlank() && !s.loading, modifier = Modifier.fillMaxWidth()) {
             val lineCount = if (s.mode == TranslateMode.RECEIVED) splitMessages(s.input).size else 0
-            if (s.loading) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+            if (s.loading) ButtonSpinner()
             else Text(if (lineCount >= 2) "문장별로 번역 (${lineCount}개)" else "번역")
         }
 
         s.error?.let {
-            Text(errorText(it), color = MaterialTheme.colorScheme.error)
+            InfoMessage(errorText(it), MessageKind.ERROR)
             if (it is TranslateError.Ai && it.kind != AiError.BAD_KEY) {
                 OutlinedButton(onClick = { vm.translate() }, enabled = !s.loading) { Text("다시 시도") }
             }
@@ -85,13 +98,13 @@ fun TranslateScreen(vm: TranslateViewModel, onSpeak: (String, Lang) -> Unit = { 
             }
         }
         s.notice?.let {
-            Text(
+            InfoMessage(
                 when (it) {
                     is Notice.Saved -> if (it.cards >= 2) "저장했어요. 영어·스페인어 카드 ${it.cards}장을 만들었어요." else "저장했어요."
                     Notice.Duplicate -> "이미 저장된 문장이에요."
                     is Notice.BatchSaved -> "${it.saved}개를 저장했어요." + if (it.duplicates > 0) " (이미 있는 ${it.duplicates}개는 건너뛰었어요)" else ""
                 },
-                color = MaterialTheme.colorScheme.primary,
+                MessageKind.SUCCESS,
             )
         }
 
@@ -99,8 +112,8 @@ fun TranslateScreen(vm: TranslateViewModel, onSpeak: (String, Lang) -> Unit = { 
             val chosen = s.batch.count { it.selected }
             Text("저장할 문장을 골라 주세요", style = MaterialTheme.typography.titleSmall)
             s.batch.forEachIndexed { i, b ->
-                Card(Modifier.fillMaxWidth().clickable(enabled = b.savable) { vm.toggleBatch(i) }) {
-                    Row(Modifier.padding(12.dp), verticalAlignment = androidx.compose.ui.Alignment.Top) {
+                Card(Modifier.fillMaxWidth().toggleable(value = b.selected, enabled = b.savable, role = Role.Checkbox) { vm.toggleBatch(i) }) {
+                    Row(Modifier.padding(12.dp), verticalAlignment = Alignment.Top) {
                         Checkbox(checked = b.selected, onCheckedChange = null, enabled = b.savable)
                         Column(Modifier.weight(1f).padding(start = 8.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                             Text(b.text, style = MaterialTheme.typography.bodyLarge)
@@ -120,9 +133,13 @@ fun TranslateScreen(vm: TranslateViewModel, onSpeak: (String, Lang) -> Unit = { 
         s.received?.let { r ->
             Card(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
                         textChunks(s.source).forEach { chunk ->
-                            Text(chunk, Modifier.clickable { vm.lookupWord(chunk) }, style = MaterialTheme.typography.bodyLarge)
+                            // 글자는 작아도 누를 영역은 48dp 이상으로 확보한다.
+                            Box(
+                                Modifier.defaultMinSize(minWidth = 48.dp, minHeight = 48.dp).clickable(role = Role.Button, onClickLabel = "뜻 보기") { vm.lookupWord(chunk) }.padding(horizontal = 6.dp),
+                                contentAlignment = Alignment.Center,
+                            ) { Text(chunk, style = MaterialTheme.typography.bodyLarge) }
                         }
                     }
                     Text("단어를 누르면 이 문장에서의 뜻을 볼 수 있어요.", style = MaterialTheme.typography.bodySmall)
@@ -131,7 +148,7 @@ fun TranslateScreen(vm: TranslateViewModel, onSpeak: (String, Lang) -> Unit = { 
                             Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                                 Text(l.word, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
                                 when (l) {
-                                    is LookupState.Loading -> CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                                    is LookupState.Loading -> ButtonSpinner()
                                     is LookupState.Failed -> Text("뜻을 가져오지 못했어요. 다시 눌러 보세요.", color = MaterialTheme.colorScheme.error)
                                     is LookupState.Done -> {
                                         Text(l.info.meaningKo, style = MaterialTheme.typography.bodyLarge)
@@ -166,7 +183,10 @@ fun TranslateScreen(vm: TranslateViewModel, onSpeak: (String, Lang) -> Unit = { 
                     Text(c.text, style = MaterialTheme.typography.titleMedium)
                     Text(c.toneNote, style = MaterialTheme.typography.bodyMedium)
                     if (c.usedPhrase.isNotBlank() && c.text.contains(c.usedPhrase, ignoreCase = true)) {
-                        Text("✨ 내가 저장한 표현을 썼어요: ${c.usedPhrase}", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.tertiary)
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Icon(Icons.Default.AutoAwesome, contentDescription = null, Modifier.size(16.dp), tint = MaterialTheme.colorScheme.tertiary)
+                            Text("내가 저장한 표현을 썼어요: ${c.usedPhrase}", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.tertiary)
+                        }
                     }
                     if (c.keyPhrase.isNotBlank() && c.text.contains(c.keyPhrase, ignoreCase = true)) {
                         Text("핵심 표현: ${c.keyPhrase}", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)

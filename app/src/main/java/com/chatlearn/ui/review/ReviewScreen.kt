@@ -9,7 +9,9 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.MoreVert
+import com.chatlearn.ui.theme.statusColors
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.foundation.text.KeyboardActions
@@ -32,6 +34,9 @@ import com.chatlearn.review.GradeOutcome
 import com.chatlearn.review.specialChars
 import com.chatlearn.review.isLeech
 import com.chatlearn.stats.StatsScreen
+import com.chatlearn.ui.components.ButtonSpinner
+import com.chatlearn.ui.components.LoadingBox
+import com.chatlearn.ui.components.langLabel
 import com.chatlearn.stats.StatsViewModel
 
 /** 복습 탭: 위의 전환 버튼으로 "복습"과 "통계"를 오간다. */
@@ -52,6 +57,7 @@ fun ReviewScreen(vm: ReviewViewModel, statsVm: StatsViewModel) {
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun ReviewPane(vm: ReviewViewModel) {
     val state by vm.state.collectAsStateWithLifecycle()
@@ -66,16 +72,17 @@ private fun ReviewPane(vm: ReviewViewModel) {
     var confirmDelete by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) { vm.ensureStarted() }
 
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    Column(Modifier.fillMaxSize().imePadding().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         custom?.let { Text("선택 복습 ${it}장", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary) }
         if (state is ReviewUi.Prompt || state is ReviewUi.Graded) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
                 Text("${minOf(progress.done + 1, progress.total)} / ${progress.total}", Modifier.weight(1f), style = MaterialTheme.typography.labelMedium)
                 if (goal.enabled) {
+                    if (goal.reached) Icon(Icons.Default.CheckCircle, contentDescription = "목표 달성", Modifier.size(16.dp).padding(end = 2.dp), tint = MaterialTheme.statusColors.success)
                     Text(
-                        "오늘 ${goal.done}/${goal.goal}${if (goal.reached) " ✓" else ""}",
+                        "오늘 ${goal.done}/${goal.goal}",
                         style = MaterialTheme.typography.labelMedium,
-                        color = if (goal.reached) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                        color = if (goal.reached) MaterialTheme.statusColors.success else MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
                 if (state is ReviewUi.Prompt) {
@@ -91,11 +98,14 @@ private fun ReviewPane(vm: ReviewViewModel) {
                 }
             }
         }
+        if ((state is ReviewUi.Prompt || state is ReviewUi.Graded) && progress.total > 0) {
+            LinearProgressIndicator(progress = { progress.done.toFloat() / progress.total }, modifier = Modifier.fillMaxWidth())
+        }
         if (canUndo && (state is ReviewUi.Prompt || state is ReviewUi.Done)) {
             TextButton(onClick = { vm.undo() }, contentPadding = PaddingValues(horizontal = 4.dp)) { Text("방금 평가 취소") }
         }
         when (val s = state) {
-            ReviewUi.Loading -> CircularProgressIndicator()
+            ReviewUi.Loading -> LoadingBox()
             ReviewUi.Empty -> {
                 Text(if (custom != null) "고른 문장에 복습할 카드가 없어요." else "오늘 복습할 카드가 없어요.", style = MaterialTheme.typography.titleMedium)
                 OutlinedButton(onClick = { vm.start(preview = true) }) { Text(if (custom != null) "평소 복습으로" else "다시 확인") }
@@ -105,7 +115,7 @@ private fun ReviewPane(vm: ReviewViewModel) {
                 Text(if (s.newCards > 0) "복습 ${s.total - s.newCards}장 · 새 카드 ${s.newCards}장" else "모두 복습 카드예요.")
                 if (goal.enabled) {
                     Text(
-                        if (goal.reached) "오늘 목표 ${goal.goal}장을 달성했어요 ✓" else "오늘 목표 ${goal.done} / ${goal.goal}장",
+                        if (goal.reached) "오늘 목표 ${goal.goal}장을 달성했어요" else "오늘 목표 ${goal.done} / ${goal.goal}장",
                         style = MaterialTheme.typography.bodyMedium,
                     )
                     LinearProgressIndicator(progress = { goal.fraction }, modifier = Modifier.fillMaxWidth())
@@ -114,7 +124,7 @@ private fun ReviewPane(vm: ReviewViewModel) {
             }
             is ReviewUi.Done -> {
                 Text("오늘 ${s.count}개를 복습했어요.", style = MaterialTheme.typography.titleMedium)
-                if (goal.reached) Text("🎉 오늘 목표를 달성했어요! 더 해도 좋아요.", color = MaterialTheme.colorScheme.primary)
+                if (goal.reached) Text("오늘 목표를 달성했어요! 더 해도 좋아요.", color = MaterialTheme.statusColors.success, style = MaterialTheme.typography.titleMedium)
                 else if (goal.enabled) Text("오늘 목표까지 ${goal.goal - goal.done}장 남았어요.")
                 OutlinedButton(onClick = { vm.start(preview = true) }) { Text(if (custom != null) "평소 복습으로" else "더 있는지 확인") }
             }
@@ -167,12 +177,12 @@ private fun ReviewPane(vm: ReviewViewModel) {
                 if (chars.isNotEmpty()) {
                     androidx.compose.foundation.lazy.LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         items(chars) { ch ->
-                            OutlinedButton(onClick = { vm.appendToAnswer(ch, focusedBlank.coerceIn(0, s.answers.lastIndex)) }, contentPadding = PaddingValues(horizontal = 12.dp)) { Text(ch) }
+                            OutlinedButton(onClick = { vm.appendToAnswer(ch, focusedBlank.coerceIn(0, s.answers.lastIndex)) }, modifier = Modifier.defaultMinSize(minWidth = 48.dp, minHeight = 48.dp), contentPadding = PaddingValues(horizontal = 12.dp)) { Text(ch) }
                         }
                     }
                 }
                 Button(onClick = { vm.submit() }, enabled = s.answers.none { it.isBlank() } && !s.checking, modifier = Modifier.fillMaxWidth()) {
-                    if (s.checking) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp) else Text("제출")
+                    if (s.checking) ButtonSpinner() else Text("제출")
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedButton(enabled = !s.checking, onClick = { vm.giveUp() }) { Text("정답 보기") }
@@ -203,11 +213,12 @@ private fun ReviewPane(vm: ReviewViewModel) {
                     is GradeOutcome.Local -> {
                         Text(verdictLabel(o.verdict.name), style = MaterialTheme.typography.titleMedium)
                         if (o.marks.isNotEmpty()) {
+                            val wrongColor = MaterialTheme.colorScheme.error
                             Text(buildAnnotatedString {
                                 o.marks.forEachIndexed { i, m ->
                                     if (i > 0) append(" ")
                                     if (m.correct) append(m.word)
-                                    else withStyle(SpanStyle(color = Color(0xFFB3261E), textDecoration = TextDecoration.Underline)) { append(m.word) }
+                                    else withStyle(SpanStyle(color = wrongColor, textDecoration = TextDecoration.Underline)) { append(m.word) }
                                 }
                             })
                         }
@@ -223,13 +234,16 @@ private fun ReviewPane(vm: ReviewViewModel) {
                 val choices = ratingChoices(verdict)
                 Text("얼마나 기억났나요?", style = MaterialTheme.typography.labelLarge)
                 val previews = remember(s.item.card) { ratingPreviews(s.item.card.toState(), System.currentTimeMillis()) }
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                FlowRow(
+                    Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp),
+                    maxItemsInEachRow = if (choices.size > 3) 2 else choices.size,
+                ) {
                     choices.forEach { r ->
                         val label = ratingLabel(r)
                         Column(Modifier.weight(1f), horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally) {
-                            if (r == s.suggested) Button(onClick = { vm.rate(r) }, Modifier.fillMaxWidth(), contentPadding = PaddingValues(horizontal = 4.dp)) { Text(label, maxLines = 1) }
-                            else OutlinedButton(onClick = { vm.rate(r) }, Modifier.fillMaxWidth(), contentPadding = PaddingValues(horizontal = 4.dp)) { Text(label, maxLines = 1) }
-                            Text(previews.getValue(r), style = MaterialTheme.typography.labelSmall)
+                            if (r == s.suggested) Button(onClick = { vm.rate(r) }, Modifier.fillMaxWidth().heightIn(min = 48.dp)) { Text(label, maxLines = 1) }
+                            else OutlinedButton(onClick = { vm.rate(r) }, Modifier.fillMaxWidth().heightIn(min = 48.dp)) { Text(label, maxLines = 1) }
+                            Text(previews.getValue(r), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
                 }
@@ -267,5 +281,4 @@ private fun ReviewPane(vm: ReviewViewModel) {
     }
 }
 
-private fun langLabel(l: Lang) = when (l) { Lang.KO -> "한국어"; Lang.EN -> "영어"; Lang.ES -> "스페인어" }
 private fun verdictLabel(v: String) = when (v) { "CORRECT" -> "맞아요"; "CLOSE" -> "거의 맞아요"; else -> "틀렸어요" }

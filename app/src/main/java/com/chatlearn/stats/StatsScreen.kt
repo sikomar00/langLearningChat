@@ -11,7 +11,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.chatlearn.domain.ExerciseKind
-import com.chatlearn.domain.Lang
+import com.chatlearn.ui.components.LoadingBox
+import com.chatlearn.ui.components.SectionCard
+import com.chatlearn.ui.components.langLabel
 import java.util.Locale
 
 fun percent(r: Retention): String = r.rate?.let { String.format(Locale.US, "%d%%", Math.round(it * 100)) } ?: "-"
@@ -21,7 +23,7 @@ fun StatsScreen(vm: StatsViewModel) {
     val stats by vm.stats.collectAsStateWithLifecycle()
     val s = stats
     if (s == null) {
-        CircularProgressIndicator()
+        LoadingBox()
         return
     }
     Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -40,7 +42,7 @@ fun StatsScreen(vm: StatsViewModel) {
         }
         SectionCard("언어별 정답률") {
             if (s.byLang.isEmpty()) Text("아직 기록이 없어요.")
-            s.byLang.forEach { (lang, r) -> Text("${langName(lang)}  ${percent(r)}  (${r.reviews}회)") }
+            s.byLang.forEach { (lang, r) -> Text("${langLabel(lang)}  ${percent(r)}  (${r.reviews}회)") }
         }
         SectionCard("방식별 정답률") {
             if (s.byExercise.isEmpty()) Text("아직 기록이 없어요.")
@@ -53,16 +55,6 @@ fun StatsScreen(vm: StatsViewModel) {
         SectionCard("태그별 정답률") {
             if (s.byTag.isEmpty()) Text("복습한 태그가 없어요.")
             s.byTag.entries.sortedByDescending { it.value.reviews }.forEach { (tag, r) -> Text("$tag  ${percent(r)}  (${r.reviews}회)") }
-        }
-    }
-}
-
-@Composable
-private fun SectionCard(title: String, content: @Composable ColumnScope.() -> Unit) {
-    Card(Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text(title, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
-            content()
         }
     }
 }
@@ -83,5 +75,3 @@ private fun WeekBars(days: List<DayCount>) {
         }
     }
 }
-
-private fun langName(l: Lang) = when (l) { Lang.KO -> "한국어"; Lang.EN -> "영어"; Lang.ES -> "스페인어" }

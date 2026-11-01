@@ -3,12 +3,19 @@ package com.chatlearn
 import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.padding
+import com.chatlearn.ui.theme.AppTheme
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
@@ -41,6 +48,7 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        enableEdgeToEdge()
         super.onCreate(savedInstanceState)
         // 회전 등으로 다시 만들어질 때 같은 문장을 또 번역하지 않는다.
         if (savedInstanceState == null) pendingShare = sharedTextOf(intent)
@@ -62,9 +70,10 @@ class MainActivity : ComponentActivity() {
             } as T
         }
         setContent {
-            MaterialTheme {
+            AppTheme {
                 val settings by c.settings.settings.collectAsStateWithLifecycle(initialValue = null)
-                var tab by remember { mutableStateOf<Tab?>(null) }
+                // 회전·프로세스 재생성 뒤에도 보던 탭을 유지한다.
+                var tab by rememberSaveable { mutableStateOf<Tab?>(null) }
                 // 키가 없으면 첫 화면을 설정으로 안내한다
                 val reviewVm: ReviewViewModel = viewModel(factory = factory)
                 val translateVm: TranslateViewModel = viewModel(factory = factory)
@@ -72,6 +81,8 @@ class MainActivity : ComponentActivity() {
                     pendingShare?.let { translateVm.receiveShared(it); tab = Tab.TRANSLATE; pendingShare = null }
                 }
                 val current = tab ?: if (settings != null && settings!!.apiKey.isBlank()) Tab.SETTINGS else Tab.TRANSLATE
+                // 첫 화면이 아닌 탭에서 뒤로가기를 누르면 앱을 끝내지 않고 번역 탭으로 돌아간다.
+                BackHandler(enabled = current != Tab.TRANSLATE) { tab = Tab.TRANSLATE }
                 Scaffold(
                     bottomBar = {
                         NavigationBar {
@@ -93,15 +104,17 @@ class MainActivity : ComponentActivity() {
                         }
                     },
                 ) { pad ->
-                    Surface(Modifier.padding(pad)) {
-                        when (current) {
-                            Tab.TRANSLATE -> TranslateScreen(translateVm, onSpeak = { text, lang -> c.tts.speak(text, lang, false) }, onOpenSettings = { tab = Tab.SETTINGS })
-                            Tab.LIBRARY -> LibraryScreen(viewModel(factory = factory)) { ids, lang ->
-                                reviewVm.startWith(ids, lang)
-                                tab = Tab.REVIEW
+                    Surface(Modifier.padding(pad).consumeWindowInsets(pad)) {
+                        Crossfade(targetState = current, animationSpec = tween(200), label = "tab") { shown ->
+                            when (shown) {
+                                Tab.TRANSLATE -> TranslateScreen(translateVm, onSpeak = { text, lang -> c.tts.speak(text, lang, false) }, onOpenSettings = { tab = Tab.SETTINGS })
+                                Tab.LIBRARY -> LibraryScreen(viewModel(factory = factory), onGoTranslate = { tab = Tab.TRANSLATE }) { ids, lang ->
+                                    reviewVm.startWith(ids, lang)
+                                    tab = Tab.REVIEW
+                                }
+                                Tab.REVIEW -> ReviewScreen(reviewVm, viewModel(factory = factory))
+                                Tab.SETTINGS -> SettingsScreen(viewModel(factory = factory))
                             }
-                            Tab.REVIEW -> ReviewScreen(reviewVm, viewModel(factory = factory))
-                            Tab.SETTINGS -> SettingsScreen(viewModel(factory = factory))
                         }
                     }
                 }
