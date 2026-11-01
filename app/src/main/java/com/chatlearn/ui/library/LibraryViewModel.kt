@@ -9,6 +9,8 @@ import com.chatlearn.data.StatsInput
 import com.chatlearn.expansion.ExpansionReport
 import com.chatlearn.expansion.ExpansionService
 import kotlinx.coroutines.Deferred
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.async
 import com.chatlearn.domain.Lang
 import com.chatlearn.domain.TextOrigin
@@ -28,14 +30,30 @@ class LibraryViewModel(
     private val repo: EntryRepository,
     private val expansion: ExpansionService,
     private val clock: () -> Long = System::currentTimeMillis,
+    private val undoWindowMs: Long = 5_000,
 ) : ViewModel() {
     val query = MutableStateFlow("")
     val langFilter = MutableStateFlow<Lang?>(null)
     val tagFilter = MutableStateFlow<String?>(null)
 
+    val sort = MutableStateFlow(LibrarySort.RECENT)
+    val statusFilter = MutableStateFlow(StatusFilter.ALL)
+
     private val all = repo.observeLibrary()
+    private val _pendingDelete = MutableStateFlow<Long?>(null)
+    /** 삭제를 눌렀지만 되돌릴 수 있는 문장. 목록에서는 이미 숨긴다. */
+    val pendingDelete: StateFlow<Long?> = _pendingDelete.asStateFlow()
+
+    /** 문장별 복습 상태(새 카드, 복습할 차례, N일 후)와 틀린 횟수. */
+    val progress: StateFlow<Map<Long, EntryProgress>> = repo.observeStatsInput()
+        .map { si -> val now = clock(); si.cards.groupBy { it.entryId }.mapValues { progressOf(it.value, now) } }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
+
+    private val searched = combine(all, query, langFilter, tagFilter, _pendingDelete) { l, q, lang, tag, pending ->
+        filterLibrary(l.filter { it.entry.id != pending }, q, lang, tag)
+    }
     val items: StateFlow<List<LibraryItem>> =
-        combine(all, query, langFilter, tagFilter) { l, q, lang, tag -> filterLibrary(l, q, lang, tag) }
+        combine(searched, statusFilter, sort, progress) { l, sf, so, pr -> sortLibrary(filterByStatus(l, pr, sf), pr, so) }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
     val allTags: StateFlow<List<String>> =
         all.map { list -> list.flatMap { it.tags }.distinct().sorted() }
@@ -97,7 +115,28 @@ class LibraryViewModel(
         }
     }
 
-    fun delete(id: Long) = viewModelScope.launch { repo.deleteEntry(id) }
+    private var deleteJob: Job? = null
+
+    /** 바로 지우지 않고 [undoWindowMs] 동안 숨겨 둔다. 그 안에 [undoDelete]하면 그대로 남는다. */
+    fun delete(id: Long): Job {
+        val previous = _pendingDelete.value
+        deleteJob?.cancel()
+        _pendingDelete.value = id
+        val job = viewModelScope.launch {
+            if (previous != null) repo.deleteEntry(previous) // 앞선 삭제는 되돌리기 없이 확정한다
+            delay(undoWindowMs)
+            repo.deleteEntry(id)
+            if (_pendingDelete.value == id) _pendingDelete.value = null
+        }
+        deleteJob = job
+        return job
+    }
+
+    fun undoDelete() {
+        deleteJob?.cancel()
+        _pendingDelete.value = null
+    }
+
     fun saveNote(id: Long, note: String) = viewModelScope.launch { repo.updateNote(id, note) }
     fun saveText(id: Long, lang: Lang, text: String) = viewModelScope.launch {
         if (text.isNotBlank()) repo.putText(id, lang, text, TextOrigin.USER)

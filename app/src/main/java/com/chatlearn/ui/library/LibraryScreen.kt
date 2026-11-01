@@ -26,6 +26,8 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.chatlearn.data.LibraryItem
 import com.chatlearn.domain.Lang
@@ -44,6 +46,17 @@ fun LibraryScreen(vm: LibraryViewModel, onStartReview: (Set<Long>, Lang?) -> Uni
     val selected = items.firstOrNull { it.entry.id == selectedId }
     val expandedIds by vm.expandedIds.collectAsStateWithLifecycle()
     var managingTags by remember { mutableStateOf(false) }
+    val sort by vm.sort.collectAsStateWithLifecycle()
+    val statusFilter by vm.statusFilter.collectAsStateWithLifecycle()
+    val progress by vm.progress.collectAsStateWithLifecycle()
+    val pendingDelete by vm.pendingDelete.collectAsStateWithLifecycle()
+    val snackbar = remember { SnackbarHostState() }
+    LaunchedEffect(pendingDelete) {
+        if (pendingDelete != null) {
+            val r = snackbar.showSnackbar("삭제했어요", actionLabel = "되돌리기", duration = SnackbarDuration.Indefinite)
+            if (r == SnackbarResult.ActionPerformed) vm.undoDelete()
+        } else snackbar.currentSnackbarData?.dismiss()
+    }
     // 길게 눌러 들어가는 선택 모드. 필터가 바뀌어 사라진 항목은 선택에서 뺀다.
     var picked by remember { mutableStateOf<Set<Long>?>(null) }
     val visibleIds = items.map { it.entry.id }.toSet()
@@ -84,8 +97,23 @@ fun LibraryScreen(vm: LibraryViewModel, onStartReview: (Set<Long>, Lang?) -> Uni
                 FilterChip(selected = tag == t, onClick = { vm.tagFilter.value = if (tag == t) null else t }, label = { Text(t) })
             }
         }
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            items(StatusFilter.entries.toList()) { f ->
+                FilterChip(selected = statusFilter == f, onClick = { vm.statusFilter.value = f }, label = { Text(f.label) })
+            }
+        }
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            items(LibrarySort.entries.toList()) { o ->
+                AssistChip(
+                    onClick = { vm.sort.value = o }, label = { Text(o.label) },
+                    colors = if (sort == o) AssistChipDefaults.assistChipColors(containerColor = MaterialTheme.colorScheme.secondaryContainer) else AssistChipDefaults.assistChipColors(),
+                )
+            }
+        }
         if (items.isEmpty()) {
-            Text("저장된 문장이 없어요. 번역 탭에서 문장을 저장해 보세요.")
+            Text(if (statusFilter != StatusFilter.ALL) "조건에 맞는 문장이 없어요." else "저장된 문장이 없어요. 번역 탭에서 문장을 저장해 보세요.")
+        } else if (picked == null) {
+            Text("문장을 길게 누르면 여러 개를 골라 복습할 수 있어요.", style = MaterialTheme.typography.bodySmall)
         }
         LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             items(items, key = { it.entry.id }) { item ->
@@ -100,12 +128,17 @@ fun LibraryScreen(vm: LibraryViewModel, onStartReview: (Set<Long>, Lang?) -> Uni
                             Text(item.texts[item.entry.chatLang].orEmpty(), style = MaterialTheme.typography.titleMedium)
                             Text(item.texts[Lang.KO].orEmpty(), style = MaterialTheme.typography.bodyMedium)
                         }
+                        progress[id]?.let { p ->
+                            Text(dueBadge(p, System.currentTimeMillis()), style = MaterialTheme.typography.labelSmall,
+                                color = if (p.state == EntryState.DUE) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
                     }
                 }
             }
         }
     }
 
+    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.BottomCenter) { SnackbarHost(snackbar) }
     selected?.let { item -> DetailDialog(item, item.entry.id in expandedIds, recentTags, vm) { selectedId = null } }
     if (managingTags) TagManagerDialog(tags, vm) { managingTags = false }
 }
@@ -119,15 +152,25 @@ private fun DetailDialog(item: LibraryItem, hasAltCard: Boolean, recentTags: Lis
     var alt by remember(item.entry.id, altText) { mutableStateOf(altText.orEmpty()) }
     val editedTags = remember(item.entry.id) { mutableStateListOf(*item.tags.toTypedArray()) }
     var tagInput by remember(item.entry.id) { mutableStateOf("") }
-    var confirmDelete by remember { mutableStateOf(false) }
 
     fun addTags(names: List<String>) = names.forEach { if (it !in editedTags) editedTags.add(it) }
 
-    AlertDialog(
-        onDismissRequest = onClose,
-        title = { Text(item.texts[item.entry.chatLang].orEmpty()) },
-        text = {
-            Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    Dialog(onDismissRequest = onClose, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        Surface(Modifier.fillMaxSize()) {
+            Column(Modifier.fillMaxSize().systemBarsPadding()) {
+                Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(onClick = onClose) { Icon(Icons.Default.Close, contentDescription = "닫기") }
+                    Text(item.texts[item.entry.chatLang].orEmpty(), Modifier.weight(1f), style = MaterialTheme.typography.titleMedium, maxLines = 2)
+                    TextButton(onClick = {
+                        vm.saveText(item.entry.id, Lang.KO, ko); vm.saveNote(item.entry.id, note)
+                        if (hasAltCard && altText != null && alt.isNotBlank() && alt != altText) vm.saveText(item.entry.id, altLang, alt)
+                        // 입력창에 쓰다 만 태그도 잃지 않게 함께 저장한다.
+                        vm.saveTags(item.entry.id, (editedTags + parseTags(tagInput)).distinct())
+                        onClose()
+                    }) { Text("저장") }
+                }
+                HorizontalDivider()
+                Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 SentenceStatsLine(item.entry.id, vm)
                 if (hasAltCard && altText != null) {
                     OutlinedTextField(
@@ -173,26 +216,14 @@ private fun DetailDialog(item: LibraryItem, hasAltCard: Boolean, recentTags: Lis
                         }
                     }
                 }
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = {
-                vm.saveText(item.entry.id, Lang.KO, ko); vm.saveNote(item.entry.id, note)
-                if (hasAltCard && altText != null && alt.isNotBlank() && alt != altText) vm.saveText(item.entry.id, altLang, alt)
-                // 입력창에 쓰다 만 태그도 잃지 않게 함께 저장한다.
-                vm.saveTags(item.entry.id, (editedTags + parseTags(tagInput)).distinct())
-                onClose()
-            }) { Text("저장") }
-        },
-        dismissButton = {
-            Row {
-                TextButton(onClick = { if (confirmDelete) { vm.delete(item.entry.id); onClose() } else confirmDelete = true }) {
-                    Text(if (confirmDelete) "정말 삭제" else "삭제")
+                    HorizontalDivider()
+                    TextButton(onClick = { vm.delete(item.entry.id); onClose() }) {
+                        Text("이 문장 삭제", color = MaterialTheme.colorScheme.error)
+                    }
                 }
-                TextButton(onClick = onClose) { Text("닫기") }
             }
-        },
-    )
+        }
+    }
 }
 
 @Composable
