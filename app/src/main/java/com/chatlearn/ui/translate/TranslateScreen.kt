@@ -1,6 +1,9 @@
 package com.chatlearn.ui.translate
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
@@ -39,7 +42,20 @@ fun TranslateScreen(vm: TranslateViewModel) {
             value = s.input, onValueChange = vm::setInput, modifier = Modifier.fillMaxWidth(), minLines = 3,
             label = { Text(if (s.mode == TranslateMode.RECEIVED) "친구가 보낸 메시지를 붙여넣기" else "하고 싶은 말(한국어)") },
         )
-        OutlinedTextField(value = s.tag, onValueChange = vm::setTag, modifier = Modifier.fillMaxWidth(), singleLine = true, label = { Text("태그(선택, 예: 친구 이름)") })
+        var tagFocused by remember { mutableStateOf(false) }
+        val suggestions by vm.tagSuggestions.collectAsStateWithLifecycle()
+        OutlinedTextField(
+            value = s.tag, onValueChange = vm::setTag, singleLine = true,
+            modifier = Modifier.fillMaxWidth().onFocusChanged { tagFocused = it.isFocused },
+            label = { Text("태그(선택, 쉼표로 여러 개)") },
+        )
+        if (tagFocused && suggestions.isNotEmpty()) {
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                items(suggestions) { tag ->
+                    SuggestionChip(onClick = { vm.pickTag(tag) }, label = { Text(tag) })
+                }
+            }
+        }
         Button(onClick = { vm.translate() }, enabled = s.input.isNotBlank() && !s.loading, modifier = Modifier.fillMaxWidth()) {
             if (s.loading) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp) else Text("번역")
         }

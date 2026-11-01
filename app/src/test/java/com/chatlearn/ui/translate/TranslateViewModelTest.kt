@@ -112,6 +112,20 @@ class TranslateViewModelTest {
         assertEquals("곧 보자", repo.observeLibrary().first().single().texts[Lang.KO])
     }
 
+    @Test fun commaSeparatedTagsAreSavedAsSeparateTags() = runBlocking {
+        vm.setInput("How are you?")
+        vm.translate().join()
+        vm.setTag("Alex, 약속")
+        vm.saveReceived().join()
+        assertEquals(listOf("Alex", "약속"), repo.observeLibrary().first().single().tags.sorted())
+    }
+
+    @Test fun pickingASuggestionFillsTheCurrentSegment() = runBlocking {
+        vm.setTag("Alex, s")
+        vm.pickTag("Sofía")
+        assertEquals("Alex, Sofía, ", vm.state.value.tag)
+    }
+
     @Test fun switchingModeClearsResults() = runBlocking {
         vm.setInput("hi"); vm.translate().join()
         vm.setMode(TranslateMode.SENT)

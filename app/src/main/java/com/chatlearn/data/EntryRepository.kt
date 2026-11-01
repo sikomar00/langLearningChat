@@ -71,6 +71,9 @@ class EntryRepository(internal val db: AppDatabase) {
             }
         }
 
+    /** 최근에 쓴 태그 순서. 자동완성 후보로 쓴다. */
+    fun observeRecentTags(): Flow<List<String>> = dao.observeTagsByRecency()
+
     suspend fun queue(now: Long, dayStart: Long, newPerDay: Int, maxReviews: Int = 50): List<DueCard> {
         val reviews = dao.dueReviewed(now, maxReviews)
         val newLeft = (newPerDay - dao.introducedToday(dayStart)).coerceAtLeast(0)

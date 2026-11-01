@@ -68,6 +68,18 @@ class EntryRepositoryTest {
         assertTrue(db.dao().allTexts().isEmpty())
     }
 
+    @Test fun recentTagsAreOrderedByMostRecentUse() = runBlocking {
+        repo.saveEntry(draft(text = "a", tags = listOf("Alex", "여행")), 1)
+        repo.saveEntry(draft(text = "b", tags = listOf("Sofía")), 2)
+        repo.saveEntry(draft(text = "c", tags = listOf("Alex")), 3)
+        assertEquals(listOf("Alex", "Sofía", "여행"), repo.observeRecentTags().first())
+    }
+
+    @Test fun noTagsMeansNoSuggestions() = runBlocking {
+        repo.saveEntry(draft(), 1)
+        assertTrue(repo.observeRecentTags().first().isEmpty())
+    }
+
     @Test fun interleaveSpreadsNewCardsAmongReviews() {
         assertEquals(listOf(1, 2, 9, 3, 4), interleave(listOf(1, 2, 3, 4), listOf(9)))
         assertEquals(listOf(9), interleave(emptyList(), listOf(9)))

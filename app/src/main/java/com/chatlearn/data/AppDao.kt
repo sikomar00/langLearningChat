@@ -29,6 +29,13 @@ interface AppDao {
     @Query("SELECT et.entryId AS entryId, t.name AS name FROM entry_tag et JOIN tag t ON t.id = et.tagId")
     fun observeTagLinks(): Flow<List<TagLink>>
 
+    // 태그가 붙은 문장 중 가장 최근에 저장된 시각 순서(같으면 나중에 만든 태그 먼저)
+    @Query(
+        "SELECT t.name FROM tag t JOIN entry_tag et ON et.tagId = t.id JOIN entry e ON e.id = et.entryId " +
+            "GROUP BY t.id ORDER BY MAX(e.createdAt) DESC, t.id DESC"
+    )
+    fun observeTagsByRecency(): Flow<List<String>>
+
     @Query("SELECT * FROM entry_text WHERE entryId = :id") suspend fun textsFor(id: Long): List<EntryTextEntity>
     @Query("SELECT * FROM review_card WHERE lastReviewedAt IS NOT NULL AND dueAt <= :now ORDER BY dueAt LIMIT :limit")
     suspend fun dueReviewed(now: Long, limit: Int): List<ReviewCardEntity>

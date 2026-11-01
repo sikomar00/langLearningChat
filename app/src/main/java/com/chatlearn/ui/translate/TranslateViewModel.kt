@@ -8,8 +8,13 @@ import com.chatlearn.domain.Direction
 import com.chatlearn.domain.Lang
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
@@ -51,6 +56,13 @@ class TranslateViewModel(
     }
     fun setInput(s: String) = _state.update { it.copy(input = s) }
     fun setTag(s: String) = _state.update { it.copy(tag = s) }
+    fun pickTag(tag: String) = _state.update { it.copy(tag = applyTagSuggestion(it.tag, tag)) }
+
+    /** 입력창 포커스 시 보여 줄 자동완성 후보(최근 사용 순, 입력한 글자로 걸러짐). */
+    val tagSuggestions: StateFlow<List<String>> =
+        combine(repo.observeRecentTags(), _state.map { it.tag }.distinctUntilChanged()) { recent, typed ->
+            suggestTags(recent, typed)
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
     fun setTarget(l: Lang) = _state.update { it.copy(targetLang = l, candidates = emptyList()) }
 
     fun translate(): Job = viewModelScope.launch {
@@ -78,13 +90,13 @@ class TranslateViewModel(
         val s = _state.value
         val r = s.received ?: return@launch
         val lang = r.detectedLang ?: return@launch
-        val draft = EntryDraft(Direction.RECEIVED, lang, s.source, r.koTranslation, r.note, null, listOf(s.tag))
+        val draft = EntryDraft(Direction.RECEIVED, lang, s.source, r.koTranslation, r.note, null, parseTags(s.tag))
         report(repo.saveEntry(draft, clock()))
     }
 
     fun onCandidateCopied(c: SentCandidate): Job = viewModelScope.launch {
         val s = _state.value
-        val draft = EntryDraft(Direction.SENT, s.targetLang, c.text, s.source, c.toneNote, null, listOf(s.tag))
+        val draft = EntryDraft(Direction.SENT, s.targetLang, c.text, s.source, c.toneNote, null, parseTags(s.tag))
         report(repo.saveEntry(draft, clock()))
     }
 
