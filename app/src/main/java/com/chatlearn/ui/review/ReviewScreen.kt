@@ -35,6 +35,7 @@ import com.chatlearn.review.specialChars
 import com.chatlearn.review.isLeech
 import com.chatlearn.stats.StatsScreen
 import com.chatlearn.ui.components.ButtonSpinner
+import com.chatlearn.ui.components.EmptyState
 import com.chatlearn.ui.components.LabeledText
 import com.chatlearn.ui.components.LoadingBox
 import com.chatlearn.ui.components.SectionCard
@@ -120,10 +121,12 @@ private fun ReviewPane(vm: ReviewViewModel, statsVm: StatsViewModel) {
         }
         when (val s = state) {
             ReviewUi.Loading -> LoadingBox()
-            ReviewUi.Empty -> {
-                Text(if (custom != null) "고른 문장에 복습할 카드가 없어요." else "오늘 복습할 카드가 없어요.", style = MaterialTheme.typography.titleMedium)
-                OutlinedButton(onClick = { vm.start(preview = true) }) { Text(if (custom != null) "평소 복습으로" else "다시 확인") }
-            }
+            ReviewUi.Empty -> EmptyState(
+                message = if (custom != null) "고른 문장에 복습할 카드가 없어요." else "오늘 복습할 카드를 모두 끝냈어요.\n새 문장을 저장하면 내일부터 복습에 나와요.",
+                icon = Icons.Default.CheckCircle,
+                actionLabel = if (custom != null) "평소 복습으로" else "다시 확인",
+                onAction = { vm.start(preview = true) },
+            )
             is ReviewUi.Ready -> {
                 Text("오늘 복습할 카드 ${s.total}장", style = MaterialTheme.typography.titleLarge)
                 Text(if (s.newCards > 0) "복습 ${s.total - s.newCards}장 · 새 카드 ${s.newCards}장" else "모두 복습 카드예요.")

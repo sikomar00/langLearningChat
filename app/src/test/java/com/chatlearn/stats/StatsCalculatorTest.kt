@@ -162,4 +162,9 @@ class StatsCalculatorTest {
         assertEquals(0, st.reviews)
         assertNull(st.lastReviewedAt)
     }
+
+    @Test fun responseTimeIgnoresOneVeryLongIdleOutlier() {
+        val logs = listOf(1000L, 2000L, 3000L, 1_800_000L).map { logEx(1, Rating.GOOD, ExerciseKind.CLOZE, it) }
+        assertEquals(2500L, compute(logs).avgResponseMs)
+    }
 }

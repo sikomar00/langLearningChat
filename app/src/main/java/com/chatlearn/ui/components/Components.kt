@@ -100,3 +100,15 @@ fun LabeledText(
         Text(text, style = valueStyle, color = valueColor)
     }
 }
+
+/** 목록의 한 줄: 왼쪽 설명, 오른쪽 값. 줄 사이는 얇은 구분선. */
+@Composable
+fun StatRow(label: String, value: String, modifier: Modifier = Modifier, showDivider: Boolean = true) {
+    Column(modifier.fillMaxWidth()) {
+        Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Text(label, Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
+            Text(value, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
+        }
+        if (showDivider) HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+    }
+}

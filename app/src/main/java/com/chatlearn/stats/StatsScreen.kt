@@ -13,6 +13,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.chatlearn.domain.ExerciseKind
 import com.chatlearn.ui.components.LoadingBox
 import com.chatlearn.ui.components.SectionCard
+import com.chatlearn.ui.components.StatRow
 import com.chatlearn.ui.components.langLabel
 import java.util.Locale
 
@@ -38,23 +39,24 @@ fun StatsScreen(vm: StatsViewModel) {
         }
         SectionCard("자주 틀리는 문장") {
             if (s.weakest.isEmpty()) Text("아직 틀린 문장이 없어요.")
-            s.weakest.forEach { Text("${it.text}  (${it.lapses}회)") }
+            s.weakest.forEachIndexed { i, w -> StatRow(w.text, "${w.lapses}회", showDivider = i < s.weakest.lastIndex) }
         }
         SectionCard("언어별 정답률") {
             if (s.byLang.isEmpty()) Text("아직 기록이 없어요.")
-            s.byLang.forEach { (lang, r) -> Text("${langLabel(lang)}  ${percent(r)}  (${r.reviews}회)") }
+            s.byLang.entries.forEachIndexed { i, (lang, r) -> StatRow(langLabel(lang), "${percent(r)}  ·  ${r.reviews}회", showDivider = i < s.byLang.size - 1) }
         }
         SectionCard("방식별 정답률") {
             if (s.byExercise.isEmpty()) Text("아직 기록이 없어요.")
-            s.byExercise.forEach { (kind, r) ->
+            s.byExercise.entries.forEachIndexed { i, (kind, r) ->
                 val name = when (kind) { ExerciseKind.TRANSLATE -> "쓰기 번역"; ExerciseKind.CLOZE -> "빈칸 채우기"; ExerciseKind.DICTATION -> "듣고 받아쓰기" }
-                Text("$name  ${percent(r)}  (${r.reviews}회)")
+                StatRow(name, "${percent(r)}  ·  ${r.reviews}회", showDivider = i < s.byExercise.size - 1)
             }
-            s.avgResponseMs?.let { Text("평균 응답 시간 ${String.format(Locale.US, "%.1f", it / 1000.0)}초") }
+            s.avgResponseMs?.let { Text("보통 응답 시간 ${String.format(Locale.US, "%.1f", it / 1000.0)}초") }
         }
         SectionCard("태그별 정답률") {
             if (s.byTag.isEmpty()) Text("복습한 태그가 없어요.")
-            s.byTag.entries.sortedByDescending { it.value.reviews }.forEach { (tag, r) -> Text("$tag  ${percent(r)}  (${r.reviews}회)") }
+            val tags = s.byTag.entries.sortedByDescending { it.value.reviews }
+            tags.forEachIndexed { i, (tag, r) -> StatRow(tag, "${percent(r)}  ·  ${r.reviews}회", showDivider = i < tags.lastIndex) }
         }
     }
 }

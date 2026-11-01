@@ -9,6 +9,7 @@ import androidx.compose.ui.semantics.Role
 import com.chatlearn.ui.components.ButtonSpinner
 import com.chatlearn.ui.components.InfoMessage
 import com.chatlearn.ui.components.MessageKind
+import com.chatlearn.ui.components.SectionCard
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -88,6 +89,18 @@ fun TranslateScreen(vm: TranslateViewModel, onSpeak: (String, Lang) -> Unit = { 
             else Text(if (lineCount >= 2) "문장별로 번역 (${lineCount}개)" else "번역")
         }
 
+        if (s.input.isBlank() && s.received == null && s.candidates.isEmpty() && s.batch.isEmpty() && s.error == null) {
+            SectionCard("이렇게 써 보세요") {
+                if (s.mode == TranslateMode.RECEIVED) {
+                    Text("친구가 보낸 메시지를 붙여넣으면 한국어 뜻과 핵심 표현을 알려줘요.", style = MaterialTheme.typography.bodyMedium)
+                    Text("여러 줄을 한꺼번에 붙여넣으면 문장별로 골라 저장할 수 있어요.", style = MaterialTheme.typography.bodyMedium)
+                    Text("결과에서 단어를 누르면 그 문장에서의 뜻을 볼 수 있어요.", style = MaterialTheme.typography.bodyMedium)
+                } else {
+                    Text("한국어로 하고 싶은 말을 쓰면 자연스러운 표현 후보를 만들어요.", style = MaterialTheme.typography.bodyMedium)
+                    Text("내가 저장해 둔 표현이 어울리면 후보에 함께 써 줘요.", style = MaterialTheme.typography.bodyMedium)
+                }
+            }
+        }
         s.error?.let {
             InfoMessage(errorText(it), MessageKind.ERROR)
             if (it is TranslateError.Ai && it.kind != AiError.BAD_KEY) {

@@ -104,7 +104,7 @@ object StatsCalculator {
             byLang = byLang,
             byTag = byTag.mapValues { retention(it.value) },
             byExercise = logs.groupBy { it.exercise }.mapValues { retention(it.value) },
-            avgResponseMs = logs.mapNotNull { it.responseMs }.takeIf { it.isNotEmpty() }?.average()?.toLong(),
+            avgResponseMs = median(logs.mapNotNull { it.responseMs }),
         )
     }
 
@@ -120,4 +120,12 @@ object StatsCalculator {
             dueAt = mine.minOfOrNull { it.dueAt },
         )
     }
+}
+
+/** 중앙값. 문제를 열어 둔 채 자리를 비운 긴 시간 같은 이상치에 평균처럼 끌려가지 않는다. */
+internal fun median(values: List<Long>): Long? {
+    if (values.isEmpty()) return null
+    val sorted = values.sorted()
+    val mid = sorted.size / 2
+    return if (sorted.size % 2 == 1) sorted[mid] else (sorted[mid - 1] + sorted[mid]) / 2
 }

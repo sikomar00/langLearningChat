@@ -52,6 +52,15 @@ fun SettingsScreen(vm: SettingsViewModel) {
         if (uri != null) pendingImport = uri
     }
 
+    // 숫자 설정은 입력을 멈추면 알아서 저장한다(저장 버튼을 눌러야 하는 번거로움과 입력 유실을 없앤다).
+    LaunchedEffect(perDay) {
+        kotlinx.coroutines.delay(700)
+        perDay.toIntOrNull()?.let { if (it != s.newPerDay) vm.saveNewPerDay(it) }
+    }
+    LaunchedEffect(goalText) {
+        kotlinx.coroutines.delay(700)
+        goalText.toIntOrNull()?.let { if (it != s.dailyGoal) vm.saveDailyGoal(it) }
+    }
     var tab by rememberSaveable { mutableIntStateOf(0) }
     val tabs = listOf("AI", "복습", "문장", "화면", "백업")
     Column(Modifier.fillMaxSize()) {
@@ -73,15 +82,13 @@ fun SettingsScreen(vm: SettingsViewModel) {
                 }
             },
         )
-        Button(onClick = { vm.saveKey(key); message = "키를 저장했어요." }) { Text("키 저장") }
-
         OutlinedTextField(model, { model = it }, Modifier.fillMaxWidth(), singleLine = true, label = { Text("모델 이름") })
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             listOf("gemini-flash-latest", "gemini-flash-lite-latest").forEach { preset ->
                 FilterChip(selected = model == preset, onClick = { model = preset }, label = { Text(preset) })
             }
         }
-        Button(onClick = { vm.saveModel(model); message = "모델을 저장했어요." }) { Text("모델 저장") }
+        Button(onClick = { vm.saveKey(key); vm.saveModel(model); message = "저장했어요." }, Modifier.fillMaxWidth()) { Text("저장") }
 
         var checking by remember { mutableStateOf(false) }
         var checkResult by remember { mutableStateOf<String?>(null) }
@@ -89,22 +96,22 @@ fun SettingsScreen(vm: SettingsViewModel) {
         OutlinedButton(enabled = !checking, onClick = {
             checking = true; checkResult = null
             scope.launch {
+                // 입력한 값으로 확인하도록 먼저 저장을 끝낸다.
+                vm.saveKey(key).join(); vm.saveModel(model).join()
                 val err = vm.checkConnection()
                 checkOk = err == null
                 checkResult = err?.let(::connectionMessage) ?: "연결됐어요. 키와 모델이 잘 동작해요."
                 checking = false
             }
         }) { Text(if (checking) "확인 중…" else "연결 확인") }
-        Text("저장한 키와 모델로 확인해요. 먼저 저장해 주세요.", style = MaterialTheme.typography.bodySmall)
+        Text("입력한 키와 모델을 저장한 뒤 확인해요.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         checkResult?.let { InfoMessage(it, if (checkOk) MessageKind.SUCCESS else MessageKind.ERROR) }
 
     }
     if (tab == 1) {
-        OutlinedTextField(perDay, { perDay = it.filter(Char::isDigit) }, Modifier.fillMaxWidth(), singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), label = { Text("하루 새 카드 수") })
-        Button(onClick = { vm.saveNewPerDay(perDay.toIntOrNull() ?: 10); message = "저장했어요." }) { Text("새 카드 수 저장") }
+        OutlinedTextField(perDay, { perDay = it.filter(Char::isDigit) }, Modifier.fillMaxWidth(), singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), label = { Text("하루 새 카드 수") }, supportingText = { Text("입력하면 자동으로 저장돼요") })
 
-        OutlinedTextField(goalText, { goalText = it.filter(Char::isDigit) }, Modifier.fillMaxWidth(), singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), label = { Text("하루 복습 목표(장, 0이면 끔)") })
-        Button(onClick = { vm.saveDailyGoal(goalText.toIntOrNull() ?: 10); message = "목표를 저장했어요." }) { Text("목표 저장") }
+        OutlinedTextField(goalText, { goalText = it.filter(Char::isDigit) }, Modifier.fillMaxWidth(), singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), label = { Text("하루 복습 목표(장, 0이면 끔)") }, supportingText = { Text("입력하면 자동으로 저장돼요") })
 
         val notifPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
             if (!granted) message = "알림 권한이 꺼져 있어요. 휴대폰 설정 > 앱 > ChatLearn > 알림에서 켜 주세요."
