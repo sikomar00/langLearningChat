@@ -96,6 +96,7 @@ class ReviewViewModelTest {
     @Test fun ensureStartedDoesNotResetAReviewInProgress() = runBlocking {
         repo.saveEntry(EntryDraft(Direction.RECEIVED, Lang.EN, "Hi", "안녕", "", null, emptyList()), now - 1)
         vm.ensureStarted().join()
+        vm.begin().join()
         vm.setAnswer("Hi"); vm.submit().join()
         assertIs<ReviewUi.Graded>(vm.state.value)
         vm.ensureStarted().join() // 탭을 다녀와도 채점 결과가 남아 있어야 한다
@@ -185,5 +186,34 @@ class ReviewViewModelTest {
         assertNotEquals(first, second)
         assertTrue(db.dao().allLogs().isEmpty())
         assertEquals(ReviewProgress(0, 2), vm.progress.value)
+    }
+
+    @Test fun previewShowsCountsBeforeAnyCardAndBeginStartsTheFirst() = runBlocking {
+        two()
+        vm.start(preview = true).join()
+        assertEquals(ReviewUi.Ready(total = 2, newCards = 2), vm.state.value)
+        vm.begin().join()
+        assertIs<ReviewUi.Prompt>(vm.state.value)
+        assertEquals(ReviewProgress(0, 2), vm.progress.value)
+    }
+
+    @Test fun previewWithNothingDueIsEmpty() = runBlocking {
+        vm.start(preview = true).join()
+        assertEquals(ReviewUi.Empty, vm.state.value)
+    }
+
+    @Test fun beginWithoutPreviewIsIgnored() = runBlocking {
+        two()
+        vm.start().join()
+        val before = vm.state.value
+        vm.begin().join()
+        assertEquals(before, vm.state.value)
+    }
+
+    @Test fun ensureStartedShowsPreviewFirst() = runBlocking {
+        two()
+        vm.ensureStarted().join()
+        assertIs<ReviewUi.Ready>(vm.state.value)
+        Unit
     }
 }

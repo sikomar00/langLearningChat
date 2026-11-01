@@ -15,6 +15,8 @@ import kotlinx.coroutines.launch
 sealed interface ReviewUi {
     data object Loading : ReviewUi
     data object Empty : ReviewUi
+    /** 복습을 시작하기 전 요약: 오늘 낼 카드 수와 그중 새 카드 수. */
+    data class Ready(val total: Int, val newCards: Int) : ReviewUi
     data class Prompt(
         val item: ReviewItem,
         val answers: List<String>,
@@ -55,17 +57,28 @@ class ReviewViewModel(private val session: ReviewSession) : ViewModel() {
     /** 화면이 다시 그려져도(탭 이동, 회전) 진행 중인 복습을 되돌리지 않는다. */
     fun ensureStarted(): Job {
         if (started) return Job().apply { complete() }
-        return start()
+        return start(preview = true)
     }
 
-    fun start(): Job = viewModelScope.launch {
+    /** [preview]면 첫 카드를 바로 내지 않고 요약(Ready)을 먼저 보여 준다. */
+    fun start(preview: Boolean = false): Job = viewModelScope.launch {
         started = true
         _state.value = ReviewUi.Loading
         _custom.value = null
         reviewed = 0
         queue.clear()
         queue.addAll(session.loadQueue())
-        if (queue.isEmpty()) { _progress.value = ReviewProgress(0, 0); _state.value = ReviewUi.Empty } else showNext()
+        if (queue.isEmpty()) {
+            _progress.value = ReviewProgress(0, 0); _state.value = ReviewUi.Empty
+        } else if (preview) {
+            _progress.value = ReviewProgress(0, queue.size)
+            _state.value = ReviewUi.Ready(queue.size, queue.count { it.card.lastReviewedAt == null })
+        } else showNext()
+    }
+
+    /** 요약 화면에서 "시작"을 눌렀을 때. */
+    fun begin(): Job = viewModelScope.launch {
+        if (_state.value is ReviewUi.Ready) showNext()
     }
 
     /** 라이브러리에서 고른 문장만 복습한다. 채점과 일정 반영은 평소 복습과 같다. */

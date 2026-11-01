@@ -62,11 +62,16 @@ private fun ReviewPane(vm: ReviewViewModel) {
             ReviewUi.Loading -> CircularProgressIndicator()
             ReviewUi.Empty -> {
                 Text(if (custom != null) "고른 문장에 복습할 카드가 없어요." else "오늘 복습할 카드가 없어요.", style = MaterialTheme.typography.titleMedium)
-                OutlinedButton(onClick = { vm.start() }) { Text(if (custom != null) "평소 복습으로" else "다시 확인") }
+                OutlinedButton(onClick = { vm.start(preview = true) }) { Text(if (custom != null) "평소 복습으로" else "다시 확인") }
+            }
+            is ReviewUi.Ready -> {
+                Text("오늘 복습할 카드 ${s.total}장", style = MaterialTheme.typography.titleLarge)
+                Text(if (s.newCards > 0) "복습 ${s.total - s.newCards}장 · 새 카드 ${s.newCards}장" else "모두 복습 카드예요.")
+                Button(onClick = { vm.begin() }, Modifier.fillMaxWidth()) { Text("시작") }
             }
             is ReviewUi.Done -> {
                 Text("오늘 ${s.count}개를 복습했어요.", style = MaterialTheme.typography.titleMedium)
-                OutlinedButton(onClick = { vm.start() }) { Text(if (custom != null) "평소 복습으로" else "더 있는지 확인") }
+                OutlinedButton(onClick = { vm.start(preview = true) }) { Text(if (custom != null) "평소 복습으로" else "더 있는지 확인") }
             }
             is ReviewUi.Prompt -> {
                 when (s.item.exercise) {

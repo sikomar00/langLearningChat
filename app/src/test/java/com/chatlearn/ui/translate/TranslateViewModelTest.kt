@@ -198,4 +198,22 @@ class TranslateViewModelTest {
         assertNull(vm.state.value.received)
         assertTrue(vm.state.value.candidates.isEmpty())
     }
+
+    @Test fun sharedTextSwitchesToReceivedModeAndTranslatesAtOnce() = runBlocking {
+        vm.setMode(TranslateMode.SENT)
+        vm.setInput("old")
+        vm.receiveShared("  How are you?\n").join()
+        val s = vm.state.value
+        assertEquals(TranslateMode.RECEIVED, s.mode)
+        assertEquals("How are you?", s.input)
+        assertEquals("번역문", s.received?.koTranslation)
+        assertEquals(listOf("received"), ai.calls)
+    }
+
+    @Test fun sharedTextReplacesPreviousResult() = runBlocking {
+        vm.setInput("first"); vm.translate().join()
+        vm.receiveShared("second").join()
+        assertEquals("second", vm.state.value.source)
+        assertEquals(2, ai.calls.size)
+    }
 }

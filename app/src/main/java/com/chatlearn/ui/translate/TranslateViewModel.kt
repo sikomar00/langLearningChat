@@ -66,6 +66,13 @@ class TranslateViewModel(
     fun replaceInput(text: String) = _state.update {
         it.copy(input = text.trim(), source = "", received = null, candidates = emptyList(), error = null, notice = null)
     }
+    /** 다른 앱에서 공유한 메시지: 받은 말 모드로 바꾸고 바로 번역한다. */
+    fun receiveShared(text: String): Job {
+        _state.update {
+            it.copy(mode = TranslateMode.RECEIVED, input = text.trim(), source = "", received = null, candidates = emptyList(), error = null, notice = null)
+        }
+        return translate()
+    }
     fun setTag(s: String) = _state.update { it.copy(tag = s) }
     fun pickTag(tag: String) = _state.update { it.copy(tag = applyTagSuggestion(it.tag, tag)) }
 
