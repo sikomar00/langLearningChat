@@ -4,6 +4,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.chatlearn.data.EntryRepository
 import com.chatlearn.data.LibraryItem
+import com.chatlearn.data.RenameResult
+import kotlinx.coroutines.async
 import com.chatlearn.domain.Lang
 import com.chatlearn.domain.TextOrigin
 import kotlinx.coroutines.flow.*
@@ -30,6 +32,28 @@ class LibraryViewModel(private val repo: EntryRepository) : ViewModel() {
     val allTags: StateFlow<List<String>> =
         all.map { list -> list.flatMap { it.tags }.distinct().sorted() }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    /** 태그 자동완성 후보(최근 사용 순). */
+    val recentTags: StateFlow<List<String>> =
+        repo.observeRecentTags().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    init {
+        // 필터로 선택해 둔 태그가 사라지면(마지막 문장에서 제거, 이름 변경 등) 필터를 풀어서 빈 목록에 갇히지 않게 한다.
+        viewModelScope.launch { all.collect { l -> dropStaleTagFilter(l.flatMap { it.tags }) } }
+    }
+
+    internal fun dropStaleTagFilter(existing: List<String>) {
+        val current = tagFilter.value
+        if (current != null && current !in existing) tagFilter.value = null
+    }
+
+    fun saveTags(id: Long, tags: List<String>) = viewModelScope.launch { repo.setTags(id, tags) }
+
+    fun renameTag(old: String, new: String) = viewModelScope.async {
+        repo.renameTag(old, new).also { r ->
+            if (r != RenameResult.Unchanged && tagFilter.value == old) tagFilter.value = new.trim()
+        }
+    }
 
     fun delete(id: Long) = viewModelScope.launch { repo.deleteEntry(id) }
     fun saveNote(id: Long, note: String) = viewModelScope.launch { repo.updateNote(id, note) }

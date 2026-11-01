@@ -17,6 +17,13 @@ interface AppDao {
     @Insert(onConflict = OnConflictStrategy.IGNORE) suspend fun insertEntryTag(et: EntryTagEntity)
 
     @Query("SELECT id FROM tag WHERE name = :name") suspend fun findTagId(name: String): Long?
+    @Query("DELETE FROM entry_tag WHERE entryId = :entryId") suspend fun deleteEntryTags(entryId: Long)
+    @Query("DELETE FROM tag WHERE id NOT IN (SELECT DISTINCT tagId FROM entry_tag)") suspend fun deleteOrphanTags()
+    @Query("UPDATE tag SET name = :name WHERE id = :id") suspend fun renameTag(id: Long, name: String)
+    // 두 태그를 합칠 때: from이 붙은 문장에 to를 붙인다(이미 붙어 있으면 무시). from 태그 삭제는 호출한 쪽에서 한다.
+    @Query("INSERT OR IGNORE INTO entry_tag (entryId, tagId) SELECT entryId, :toId FROM entry_tag WHERE tagId = :fromId")
+    suspend fun copyTagLinks(fromId: Long, toId: Long)
+    @Query("DELETE FROM tag WHERE id = :id") suspend fun deleteTag(id: Long)
 
     @Query(
         "SELECT t.entryId FROM entry_text t JOIN entry e ON e.id = t.entryId " +

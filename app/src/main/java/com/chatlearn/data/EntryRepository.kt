@@ -20,6 +20,8 @@ sealed interface SaveResult {
     data class Duplicate(val id: Long) : SaveResult
 }
 
+enum class RenameResult { Renamed, Merged, Unchanged }
+
 data class DueCard(val card: ReviewCardEntity, val texts: Map<Lang, String>)
 data class LibraryItem(val entry: EntryEntity, val texts: Map<Lang, String>, val tags: List<String>)
 
@@ -70,6 +72,32 @@ class EntryRepository(internal val db: AppDatabase) {
                 LibraryItem(e, textsBy[e.id].orEmpty().associate { it.lang to it.text }, tagsBy[e.id].orEmpty().sorted())
             }
         }
+
+    /** 문장의 태그를 [tags] 목록으로 통째로 바꾼다. 어떤 문장에도 안 붙은 태그는 삭제한다. */
+    suspend fun setTags(entryId: Long, tags: List<String>) = db.withTransaction {
+        dao.deleteEntryTags(entryId)
+        tags.map { it.trim() }.filter { it.isNotEmpty() }.distinct().forEach { name ->
+            val tagId = dao.findTagId(name) ?: dao.insertTag(TagEntity(name = name))
+            dao.insertEntryTag(EntryTagEntity(entryId, tagId))
+        }
+        dao.deleteOrphanTags()
+    }
+
+    /** 태그 이름을 모든 문장에서 바꾼다. 바꿀 이름이 이미 있으면 두 태그를 합친다. */
+    suspend fun renameTag(old: String, new: String): RenameResult = db.withTransaction {
+        val newName = new.trim()
+        val oldId = dao.findTagId(old.trim())
+        if (oldId == null || newName.isEmpty() || newName == old.trim()) return@withTransaction RenameResult.Unchanged
+        val existingId = dao.findTagId(newName)
+        if (existingId == null) {
+            dao.renameTag(oldId, newName)
+            RenameResult.Renamed
+        } else {
+            dao.copyTagLinks(oldId, existingId)
+            dao.deleteTag(oldId) // 외래 키 CASCADE로 옛 연결도 함께 지워진다
+            RenameResult.Merged
+        }
+    }
 
     /** 최근에 쓴 태그 순서. 자동완성 후보로 쓴다. */
     fun observeRecentTags(): Flow<List<String>> = dao.observeTagsByRecency()

@@ -75,6 +75,57 @@ class EntryRepositoryTest {
         assertEquals(listOf("Alex", "Sofía", "여행"), repo.observeRecentTags().first())
     }
 
+    private suspend fun tagsOf(id: Long) = repo.observeLibrary().first().single { it.entry.id == id }.tags
+
+    @Test fun setTagsAddsRemovesAndReplaces() = runBlocking {
+        val id = (repo.saveEntry(draft(tags = listOf("Alex", "여행")), now) as SaveResult.Saved).id
+        repo.setTags(id, listOf("Alex", "약속"))
+        assertEquals(listOf("Alex", "약속"), tagsOf(id))
+        repo.setTags(id, emptyList())
+        assertEquals(emptyList(), tagsOf(id))
+    }
+
+    @Test fun setTagsIgnoresBlankAndDuplicateNames() = runBlocking {
+        val id = (repo.saveEntry(draft(), now) as SaveResult.Saved).id
+        repo.setTags(id, listOf(" Alex ", "", "Alex", "  "))
+        assertEquals(listOf("Alex"), tagsOf(id))
+    }
+
+    @Test fun tagsNoLongerUsedByAnyEntryAreDeleted() = runBlocking {
+        val a = (repo.saveEntry(draft(text = "a", tags = listOf("Alex", "여행")), now) as SaveResult.Saved).id
+        repo.saveEntry(draft(text = "b", tags = listOf("Alex")), now + 1)
+        repo.setTags(a, listOf("Alex")) // 여행은 아무 문장에도 안 남는다
+        assertEquals(listOf("Alex"), repo.observeRecentTags().first())
+        assertEquals(1, db.dao().allTags().size)
+    }
+
+    @Test fun renameTagChangesItOnEveryEntry() = runBlocking {
+        val a = (repo.saveEntry(draft(text = "a", tags = listOf("Alex")), now) as SaveResult.Saved).id
+        val b = (repo.saveEntry(draft(text = "b", tags = listOf("Alex", "여행")), now + 1) as SaveResult.Saved).id
+        assertEquals(RenameResult.Renamed, repo.renameTag("Alex", "알렉스"))
+        assertEquals(listOf("알렉스"), tagsOf(a))
+        assertEquals(listOf("알렉스", "여행"), tagsOf(b).sorted())
+    }
+
+    @Test fun renamingToAnExistingTagMergesThem() = runBlocking {
+        val a = (repo.saveEntry(draft(text = "a", tags = listOf("Alex")), now) as SaveResult.Saved).id
+        val b = (repo.saveEntry(draft(text = "b", tags = listOf("알렉스")), now + 1) as SaveResult.Saved).id
+        val both = (repo.saveEntry(draft(text = "c", tags = listOf("Alex", "알렉스")), now + 2) as SaveResult.Saved).id
+        assertEquals(RenameResult.Merged, repo.renameTag("Alex", "알렉스"))
+        assertEquals(listOf("알렉스"), tagsOf(a))
+        assertEquals(listOf("알렉스"), tagsOf(b))
+        assertEquals(listOf("알렉스"), tagsOf(both)) // 둘 다 붙어 있던 문장도 중복 없이 하나
+        assertEquals(1, db.dao().allTags().size)
+    }
+
+    @Test fun renameWithBlankOrSameNameChangesNothing() = runBlocking {
+        val id = (repo.saveEntry(draft(tags = listOf("Alex")), now) as SaveResult.Saved).id
+        assertEquals(RenameResult.Unchanged, repo.renameTag("Alex", "  "))
+        assertEquals(RenameResult.Unchanged, repo.renameTag("Alex", "Alex"))
+        assertEquals(RenameResult.Unchanged, repo.renameTag("없는태그", "새이름"))
+        assertEquals(listOf("Alex"), tagsOf(id))
+    }
+
     @Test fun noTagsMeansNoSuggestions() = runBlocking {
         repo.saveEntry(draft(), 1)
         assertTrue(repo.observeRecentTags().first().isEmpty())
