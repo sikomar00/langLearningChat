@@ -352,4 +352,13 @@ class ReviewViewModelTest {
         vm.editCurrent("Hi", "안녕", note = "새 메모").join()
         assertEquals("새 메모", assertIs<ReviewUi.Prompt>(vm.state.value).item.note)
     }
+
+    @Test fun theQueueNeverServesTheTwoLanguageCardsOfOneSentenceBackToBack() = runBlocking {
+        repeat(3) { n ->
+            repo.saveEntry(EntryDraft(Direction.RECEIVED, Lang.EN, "Sentence number $n here", "한", "", null, emptyList(), "Frase $n aquí"), now - 100 + n)
+        }
+        val queue = ReviewSession(repo, ai, { now }, { 10 }, { false }, { 0.0 }).loadQueue()
+        assertEquals(6, queue.size)
+        queue.zipWithNext().forEach { (a, b) -> assertNotEquals(a.card.entryId, b.card.entryId) }
+    }
 }

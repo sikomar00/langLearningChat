@@ -22,7 +22,7 @@ import com.chatlearn.domain.splitMessages
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
-fun TranslateScreen(vm: TranslateViewModel, onSpeak: (String, Lang) -> Unit = { _, _ -> }) {
+fun TranslateScreen(vm: TranslateViewModel, onSpeak: (String, Lang) -> Unit = { _, _ -> }, onOpenSettings: () -> Unit = {}) {
     val s by vm.state.collectAsStateWithLifecycle()
     val clipboard = LocalClipboardManager.current
 
@@ -79,6 +79,9 @@ fun TranslateScreen(vm: TranslateViewModel, onSpeak: (String, Lang) -> Unit = { 
             Text(errorText(it), color = MaterialTheme.colorScheme.error)
             if (it is TranslateError.Ai && it.kind != AiError.BAD_KEY) {
                 OutlinedButton(onClick = { vm.translate() }, enabled = !s.loading) { Text("다시 시도") }
+            }
+            if (it is TranslateError.Ai && it.kind == AiError.BAD_KEY) {
+                Button(onClick = onOpenSettings) { Text("설정 열기") }
             }
         }
         s.notice?.let {

@@ -10,6 +10,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import com.chatlearn.data.RenameResult
 import com.chatlearn.domain.TextOrigin
@@ -79,56 +81,86 @@ fun LibraryScreen(vm: LibraryViewModel, onStartReview: (Set<Long>, Lang?) -> Uni
                 Button(enabled = chosen.isNotEmpty(), onClick = { onStartReview(chosen, lang); picked = null }) { Text("선택 복습") }
             }
         }
-        OutlinedTextField(value = query, onValueChange = { vm.query.value = it }, modifier = Modifier.fillMaxWidth(), singleLine = true, label = { Text("검색") })
         val unexpanded by vm.unexpanded.collectAsStateWithLifecycle()
-        var expandMessage by remember { mutableStateOf<String?>(null) }
-        val expanding by vm.expanding.collectAsStateWithLifecycle()
-        val scope = rememberCoroutineScope()
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            if (tags.isNotEmpty()) TextButton(onClick = { managingTags = true }) { Text("태그 관리") }
-            if (unexpanded > 0) TextButton(enabled = !expanding, onClick = {
-                scope.launch {
-                    val r = vm.expandAll().await()
-                    expandMessage = if (r.created == 0 && r.failedBatches > 0) AI_FAILED_HINT
-                    else "다른 언어 카드 ${r.created}개를 만들었어요." +
-                        if (r.failedBatches > 0) " (실패한 묶음 ${r.failedBatches}개는 다시 눌러 보세요)" else ""
-                }
-            }) { Text(if (expanding) "확장 중…" else "전체 확장 ($unexpanded)") }
-        }
         val missingKeys by vm.missingKeyPhrases.collectAsStateWithLifecycle()
+        val expanding by vm.expanding.collectAsStateWithLifecycle()
         val fillingKeys by vm.fillingKeyPhrases.collectAsStateWithLifecycle()
-        if (missingKeys > 0) {
-            TextButton(enabled = !fillingKeys, onClick = {
-                scope.launch {
-                    val r = vm.fillKeyPhrases().await()
-                    expandMessage = if (r.filled == 0 && r.none == 0 && r.failedBatches > 0) AI_FAILED_HINT
-                    else "핵심 표현 ${r.filled}개를 찾았어요." +
-                        if (r.failedBatches > 0) " (실패한 묶음 ${r.failedBatches}개는 다시 눌러 보세요)" else ""
+        var message by remember { mutableStateOf<String?>(null) }
+        val scope = rememberCoroutineScope()
+        var showFilters by rememberSaveable { mutableStateOf(false) }
+        var menuOpen by remember { mutableStateOf(false) }
+        val activeFilters = listOf(lang != null, tag != null, statusFilter != StatusFilter.ALL, sort != LibrarySort.RECENT).count { it }
+
+        Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            OutlinedTextField(value = query, onValueChange = { vm.query.value = it }, modifier = Modifier.weight(1f), singleLine = true, label = { Text("검색") })
+            TextButton(onClick = { showFilters = !showFilters }) { Text(if (activeFilters > 0) "필터 · $activeFilters" else "필터") }
+            if (tags.isNotEmpty() || unexpanded > 0 || missingKeys > 0) {
+                Box {
+                    IconButton(onClick = { menuOpen = true }) { Icon(Icons.Default.MoreVert, contentDescription = "더 보기") }
+                    DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                        if (tags.isNotEmpty()) DropdownMenuItem(text = { Text("태그 관리") }, onClick = { menuOpen = false; managingTags = true })
+                        if (unexpanded > 0) DropdownMenuItem(
+                            text = { Text(if (expanding) "확장 중…" else "전체 확장 ($unexpanded)") }, enabled = !expanding,
+                            onClick = {
+                                menuOpen = false
+                                scope.launch {
+                                    val r = vm.expandAll().await()
+                                    message = if (r.created == 0 && r.failedBatches > 0) AI_FAILED_HINT
+                                    else "다른 언어 카드 ${r.created}개를 만들었어요." +
+                                        if (r.failedBatches > 0) " (실패한 묶음 ${r.failedBatches}개는 다시 눌러 보세요)" else ""
+                                }
+                            },
+                        )
+                        if (missingKeys > 0) DropdownMenuItem(
+                            text = { Text(if (fillingKeys) "찾는 중…" else "핵심 표현 만들기 ($missingKeys)") }, enabled = !fillingKeys,
+                            onClick = {
+                                menuOpen = false
+                                scope.launch {
+                                    val r = vm.fillKeyPhrases().await()
+                                    message = if (r.filled == 0 && r.none == 0 && r.failedBatches > 0) AI_FAILED_HINT
+                                    else "핵심 표현 ${r.filled}개를 찾았어요." +
+                                        if (r.failedBatches > 0) " (실패한 묶음 ${r.failedBatches}개는 다시 눌러 보세요)" else ""
+                                }
+                            },
+                        )
+                    }
                 }
-            }) { Text(if (fillingKeys) "찾는 중…" else "핵심 표현 만들기 ($missingKeys)") }
-        }
-        expandMessage?.let { Text(it, color = MaterialTheme.colorScheme.primary) }
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            listOf(Lang.EN to "영어", Lang.ES to "스페인어").forEach { (l, label) ->
-                FilterChip(selected = lang == l, onClick = { vm.langFilter.value = if (lang == l) null else l }, label = { Text(label) })
-            }
-            tags.forEach { t ->
-                FilterChip(selected = tag == t, onClick = { vm.tagFilter.value = if (tag == t) null else t }, label = { Text(t) })
             }
         }
-        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            items(StatusFilter.entries.toList()) { f ->
-                FilterChip(selected = statusFilter == f, onClick = { vm.statusFilter.value = f }, label = { Text(f.label) })
+        if (showFilters) {
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                items(listOf(Lang.EN to "영어", Lang.ES to "스페인어")) { (l, label) ->
+                    FilterChip(selected = lang == l, onClick = { vm.langFilter.value = if (lang == l) null else l }, label = { Text(label) })
+                }
+                items(tags) { t ->
+                    FilterChip(selected = tag == t, onClick = { vm.tagFilter.value = if (tag == t) null else t }, label = { Text(t) })
+                }
             }
-        }
-        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            items(LibrarySort.entries.toList()) { o ->
-                AssistChip(
-                    onClick = { vm.sort.value = o }, label = { Text(o.label) },
-                    colors = if (sort == o) AssistChipDefaults.assistChipColors(containerColor = MaterialTheme.colorScheme.secondaryContainer) else AssistChipDefaults.assistChipColors(),
-                )
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                items(StatusFilter.entries.toList()) { f ->
+                    FilterChip(selected = statusFilter == f, onClick = { vm.statusFilter.value = f }, label = { Text(f.label) })
+                }
             }
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                items(LibrarySort.entries.toList()) { o ->
+                    FilterChip(selected = sort == o, onClick = { vm.sort.value = o }, label = { Text(o.label) })
+                }
+                if (activeFilters > 0) item {
+                    TextButton(onClick = {
+                        vm.langFilter.value = null; vm.tagFilter.value = null
+                        vm.statusFilter.value = StatusFilter.ALL; vm.sort.value = LibrarySort.RECENT
+                    }) { Text("초기화") }
+                }
+            }
+        } else if (activeFilters > 0) {
+            // 접어 둔 상태에서도 걸려 있는 조건을 알 수 있게 한 줄로 보여 준다.
+            val summary = listOfNotNull(
+                lang?.let { if (it == Lang.EN) "영어" else "스페인어" }, tag,
+                statusFilter.takeIf { it != StatusFilter.ALL }?.label, sort.takeIf { it != LibrarySort.RECENT }?.label,
+            ).joinToString(" · ")
+            Text(summary, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
         }
+        message?.let { Text(it, color = MaterialTheme.colorScheme.primary, modifier = Modifier.clickable { message = null }) }
         if (items.isEmpty()) {
             Text(if (statusFilter != StatusFilter.ALL) "조건에 맞는 문장이 없어요." else "저장된 문장이 없어요. 번역 탭에서 문장을 저장해 보세요.")
         } else if (picked == null) {

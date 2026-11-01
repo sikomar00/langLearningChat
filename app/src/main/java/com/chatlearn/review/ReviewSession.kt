@@ -61,7 +61,7 @@ class ReviewSession(
         val now = clock()
         val dayStart = Instant.ofEpochMilli(now).atZone(ZoneId.systemDefault()).toLocalDate()
             .atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
-        return repo.queue(now, dayStart, newPerDay())
+        return spreadSiblings(repo.queue(now, dayStart, newPerDay()))
     }
 
     private data class Undo(val before: ReviewCardEntity, val logId: Long)
@@ -101,7 +101,7 @@ class ReviewSession(
         return repo.dueCardOf(card)
     }
 
-    suspend fun loadSelected(entryIds: Set<Long>, answerLang: Lang?): List<DueCard> = repo.cardsFor(entryIds, answerLang)
+    suspend fun loadSelected(entryIds: Set<Long>, answerLang: Lang?): List<DueCard> = spreadSiblings(repo.cardsFor(entryIds, answerLang))
 
     suspend fun prepare(due: DueCard): ReviewItem {
         val answerLang = due.card.answerLang

@@ -95,7 +95,7 @@ class MainActivity : ComponentActivity() {
                 ) { pad ->
                     Surface(Modifier.padding(pad)) {
                         when (current) {
-                            Tab.TRANSLATE -> TranslateScreen(translateVm) { text, lang -> c.tts.speak(text, lang, false) }
+                            Tab.TRANSLATE -> TranslateScreen(translateVm, onSpeak = { text, lang -> c.tts.speak(text, lang, false) }, onOpenSettings = { tab = Tab.SETTINGS })
                             Tab.LIBRARY -> LibraryScreen(viewModel(factory = factory)) { ids, lang ->
                                 reviewVm.startWith(ids, lang)
                                 tab = Tab.REVIEW

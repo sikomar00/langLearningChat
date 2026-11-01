@@ -68,27 +68,12 @@ fun SettingsScreen(vm: SettingsViewModel) {
         Text("저장한 키와 모델로 확인해요. 먼저 저장해 주세요.", style = MaterialTheme.typography.bodySmall)
         checkResult?.let { Text(it, color = MaterialTheme.colorScheme.primary) }
 
+        SectionTitle("복습")
         OutlinedTextField(perDay, { perDay = it.filter(Char::isDigit) }, Modifier.fillMaxWidth(), singleLine = true, label = { Text("하루 새 카드 수") })
         Button(onClick = { vm.saveNewPerDay(perDay.toIntOrNull() ?: 10); message = "저장했어요." }) { Text("새 카드 수 저장") }
 
         OutlinedTextField(goalText, { goalText = it.filter(Char::isDigit) }, Modifier.fillMaxWidth(), singleLine = true, label = { Text("하루 복습 목표(장, 0이면 끔)") })
         Button(onClick = { vm.saveDailyGoal(goalText.toIntOrNull() ?: 10); message = "목표를 저장했어요." }) { Text("목표 저장") }
-
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f)) {
-                Text("저장할 때 다른 언어도 만들기")
-                Text("영어 문장이면 스페인어 카드도, 스페인어 문장이면 영어 카드도 함께 만들어요.", style = MaterialTheme.typography.bodySmall)
-            }
-            Switch(checked = s.autoExpand, onCheckedChange = { vm.saveAutoExpand(it) })
-        }
-
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f)) {
-                Text("보낼 말에 내 표현 쓰기")
-                Text("보낼 말 후보를 만들 때 내가 저장한 핵심 표현을 자연스러울 때만 넣어 줘요.", style = MaterialTheme.typography.bodySmall)
-            }
-            Switch(checked = s.useSavedExpressions, onCheckedChange = { vm.saveUseSaved(it) })
-        }
 
         val notifPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
             if (!granted) message = "알림 권한이 꺼져 있어요. 휴대폰 설정 > 앱 > ChatLearn > 알림에서 켜 주세요."
@@ -113,6 +98,23 @@ fun SettingsScreen(vm: SettingsViewModel) {
             }
         }
 
+        SectionTitle("문장 저장")
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text("저장할 때 다른 언어도 만들기")
+                Text("영어 문장이면 스페인어 카드도, 스페인어 문장이면 영어 카드도 함께 만들어요.", style = MaterialTheme.typography.bodySmall)
+            }
+            Switch(checked = s.autoExpand, onCheckedChange = { vm.saveAutoExpand(it) })
+        }
+
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text("보낼 말에 내 표현 쓰기")
+                Text("보낼 말 후보를 만들 때 내가 저장한 핵심 표현을 자연스러울 때만 넣어 줘요.", style = MaterialTheme.typography.bodySmall)
+            }
+            Switch(checked = s.useSavedExpressions, onCheckedChange = { vm.saveUseSaved(it) })
+        }
+
         Text("오늘 AI 호출: ${s.aiCallsToday}회")
 
         HorizontalDivider()
@@ -133,4 +135,10 @@ private fun connectionMessage(e: com.chatlearn.ai.AiError) = when (e) {
     com.chatlearn.ai.AiError.RATE_LIMIT -> "한도에 도달했어요. 키는 유효해 보여요. 잠시 후 다시 시도해 주세요."
     com.chatlearn.ai.AiError.OVERLOADED -> "지금 이 모델에 요청이 몰려 있어요. 다른 모델로 바꿔 보세요."
     com.chatlearn.ai.AiError.BAD_FORMAT, com.chatlearn.ai.AiError.SERVER -> "AI 서버 응답에 문제가 있어요. 잠시 후 다시 시도해 주세요."
+}
+
+@Composable
+private fun SectionTitle(text: String) {
+    HorizontalDivider()
+    Text(text, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
 }
