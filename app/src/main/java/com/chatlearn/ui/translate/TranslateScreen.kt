@@ -6,6 +6,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -41,7 +43,16 @@ fun TranslateScreen(vm: TranslateViewModel) {
         OutlinedTextField(
             value = s.input, onValueChange = vm::setInput, modifier = Modifier.fillMaxWidth(), minLines = 3,
             label = { Text(if (s.mode == TranslateMode.RECEIVED) "친구가 보낸 메시지를 붙여넣기" else "하고 싶은 말(한국어)") },
+            trailingIcon = {
+                if (s.input.isNotEmpty()) {
+                    IconButton(onClick = { vm.clearInput() }) { Icon(Icons.Default.Clear, contentDescription = "입력 지우기") }
+                }
+            },
         )
+        OutlinedButton(
+            onClick = { clipboard.getText()?.text?.takeIf { it.isNotBlank() }?.let(vm::replaceInput) },
+            modifier = Modifier.fillMaxWidth(),
+        ) { Text("클립보드 내용으로 바꾸기") }
         var tagFocused by remember { mutableStateOf(false) }
         val suggestions by vm.tagSuggestions.collectAsStateWithLifecycle()
         OutlinedTextField(

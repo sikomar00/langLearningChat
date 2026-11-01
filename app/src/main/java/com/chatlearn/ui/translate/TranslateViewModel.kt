@@ -55,6 +55,16 @@ class TranslateViewModel(
         it.copy(mode = m, received = null, candidates = emptyList(), error = null, notice = null)
     }
     fun setInput(s: String) = _state.update { it.copy(input = s) }
+
+    /** 입력과 결과, 안내 문구를 모두 비운다. 태그와 모드는 그대로 둔다. */
+    fun clearInput() = _state.update {
+        it.copy(input = "", source = "", received = null, candidates = emptyList(), error = null, notice = null)
+    }
+
+    /** 붙여넣기: 입력을 통째로 바꾸고, 이전 입력의 결과는 지운다. */
+    fun replaceInput(text: String) = _state.update {
+        it.copy(input = text.trim(), source = "", received = null, candidates = emptyList(), error = null, notice = null)
+    }
     fun setTag(s: String) = _state.update { it.copy(tag = s) }
     fun pickTag(tag: String) = _state.update { it.copy(tag = applyTagSuggestion(it.tag, tag)) }
 
@@ -100,8 +110,13 @@ class TranslateViewModel(
         report(repo.saveEntry(draft, clock()))
     }
 
+    // 저장에 성공하면 다음 표현을 바로 입력할 수 있게 입력과 결과를 비운다. 중복이면 그대로 둔다.
     private fun report(r: SaveResult) = _state.update {
-        it.copy(notice = if (r is SaveResult.Saved) Notice.Saved else Notice.Duplicate)
+        if (r is SaveResult.Saved) {
+            it.copy(input = "", source = "", received = null, candidates = emptyList(), error = null, notice = Notice.Saved)
+        } else {
+            it.copy(notice = Notice.Duplicate)
+        }
     }
 
     private fun Throwable.toUiError() = TranslateError.Ai((this as? AiException)?.kind ?: AiError.SERVER)

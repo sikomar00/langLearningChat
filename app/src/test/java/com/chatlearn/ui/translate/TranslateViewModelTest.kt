@@ -75,9 +75,54 @@ class TranslateViewModelTest {
         vm.setInput("How are you?")
         vm.translate().join()
         vm.saveReceived().join()
+        // 저장하면 입력이 비워지므로, 같은 메시지를 다시 붙여넣어 번역한 뒤 저장한다
+        vm.setInput("How are you?")
+        vm.translate().join()
         vm.saveReceived().join()
         assertEquals(Notice.Duplicate, vm.state.value.notice)
+        assertEquals("How are you?", vm.state.value.input) // 중복이면 입력을 지우지 않는다
         assertEquals(1, repo.observeLibrary().first().size)
+    }
+
+    @Test fun successfulSaveClearsInputAndResultsButKeepsTag() = runBlocking {
+        vm.setInput("How are you?")
+        vm.setTag("Alex")
+        vm.translate().join()
+        vm.saveReceived().join()
+        val s = vm.state.value
+        assertEquals("", s.input)
+        assertNull(s.received)
+        assertEquals("Alex", s.tag)
+        assertEquals(Notice.Saved, s.notice)
+    }
+
+    @Test fun copyingACandidateClearsInputAndCandidates() = runBlocking {
+        vm.setMode(TranslateMode.SENT)
+        vm.setInput("곧 보자")
+        vm.translate().join()
+        vm.onCandidateCopied(vm.state.value.candidates.single()).join()
+        assertEquals("", vm.state.value.input)
+        assertTrue(vm.state.value.candidates.isEmpty())
+    }
+
+    @Test fun clearInputResetsTextResultsAndMessagesButNotTagOrMode() = runBlocking {
+        vm.setInput("hi"); vm.setTag("Alex")
+        vm.translate().join()
+        vm.clearInput()
+        val s = vm.state.value
+        assertEquals("", s.input)
+        assertNull(s.received)
+        assertNull(s.error)
+        assertEquals("Alex", s.tag)
+    }
+
+    @Test fun replaceInputSwapsTextAndDropsStaleResults() = runBlocking {
+        vm.setInput("old"); vm.translate().join()
+        vm.replaceInput("  brand new message ")
+        val s = vm.state.value
+        assertEquals("brand new message", s.input)
+        assertNull(s.received)
+        assertNull(s.notice)
     }
 
     @Test fun sentModeCopySavesChosenCandidate() = runBlocking {
