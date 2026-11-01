@@ -7,6 +7,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -42,7 +43,14 @@ fun SettingsScreen(vm: SettingsViewModel) {
         }
     }
 
+    var tab by rememberSaveable { mutableIntStateOf(0) }
+    val tabs = listOf("AI", "복습", "문장", "백업")
+    Column(Modifier.fillMaxSize()) {
+    TabRow(selectedTabIndex = tab) {
+        tabs.forEachIndexed { i, t -> Tab(selected = tab == i, onClick = { tab = i }, text = { Text(t) }) }
+    }
     Column(Modifier.fillMaxSize().padding(16.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    if (tab == 0) {
         Text("Gemini API 키", style = MaterialTheme.typography.titleMedium)
         Text("Google AI Studio에서 무료 키를 발급받아 붙여넣으세요.", style = MaterialTheme.typography.bodySmall)
         OutlinedTextField(key, { key = it }, Modifier.fillMaxWidth(), singleLine = true, visualTransformation = PasswordVisualTransformation(), label = { Text("API 키") })
@@ -68,7 +76,8 @@ fun SettingsScreen(vm: SettingsViewModel) {
         Text("저장한 키와 모델로 확인해요. 먼저 저장해 주세요.", style = MaterialTheme.typography.bodySmall)
         checkResult?.let { Text(it, color = MaterialTheme.colorScheme.primary) }
 
-        SectionTitle("복습")
+    }
+    if (tab == 1) {
         OutlinedTextField(perDay, { perDay = it.filter(Char::isDigit) }, Modifier.fillMaxWidth(), singleLine = true, label = { Text("하루 새 카드 수") })
         Button(onClick = { vm.saveNewPerDay(perDay.toIntOrNull() ?: 10); message = "저장했어요." }) { Text("새 카드 수 저장") }
 
@@ -98,7 +107,8 @@ fun SettingsScreen(vm: SettingsViewModel) {
             }
         }
 
-        SectionTitle("문장 저장")
+    }
+    if (tab == 2) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Text("저장할 때 다른 언어도 만들기")
@@ -115,16 +125,19 @@ fun SettingsScreen(vm: SettingsViewModel) {
             Switch(checked = s.useSavedExpressions, onCheckedChange = { vm.saveUseSaved(it) })
         }
 
+    }
+    if (tab == 3) {
         Text("오늘 AI 호출: ${s.aiCallsToday}회")
 
-        HorizontalDivider()
         Text("백업", style = MaterialTheme.typography.titleMedium)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             OutlinedButton(onClick = { exportLauncher.launch("chatlearn-backup.json") }) { Text("내보내기") }
             OutlinedButton(onClick = { importLauncher.launch(arrayOf("application/json", "*/*")) }) { Text("가져오기") }
         }
         Text("가져오면 지금 있는 데이터가 백업 파일의 내용으로 바뀝니다.", style = MaterialTheme.typography.bodySmall)
+    }
         message?.let { Text(it, color = MaterialTheme.colorScheme.primary) }
+    }
     }
 }
 
@@ -135,10 +148,4 @@ private fun connectionMessage(e: com.chatlearn.ai.AiError) = when (e) {
     com.chatlearn.ai.AiError.RATE_LIMIT -> "한도에 도달했어요. 키는 유효해 보여요. 잠시 후 다시 시도해 주세요."
     com.chatlearn.ai.AiError.OVERLOADED -> "지금 이 모델에 요청이 몰려 있어요. 다른 모델로 바꿔 보세요."
     com.chatlearn.ai.AiError.BAD_FORMAT, com.chatlearn.ai.AiError.SERVER -> "AI 서버 응답에 문제가 있어요. 잠시 후 다시 시도해 주세요."
-}
-
-@Composable
-private fun SectionTitle(text: String) {
-    HorizontalDivider()
-    Text(text, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
 }
