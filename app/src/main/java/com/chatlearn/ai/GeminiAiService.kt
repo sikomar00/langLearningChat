@@ -80,6 +80,7 @@ class GeminiAiService(
 
     private suspend fun <T> attempt(user: String, schema: JsonObject, parse: (JsonObject) -> T): Result<T> {
         var rateRetried = false
+        var overloadRetried = false
         var formatRetried = false
         while (true) {
             val (code, body) = try {
@@ -95,6 +96,12 @@ class GeminiAiService(
                 code == 429 -> {
                     if (rateRetried) return fail(AiError.RATE_LIMIT)
                     rateRetried = true
+                    delay(retryDelayMs)
+                }
+                code == 503 -> {
+                    onHttpError(code, body.take(1000))
+                    if (overloadRetried) return fail(AiError.OVERLOADED)
+                    overloadRetried = true
                     delay(retryDelayMs)
                 }
                 code in 200..299 -> {

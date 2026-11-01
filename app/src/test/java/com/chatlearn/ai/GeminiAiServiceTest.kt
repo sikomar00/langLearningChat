@@ -76,6 +76,20 @@ class GeminiAiServiceTest {
         assertEquals(2, server.requestCount)
     }
 
+    @Test fun overloadedModelRetriesOnceThenSucceeds() = runBlocking {
+        server.enqueue(MockResponse().setResponseCode(503).setBody("""{"error":{"status":"UNAVAILABLE"}}"""))
+        server.enqueue(ok("""{"detectedLang":"en","koTranslation":"a","note":"b"}"""))
+        assertTrue(ai.translateReceived("hi").isSuccess)
+        assertEquals(2, server.requestCount)
+    }
+
+    @Test fun overloadedTwiceReportsOverloadedNotGenericServerError() = runBlocking {
+        server.enqueue(MockResponse().setResponseCode(503))
+        server.enqueue(MockResponse().setResponseCode(503))
+        assertEquals(AiError.OVERLOADED, (ai.translateReceived("hi").exceptionOrNull() as AiException).kind)
+        assertEquals(2, server.requestCount)
+    }
+
     @Test fun forbiddenMeansBadKey() = runBlocking {
         server.enqueue(MockResponse().setResponseCode(403))
         assertEquals(AiError.BAD_KEY, (ai.translateReceived("hi").exceptionOrNull() as AiException).kind)
