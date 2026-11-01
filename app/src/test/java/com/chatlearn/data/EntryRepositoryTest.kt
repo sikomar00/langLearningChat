@@ -243,4 +243,42 @@ class EntryRepositoryTest {
         val id = (repo.saveEntry(draft(alt = "Hola"), 1_000) as SaveResult.Saved).id
         assertEquals(2, repo.cardCount(id))
     }
+
+    @Test fun savedKeyPhrasesAreValidatedAgainstTheirOwnText() = runBlocking {
+        val id = (repo.saveEntry(
+            draft("See you tomorrow", alt = "Nos vemos mañana").copy(keyPhrase = "see you", altKeyPhrase = "no está aquí"), 1_000,
+        ) as SaveResult.Saved).id
+        val texts = db.dao().allTexts().filter { it.entryId == id }.associateBy { it.lang }
+        assertEquals("See you", texts.getValue(Lang.EN).keyPhrase) // 문장의 대소문자로 저장
+        assertNull(texts.getValue(Lang.ES).keyPhrase) // 문장에 없으면 버린다
+    }
+
+    @Test fun queueCardsCarryTheirKeyPhrases() = runBlocking {
+        repo.saveEntry(draft("See you tomorrow").copy(keyPhrase = "See you"), 1_000)
+        val due = repo.queue(1_000, 0, 10).single()
+        assertEquals("See you", due.keyPhrases[Lang.EN])
+    }
+
+    @Test fun editingATextKeepsItsKeyPhraseOnlyWhileItStillFits() = runBlocking {
+        val id = (repo.saveEntry(draft("See you tomorrow").copy(keyPhrase = "See you"), 1_000) as SaveResult.Saved).id
+        repo.putText(id, Lang.EN, "See you tomorrow morning", TextOrigin.USER)
+        assertEquals("See you", db.dao().allTexts().first { it.entryId == id && it.lang == Lang.EN }.keyPhrase)
+        repo.putText(id, Lang.EN, "Good night", TextOrigin.USER)
+        assertNull(db.dao().allTexts().first { it.entryId == id && it.lang == Lang.EN }.keyPhrase)
+    }
+
+    @Test fun setKeyPhraseValidatesAndMarksNoneAsEmpty() = runBlocking {
+        val id = (repo.saveEntry(draft("See you tomorrow"), 1_000) as SaveResult.Saved).id
+        assertTrue(repo.setKeyPhrase(id, Lang.EN, "tomorrow"))
+        assertEquals("tomorrow", db.dao().allTexts().first { it.entryId == id && it.lang == Lang.EN }.keyPhrase)
+        assertFalse(repo.setKeyPhrase(id, Lang.EN, "nope"))
+        assertEquals("", db.dao().allTexts().first { it.entryId == id && it.lang == Lang.EN }.keyPhrase)
+    }
+
+    @Test fun missingKeyPhraseTargetsListOnlyForeignTextsWithNullPhrase() = runBlocking {
+        val id = (repo.saveEntry(draft("See you tomorrow", alt = "Nos vemos"), 1_000) as SaveResult.Saved).id
+        assertEquals(2, repo.keyPhraseTargets().size)
+        repo.setKeyPhrase(id, Lang.EN, "See you")
+        assertEquals(listOf(Lang.ES), repo.keyPhraseTargets().map { it.lang })
+    }
 }

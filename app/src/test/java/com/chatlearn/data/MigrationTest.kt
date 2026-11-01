@@ -54,7 +54,7 @@ class MigrationTest {
     }
 
     private fun openV2() = Room.databaseBuilder(ctx, AppDatabase::class.java, dbName)
-        .addMigrations(Migrations.MIGRATION_1_2)
+        .addMigrations(Migrations.MIGRATION_1_2, Migrations.MIGRATION_2_3)
         .allowMainThreadQueries()
         .build()
 
@@ -85,6 +85,40 @@ class MigrationTest {
         dao.insertCard(card(Lang.ES)) // 같은 문장, 다른 언어 → 허용
         assertFails { runBlocking { dao.insertCard(card(Lang.ES)) } } // 같은 문장, 같은 언어 → 거부
         assertEquals(2, dao.allCards().size)
+        db.close()
+    }
+
+    private fun createV2() {
+        val root = Json.parseToJsonElement(File("schemas/com.chatlearn.data.AppDatabase/2.json").readText()).jsonObject
+        val database = root["database"]!!.jsonObject
+        val db = ctx.openOrCreateDatabase(dbName, Context.MODE_PRIVATE, null)
+        database["entities"]!!.jsonArray.forEach { e ->
+            val o = e.jsonObject
+            val table = o["tableName"]!!.jsonPrimitive.content
+            fun sql(s: String) = s.replace("\${TABLE_NAME}", table)
+            db.execSQL(sql(o["createSql"]!!.jsonPrimitive.content))
+            o["indices"]?.jsonArray?.forEach { db.execSQL(sql(it.jsonObject["createSql"]!!.jsonPrimitive.content)) }
+        }
+        database["setupQueries"]!!.jsonArray.forEach { db.execSQL(it.jsonPrimitive.content) }
+        listOf(
+            "INSERT INTO entry (id, createdAt, direction, chatLang, note, tone) VALUES (1, 100, 'RECEIVED', 'EN', 'n', NULL)",
+            "INSERT INTO entry_text VALUES (1, 'EN', 'Hello', 'ORIGINAL')",
+            "INSERT INTO entry_text VALUES (1, 'KO', '안녕', 'AI')",
+            "INSERT INTO review_card (id, entryId, answerLang, dueAt, intervalDays, ease, reps, lapses, lastReviewedAt) VALUES (1, 1, 'EN', 500, 3.0, 2.5, 2, 1, 400)",
+        ).forEach(db::execSQL)
+        db.version = 2
+        db.close()
+    }
+
+    @Test fun v2UpgradesToV3KeepingTextsAndLeavingKeyPhrasesEmpty() = runBlocking {
+        createV2()
+        val db = Room.databaseBuilder(ctx, AppDatabase::class.java, dbName)
+            .addMigrations(Migrations.MIGRATION_2_3).allowMainThreadQueries().build()
+        val texts = db.dao().allTexts()
+        assertEquals(2, texts.size)
+        assertTrue(texts.all { it.keyPhrase == null })
+        assertEquals("Hello", texts.first { it.lang == Lang.EN }.text)
+        assertEquals(1, db.dao().allCards().size)
         db.close()
     }
 }

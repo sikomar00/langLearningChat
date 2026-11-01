@@ -25,7 +25,14 @@ data class EntryEntity(
     primaryKeys = ["entryId", "lang"],
     foreignKeys = [ForeignKey(EntryEntity::class, ["id"], ["entryId"], onDelete = ForeignKey.CASCADE)],
 )
-data class EntryTextEntity(val entryId: Long, val lang: Lang, val text: String, val origin: TextOrigin)
+data class EntryTextEntity(
+    val entryId: Long,
+    val lang: Lang,
+    val text: String,
+    val origin: TextOrigin,
+    /** 이 문장에서 배울 핵심 표현. null이면 아직 모름, ""이면 없음으로 확인됨. */
+    val keyPhrase: String? = null,
+)
 
 @Serializable
 @Entity(

@@ -122,7 +122,7 @@ class ReviewViewModel(private val session: ReviewSession) : ViewModel() {
         if (rating || (cur !is ReviewUi.Prompt && cur !is ReviewUi.Done)) return@launch
         if (!session.undoLast()) return@launch
         // 평가 뒤 새로 나온 카드는 큐 맨 앞으로 돌려놓고, "다시"로 뒤에 붙었던 같은 카드는 뺀다.
-        if (cur is ReviewUi.Prompt && cur.item.card.id != g.item.card.id) queue.addFirst(DueCard(cur.item.card, cur.item.texts))
+        if (cur is ReviewUi.Prompt && cur.item.card.id != g.item.card.id) queue.addFirst(DueCard(cur.item.card, cur.item.texts, cur.item.keyPhrases))
         queue.removeAll { it.card.id == g.item.card.id }
         reviewed = (reviewed - 1).coerceAtLeast(0)
         clearUndo()
@@ -176,7 +176,7 @@ class ReviewViewModel(private val session: ReviewSession) : ViewModel() {
     fun postpone(): Job = viewModelScope.launch {
         val p = _state.value as? ReviewUi.Prompt ?: return@launch
         if (p.checking) return@launch
-        queue.addLast(DueCard(p.item.card, p.item.texts))
+        queue.addLast(DueCard(p.item.card, p.item.texts, p.item.keyPhrases))
         showNext()
     }
 
@@ -220,7 +220,7 @@ class ReviewViewModel(private val session: ReviewSession) : ViewModel() {
                 lastGraded = g
                 _canUndo.value = true
                 // 다시: 갱신된 카드 상태로 같은 세션 끝에 한 번 더 낸다
-                if (r == Rating.AGAIN) queue.addLast(DueCard(updated, g.item.texts))
+                if (r == Rating.AGAIN) queue.addLast(DueCard(updated, g.item.texts, g.item.keyPhrases))
                 showNext()
             } finally {
                 rating = false

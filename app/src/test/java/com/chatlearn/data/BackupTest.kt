@@ -50,15 +50,25 @@ class BackupTest {
         assertEquals(1, Backup.decode(noVersion).entries.size)
     }
 
-    @Test fun exportedFileDeclaresVersion2() = runBlocking {
-        assertTrue(Backup.encode(repo.exportAll()).contains("\"version\":2"))
+    @Test fun exportedFileDeclaresVersion3() = runBlocking {
+        assertTrue(Backup.encode(repo.exportAll()).contains("\"version\":3"))
     }
 
-    @Test fun aVersion2FileIsAcceptedAndVersion3IsRejected() {
+    @Test fun versions2And3AreAcceptedAndVersion4IsRejected() {
         val empty = BackupData(version = 2, entries = emptyList(), texts = emptyList(), cards = emptyList(),
             logs = emptyList(), tags = emptyList(), entryTags = emptyList())
         assertEquals(2, Backup.decode(Backup.encode(empty)).version)
-        assertFailsWith<BackupFormatException> { Backup.decode(Backup.encode(empty.copy(version = 3))) }
+        assertEquals(3, Backup.decode(Backup.encode(empty.copy(version = 3))).version)
+        assertFailsWith<BackupFormatException> { Backup.decode(Backup.encode(empty.copy(version = 4))) }
+    }
+
+    @Test fun keyPhrasesSurviveARoundTripAndOldFilesHaveNone() = runBlocking {
+        repo.saveEntry(EntryDraft(Direction.RECEIVED, Lang.EN, "See you tomorrow", "내일 봐", "", null, emptyList(),
+            keyPhrase = "See you"), 1_000)
+        repo.importAll(Backup.decode(Backup.encode(repo.exportAll())))
+        assertEquals("See you", db.dao().allTexts().first { it.lang == Lang.EN }.keyPhrase)
+        repo.importAll(Backup.decode(v1Json))
+        assertNull(db.dao().allTexts().first { it.lang == Lang.EN }.keyPhrase)
     }
 
     @Test fun newFieldsSurviveARoundTrip() = runBlocking {

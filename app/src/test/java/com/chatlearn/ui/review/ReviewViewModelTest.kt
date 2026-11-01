@@ -292,4 +292,17 @@ class ReviewViewModelTest {
         vm.setAnswer("ma"); vm.appendToAnswer("ñ")
         assertEquals("mañ", assertIs<ReviewUi.Prompt>(vm.state.value).answers[0])
     }
+
+    @Test fun clozeBlanksTheKeyPhraseWhenThereIsOne() = runBlocking {
+        repo.saveEntry(
+            EntryDraft(Direction.RECEIVED, Lang.ES, "Lo pensé por un momento que me dirías eso", "한", "", null, emptyList(), keyPhrase = "por un momento"),
+            now - 1,
+        )
+        val v = clozeVm()
+        v.start().join()
+        val p = assertIs<ReviewUi.Prompt>(v.state.value)
+        assertEquals("Lo pensé _____ que me dirías eso", p.item.cloze!!.display)
+        assertEquals(listOf("por un momento"), p.item.cloze!!.answers)
+        assertEquals("por un momento", p.item.keyPhrase)
+    }
 }

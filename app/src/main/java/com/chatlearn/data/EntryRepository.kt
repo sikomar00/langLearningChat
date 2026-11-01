@@ -14,6 +14,8 @@ data class EntryDraft(
     val tone: String?,
     val tags: List<String>,
     val altText: String? = null,
+    val keyPhrase: String? = null,
+    val altKeyPhrase: String? = null,
 )
 
 sealed interface SaveResult {
@@ -25,12 +27,14 @@ enum class RenameResult { Renamed, Merged, Unchanged }
 
 data class StatsInput(val logs: List<ReviewLogEntity>, val cards: List<ReviewCardEntity>, val items: List<LibraryItem>)
 
-data class DueCard(val card: ReviewCardEntity, val texts: Map<Lang, String>)
+data class DueCard(val card: ReviewCardEntity, val texts: Map<Lang, String>, val keyPhrases: Map<Lang, String> = emptyMap())
+data class KeyPhrasePending(val entryId: Long, val lang: Lang, val text: String)
 data class LibraryItem(
     val entry: EntryEntity,
     val texts: Map<Lang, String>,
     val tags: List<String>,
     val origins: Map<Lang, TextOrigin> = emptyMap(),
+    val keyPhrases: Map<Lang, String> = emptyMap(),
 )
 
 internal fun <T> interleave(a: List<T>, b: List<T>): List<T> {
@@ -71,7 +75,7 @@ class EntryRepository(internal val db: AppDatabase) {
         val (chatOrigin, koOrigin) =
             if (d.direction == Direction.RECEIVED) TextOrigin.ORIGINAL to TextOrigin.AI
             else TextOrigin.AI to TextOrigin.USER
-        dao.upsertText(EntryTextEntity(id, d.chatLang, text, chatOrigin))
+        dao.upsertText(EntryTextEntity(id, d.chatLang, text, chatOrigin, normalizeKeyPhrase(text, d.keyPhrase)))
         dao.upsertText(EntryTextEntity(id, Lang.KO, d.koText.trim(), koOrigin))
         d.tags.map { it.trim() }.filter { it.isNotEmpty() }.distinct().forEach { name ->
             dao.insertEntryTag(EntryTagEntity(id, tagIdFor(name, now)))
@@ -80,7 +84,7 @@ class EntryRepository(internal val db: AppDatabase) {
         val alt = d.altText?.trim().orEmpty()
         if (expand && alt.isNotEmpty()) {
             val altLang = d.chatLang.otherForeign()
-            dao.upsertText(EntryTextEntity(id, altLang, alt, TextOrigin.AI))
+            dao.upsertText(EntryTextEntity(id, altLang, alt, TextOrigin.AI, normalizeKeyPhrase(alt, d.altKeyPhrase)))
             dao.insertCard(newCard(id, altLang, now))
         }
         SaveResult.Saved(id)
@@ -92,7 +96,8 @@ class EntryRepository(internal val db: AppDatabase) {
             val tagsBy = links.groupBy({ it.entryId }, { it.name })
             entries.map { e ->
                 val mine = textsBy[e.id].orEmpty()
-                LibraryItem(e, mine.associate { it.lang to it.text }, tagsBy[e.id].orEmpty().sorted(), mine.associate { it.lang to it.origin })
+                LibraryItem(e, mine.associate { it.lang to it.text }, tagsBy[e.id].orEmpty().sorted(), mine.associate { it.lang to it.origin },
+                    mine.mapNotNull { t -> t.keyPhrase?.takeIf { it.isNotEmpty() }?.let { t.lang to it } }.toMap())
             }
         }
 
@@ -149,7 +154,7 @@ class EntryRepository(internal val db: AppDatabase) {
         val newLeft = (newPerDay - dao.introducedToday(dayStart)).coerceAtLeast(0)
         val fresh = if (newLeft > 0) dao.dueNew(now, newLeft) else emptyList()
         return interleave(reviews, fresh).map { c ->
-            DueCard(c, dao.textsFor(c.entryId).associate { it.lang to it.text })
+            dueCardOf(c)
         }
     }
 
@@ -157,12 +162,34 @@ class EntryRepository(internal val db: AppDatabase) {
     suspend fun cardsFor(entryIds: Set<Long>, answerLang: Lang?): List<DueCard> {
         if (entryIds.isEmpty()) return emptyList()
         return dao.cardsForEntries(entryIds.toList(), answerLang).map { c ->
-            DueCard(c, dao.textsFor(c.entryId).associate { it.lang to it.text })
+            dueCardOf(c)
         }
     }
 
-    suspend fun putText(entryId: Long, lang: Lang, text: String, origin: TextOrigin) =
-        dao.upsertText(EntryTextEntity(entryId, lang, text.trim(), origin))
+    suspend fun dueCardOf(card: ReviewCardEntity): DueCard {
+        val texts = dao.textsFor(card.entryId)
+        return DueCard(card, texts.associate { it.lang to it.text }, texts.mapNotNull { t -> t.keyPhrase?.takeIf { it.isNotEmpty() }?.let { t.lang to it } }.toMap())
+    }
+
+    /** 텍스트를 바꾼다. 핵심 표현은 새 문장에도 들어 있을 때만 남긴다. */
+    suspend fun putText(entryId: Long, lang: Lang, text: String, origin: TextOrigin) = db.withTransaction {
+        val clean = text.trim()
+        val old = dao.textsFor(entryId).firstOrNull { it.lang == lang }?.keyPhrase
+        val kept = if (old == null) null else normalizeKeyPhrase(clean, old)
+        dao.upsertText(EntryTextEntity(entryId, lang, clean, origin, kept))
+    }
+
+    /** 핵심 표현을 고친다. 문장에 있으면 저장하고 true, 없거나 비었으면 "없음"("")으로 두고 false. */
+    suspend fun setKeyPhrase(entryId: Long, lang: Lang, phrase: String?): Boolean = db.withTransaction {
+        val text = dao.textsFor(entryId).firstOrNull { it.lang == lang }?.text ?: return@withTransaction false
+        val ok = normalizeKeyPhrase(text, phrase)
+        dao.setKeyPhrase(entryId, lang, ok ?: "")
+        ok != null
+    }
+
+    suspend fun keyPhraseTargets(): List<KeyPhrasePending> =
+        dao.textsWithoutKeyPhrase().map { KeyPhrasePending(it.entryId, it.lang, it.text) }
+    fun observeMissingKeyPhrases(): Flow<Int> = dao.observeMissingKeyPhrases()
 
     /** 평가를 저장하고 새 기록의 id를 돌려준다(되돌리기에 쓴다). */
     suspend fun applyReview(card: ReviewCardEntity, newState: CardState, log: ReviewLogEntity): Long =

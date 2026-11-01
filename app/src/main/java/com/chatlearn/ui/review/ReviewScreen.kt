@@ -160,6 +160,7 @@ private fun ReviewPane(vm: ReviewViewModel) {
                     ExerciseKind.DICTATION -> Text("뜻: ${s.item.hintKo}", style = MaterialTheme.typography.titleMedium)
                 }
                 Text("내 답: ${s.answer}")
+                s.item.keyPhrase?.let { Text("핵심 표현: $it", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary) }
                 when (val o = s.outcome) {
                     is GradeOutcome.Ai -> {
                         Text(verdictLabel(o.result.verdict.name), style = MaterialTheme.typography.titleMedium)

@@ -22,7 +22,14 @@ object ClozeBuilder {
         "sido", "solo", "sólo", "aunque", "mientras",
     )
 
-    fun build(sentence: String, seed: Long): Cloze? {
+    fun build(sentence: String, seed: Long, keyPhrase: String? = null): Cloze? {
+        keyPhrase?.trim()?.takeIf { it.isNotEmpty() }?.let { phrase ->
+            val at = sentence.indexOf(phrase, ignoreCase = true)
+            if (at >= 0) {
+                val end = at + phrase.length
+                return Cloze(sentence.substring(0, at) + BLANK + sentence.substring(end), listOf(sentence.substring(at, end)))
+            }
+        }
         val words = WORD.findAll(sentence).toList()
         val candidates = words.filter { it.value.length >= MIN_LENGTH && it.value.lowercase() !in STOP }
         if (candidates.isEmpty()) return null

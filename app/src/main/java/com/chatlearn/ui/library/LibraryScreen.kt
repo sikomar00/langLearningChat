@@ -88,6 +88,17 @@ fun LibraryScreen(vm: LibraryViewModel, onStartReview: (Set<Long>, Lang?) -> Uni
                 }
             }) { Text(if (expanding) "확장 중…" else "전체 확장 ($unexpanded)") }
         }
+        val missingKeys by vm.missingKeyPhrases.collectAsStateWithLifecycle()
+        val fillingKeys by vm.fillingKeyPhrases.collectAsStateWithLifecycle()
+        if (missingKeys > 0) {
+            TextButton(enabled = !fillingKeys, onClick = {
+                scope.launch {
+                    val r = vm.fillKeyPhrases().await()
+                    expandMessage = "핵심 표현 ${r.filled}개를 찾았어요." +
+                        if (r.failedBatches > 0) " (실패한 묶음 ${r.failedBatches}개는 다시 눌러 보세요)" else ""
+                }
+            }) { Text(if (fillingKeys) "찾는 중…" else "핵심 표현 만들기 ($missingKeys)") }
+        }
         expandMessage?.let { Text(it, color = MaterialTheme.colorScheme.primary) }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             listOf(Lang.EN to "영어", Lang.ES to "스페인어").forEach { (l, label) ->
@@ -150,6 +161,8 @@ private fun DetailDialog(item: LibraryItem, hasAltCard: Boolean, recentTags: Lis
     val altLang = if (item.entry.chatLang == Lang.EN) Lang.ES else Lang.EN
     val altText = item.texts[altLang]
     var alt by remember(item.entry.id, altText) { mutableStateOf(altText.orEmpty()) }
+    var chatKey by remember(item.entry.id, item.keyPhrases[item.entry.chatLang]) { mutableStateOf(item.keyPhrases[item.entry.chatLang].orEmpty()) }
+    var altKey by remember(item.entry.id, item.keyPhrases[altLang]) { mutableStateOf(item.keyPhrases[altLang].orEmpty()) }
     val editedTags = remember(item.entry.id) { mutableStateListOf(*item.tags.toTypedArray()) }
     var tagInput by remember(item.entry.id) { mutableStateOf("") }
 
@@ -166,6 +179,8 @@ private fun DetailDialog(item: LibraryItem, hasAltCard: Boolean, recentTags: Lis
                         if (hasAltCard && altText != null && alt.isNotBlank() && alt != altText) vm.saveText(item.entry.id, altLang, alt)
                         // 입력창에 쓰다 만 태그도 잃지 않게 함께 저장한다.
                         vm.saveTags(item.entry.id, (editedTags + parseTags(tagInput)).distinct())
+                        if (chatKey != item.keyPhrases[item.entry.chatLang].orEmpty()) vm.saveKeyPhrase(item.entry.id, item.entry.chatLang, chatKey)
+                        if (hasAltCard && altText != null && altKey != item.keyPhrases[altLang].orEmpty()) vm.saveKeyPhrase(item.entry.id, altLang, altKey)
                         onClose()
                     }) { Text("저장") }
                 }
@@ -187,6 +202,17 @@ private fun DetailDialog(item: LibraryItem, hasAltCard: Boolean, recentTags: Lis
                         scope2.launch { failed = !vm.expandOne(item.entry.id).await(); making = false }
                     }) { Text(if (making) "만드는 중…" else "다른 언어 카드 만들기") }
                     if (failed) Text("만들지 못했어요. 잠시 후 다시 시도해 주세요.", color = MaterialTheme.colorScheme.error)
+                }
+                OutlinedTextField(
+                    chatKey, { chatKey = it }, modifier = Modifier.fillMaxWidth(), singleLine = true,
+                    label = { Text("핵심 표현 (${if (item.entry.chatLang == Lang.EN) "영어" else "스페인어"})") },
+                    supportingText = { Text("빈칸 채우기에서 이 표현이 빈칸이 돼요. 문장 안에 있는 그대로 적어야 해요.") },
+                )
+                if (hasAltCard && altText != null) {
+                    OutlinedTextField(
+                        altKey, { altKey = it }, modifier = Modifier.fillMaxWidth(), singleLine = true,
+                        label = { Text("핵심 표현 (${if (altLang == Lang.ES) "스페인어" else "영어"})") },
+                    )
                 }
                 OutlinedTextField(ko, { ko = it }, label = { Text("한국어") }, modifier = Modifier.fillMaxWidth())
                 OutlinedTextField(note, { note = it }, label = { Text("설명") }, modifier = Modifier.fillMaxWidth())

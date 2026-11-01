@@ -8,6 +8,8 @@ import com.chatlearn.data.RenameResult
 import com.chatlearn.data.StatsInput
 import com.chatlearn.expansion.ExpansionReport
 import com.chatlearn.expansion.ExpansionService
+import com.chatlearn.expansion.KeyPhraseReport
+import com.chatlearn.expansion.KeyPhraseService
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -31,6 +33,7 @@ class LibraryViewModel(
     private val expansion: ExpansionService,
     private val clock: () -> Long = System::currentTimeMillis,
     private val undoWindowMs: Long = 5_000,
+    private val keyPhraseService: KeyPhraseService? = null,
 ) : ViewModel() {
     val query = MutableStateFlow("")
     val langFilter = MutableStateFlow<Lang?>(null)
@@ -91,6 +94,31 @@ class LibraryViewModel(
         expandRun = run
         return run
     }
+    /** 핵심 표현이 아직 없는 외국어 문장 수. "핵심 표현 만들기" 버튼 표시에 쓴다. */
+    val missingKeyPhrases: StateFlow<Int> = repo.observeMissingKeyPhrases()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
+
+    private var keyPhraseRun: Deferred<KeyPhraseReport>? = null
+    private val _fillingKeyPhrases = MutableStateFlow(false)
+    val fillingKeyPhrases: StateFlow<Boolean> = _fillingKeyPhrases.asStateFlow()
+
+    /** 이미 실행 중이면 그 실행을 돌려준다. 예외는 실패한 묶음 1개로 보고한다. */
+    fun fillKeyPhrases(): Deferred<KeyPhraseReport> {
+        keyPhraseRun?.takeIf { it.isActive }?.let { return it }
+        val run = viewModelScope.async {
+            _fillingKeyPhrases.value = true
+            try {
+                runCatching { keyPhraseService?.fillAll() ?: KeyPhraseReport(0, 0, 0) }.getOrElse { KeyPhraseReport(0, 0, 1) }
+            } finally {
+                _fillingKeyPhrases.value = false
+            }
+        }
+        keyPhraseRun = run
+        return run
+    }
+
+    fun saveKeyPhrase(id: Long, lang: Lang, text: String) = viewModelScope.launch { repo.setKeyPhrase(id, lang, text) }
+
     fun expandOne(id: Long) = viewModelScope.async { expansion.expandOne(id) }
 
     /** 태그 자동완성 후보(최근 사용 순). */

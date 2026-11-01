@@ -13,12 +13,16 @@ class FakeAiService : AiService {
     var translate: (String, Lang, Lang) -> Result<String> = { t, _, _ -> Result.success("[번역] $t") }
     var batch: (List<String>, Lang, Lang) -> Result<List<String>> =
         { items, _, _ -> Result.success(items.map { "[번역] $it" }) }
+    var keyPhrases: (List<String>, Lang) -> Result<List<String>> =
+        { items, _ -> Result.success(items.map { "" }) }
     val calls = mutableListOf<String>()
 
     override suspend fun translateReceived(text: String) = received(text).also { calls += "received" }
     override suspend fun suggestSent(koText: String, target: Lang) = sent(koText, target).also { calls += "sent" }
     override suspend fun gradeAnswer(req: GradeRequest) = grade(req).also { calls += "grade" }
     override suspend fun translateTo(text: String, from: Lang, to: Lang) = translate(text, from, to).also { calls += "translate" }
+    override suspend fun extractKeyPhrases(items: List<String>, lang: Lang) =
+        keyPhrases(items, lang).also { calls += "keyphrases" }
     override suspend fun translateBatch(items: List<String>, from: Lang, to: Lang) =
         batch(items, from, to).also { calls += "batch" }
 }

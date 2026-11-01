@@ -94,6 +94,11 @@ fun TranslateScreen(vm: TranslateViewModel, onSpeak: (String, Lang) -> Unit = { 
                     r.detectedLang?.let { l -> TextButton(onClick = { onSpeak(s.source, l) }) { Text("원문 듣기") } }
                     Text(r.koTranslation, style = MaterialTheme.typography.titleMedium)
                     Text(r.note, style = MaterialTheme.typography.bodyMedium)
+                    OutlinedTextField(
+                        s.keyPhrase, vm::setKeyPhrase, modifier = Modifier.fillMaxWidth(), singleLine = true,
+                        label = { Text("핵심 표현(고칠 수 있어요)") },
+                        supportingText = { Text("복습의 빈칸 채우기에서 이 표현을 맞히게 돼요.") },
+                    )
                     Button(onClick = { vm.saveReceived() }) { Text("저장") }
                 }
             }
@@ -103,6 +108,9 @@ fun TranslateScreen(vm: TranslateViewModel, onSpeak: (String, Lang) -> Unit = { 
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(c.text, style = MaterialTheme.typography.titleMedium)
                     Text(c.toneNote, style = MaterialTheme.typography.bodyMedium)
+                    if (c.keyPhrase.isNotBlank() && c.text.contains(c.keyPhrase, ignoreCase = true)) {
+                        Text("핵심 표현: ${c.keyPhrase}", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+                    }
                     TextButton(onClick = { onSpeak(c.text, s.targetLang) }) { Text("들어보기") }
                     OutlinedButton(onClick = {
                         clipboard.setText(AnnotatedString(c.text))

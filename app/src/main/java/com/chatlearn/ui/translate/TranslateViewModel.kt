@@ -6,6 +6,7 @@ import com.chatlearn.ai.*
 import com.chatlearn.data.*
 import com.chatlearn.domain.Direction
 import com.chatlearn.domain.Lang
+import com.chatlearn.domain.normalizeKeyPhrase
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -41,6 +42,7 @@ data class TranslateUiState(
     val candidates: List<SentCandidate> = emptyList(),
     val error: TranslateError? = null,
     val notice: Notice? = null,
+    val keyPhrase: String = "", // 받은 말의 핵심 표현(저장 전에 고칠 수 있다)
 )
 
 class TranslateViewModel(
@@ -73,6 +75,7 @@ class TranslateViewModel(
         }
         return translate()
     }
+    fun setKeyPhrase(s: String) = _state.update { it.copy(keyPhrase = s) }
     fun setTag(s: String) = _state.update { it.copy(tag = s) }
     fun pickTag(tag: String) = _state.update { it.copy(tag = applyTagSuggestion(it.tag, tag)) }
 
@@ -92,7 +95,7 @@ class TranslateViewModel(
             ai.translateReceived(text).fold(
                 onSuccess = { r ->
                     if (r.detectedLang == null) _state.update { it.copy(loading = false, error = TranslateError.UnsupportedLang) }
-                    else _state.update { it.copy(loading = false, received = r) }
+                    else _state.update { it.copy(loading = false, received = r, keyPhrase = normalizeKeyPhrase(text, r.keyPhrase).orEmpty()) }
                 },
                 onFailure = { e -> _state.update { it.copy(loading = false, error = e.toUiError()) } },
             )
@@ -108,13 +111,15 @@ class TranslateViewModel(
         val s = _state.value
         val r = s.received ?: return@launch
         val lang = r.detectedLang ?: return@launch
-        val draft = EntryDraft(Direction.RECEIVED, lang, s.source, r.koTranslation, r.note, null, parseTags(s.tag), r.altText)
+        val draft = EntryDraft(Direction.RECEIVED, lang, s.source, r.koTranslation, r.note, null, parseTags(s.tag), r.altText,
+            keyPhrase = s.keyPhrase.ifBlank { null }, altKeyPhrase = r.altKeyPhrase)
         report(repo.saveEntry(draft, clock(), autoExpand()))
     }
 
     fun onCandidateCopied(c: SentCandidate): Job = viewModelScope.launch {
         val s = _state.value
-        val draft = EntryDraft(Direction.SENT, s.targetLang, c.text, s.source, c.toneNote, null, parseTags(s.tag), c.altText)
+        val draft = EntryDraft(Direction.SENT, s.targetLang, c.text, s.source, c.toneNote, null, parseTags(s.tag), c.altText,
+            keyPhrase = c.keyPhrase, altKeyPhrase = c.altKeyPhrase)
         report(repo.saveEntry(draft, clock(), autoExpand()))
     }
 
@@ -123,7 +128,7 @@ class TranslateViewModel(
         val cards = if (r is SaveResult.Saved) repo.cardCount(r.id) else 0
         _state.update {
             if (r is SaveResult.Saved) {
-                it.copy(input = "", source = "", received = null, candidates = emptyList(), error = null, notice = Notice.Saved(cards))
+                it.copy(input = "", source = "", received = null, candidates = emptyList(), error = null, notice = Notice.Saved(cards), keyPhrase = "")
             } else {
                 it.copy(notice = Notice.Duplicate)
             }

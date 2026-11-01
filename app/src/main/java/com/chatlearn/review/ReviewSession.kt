@@ -20,7 +20,10 @@ data class ReviewItem(
     val promptLang: Lang,
     val exercise: ExerciseKind = ExerciseKind.TRANSLATE,
     val cloze: Cloze? = null,
+    val keyPhrases: Map<Lang, String> = emptyMap(),
 ) {
+    /** 정답 언어 문장의 핵심 표현. 없으면 null. */
+    val keyPhrase: String? get() = keyPhrases[card.answerLang]
     val promptText: String get() = texts.getValue(promptLang)
     val reference: String get() = texts.getValue(card.answerLang)
     val hintKo: String get() = texts[Lang.KO].orEmpty()
@@ -83,7 +86,7 @@ class ReviewSession(
     suspend fun edit(card: ReviewCardEntity, answerText: String, ko: String): DueCard {
         if (answerText.isNotBlank()) repo.putText(card.entryId, card.answerLang, answerText, TextOrigin.USER)
         if (ko.isNotBlank()) repo.putText(card.entryId, Lang.KO, ko, TextOrigin.USER)
-        return DueCard(card, repo.textsOf(card.entryId))
+        return repo.dueCardOf(card)
     }
 
     suspend fun loadSelected(entryIds: Set<Long>, answerLang: Lang?): List<DueCard> = repo.cardsFor(entryIds, answerLang)
@@ -91,11 +94,11 @@ class ReviewSession(
     suspend fun prepare(due: DueCard): ReviewItem {
         val answerLang = due.card.answerLang
         val reference = due.texts.getValue(answerLang)
-        val cloze = ClozeBuilder.build(reference, seed = due.card.id * 31 + due.card.reps)
+        val cloze = ClozeBuilder.build(reference, seed = due.card.id * 31 + due.card.reps, keyPhrase = due.keyPhrases[answerLang])
         val kind = policy(due.card, cloze != null, tts.isAvailable(answerLang), roll())
         if (kind != ExerciseKind.TRANSLATE) {
             // 빈칸 채우기와 받아쓰기는 한국어 뜻이 힌트다.
-            return ReviewItem(due.card, due.texts, Lang.KO, kind, cloze.takeIf { kind == ExerciseKind.CLOZE })
+            return ReviewItem(due.card, due.texts, Lang.KO, kind, cloze.takeIf { kind == ExerciseKind.CLOZE }, due.keyPhrases)
         }
         val otherLang = answerLang.otherForeign()
         var texts = due.texts
@@ -109,7 +112,7 @@ class ReviewSession(
             }
             if (otherLang in texts) promptLang = otherLang
         }
-        return ReviewItem(due.card, texts, promptLang)
+        return ReviewItem(due.card, texts, promptLang, keyPhrases = due.keyPhrases)
     }
 
     fun speak(item: ReviewItem, slow: Boolean) = tts.speak(item.reference, item.card.answerLang, slow)

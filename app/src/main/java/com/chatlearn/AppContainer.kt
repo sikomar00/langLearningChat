@@ -29,7 +29,7 @@ private val Context.settingsStore by preferencesDataStore("settings")
 class AppContainer(context: Context) {
     private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     val db: AppDatabase = Room.databaseBuilder(context, AppDatabase::class.java, "chatlearn.db")
-        .addMigrations(Migrations.MIGRATION_1_2)
+        .addMigrations(Migrations.MIGRATION_1_2, Migrations.MIGRATION_2_3)
         .build()
     val repo = EntryRepository(db)
     val settings: SettingsRepository = DataStoreSettingsRepository(context.settingsStore, EncryptedSecretStore(context))
@@ -45,6 +45,7 @@ class AppContainer(context: Context) {
     val tts: Tts = AndroidTts(context)
     val reminders = com.chatlearn.reminder.ReminderScheduler(context)
     val expansion = ExpansionService(repo, ai, System::currentTimeMillis)
+    val keyPhrases = com.chatlearn.expansion.KeyPhraseService(repo, ai)
 
     fun reviewSession() = ReviewSession(
         repo, ai, System::currentTimeMillis, { settings.settings.first().newPerDay }, tts = tts,

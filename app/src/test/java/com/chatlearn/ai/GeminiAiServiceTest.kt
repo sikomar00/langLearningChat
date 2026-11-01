@@ -240,4 +240,34 @@ class GeminiAiServiceTest {
         server.enqueue(ok("""{"text":"Hola"}"""))
         assertEquals("Hola", ai.translateTo("Hello", Lang.EN, Lang.ES).getOrThrow())
     }
+
+    @Test fun receivedMessageCarriesKeyPhrasesWhenGiven() = runBlocking {
+        server.enqueue(ok("""{"detectedLang":"es","koTranslation":"a","note":"b","altText":"I thought for a moment","keyPhrase":"por un momento","altKeyPhrase":"for a moment"}"""))
+        val r = ai.translateReceived("Lo pensé por un momento").getOrThrow()
+        assertEquals("por un momento", r.keyPhrase)
+        assertEquals("for a moment", r.altKeyPhrase)
+    }
+
+    @Test fun missingKeyPhraseFieldsDefaultToEmpty() = runBlocking {
+        server.enqueue(ok("""{"detectedLang":"en","koTranslation":"a","note":"b"}"""))
+        val r = ai.translateReceived("hi").getOrThrow()
+        assertEquals("", r.keyPhrase); assertEquals("", r.altKeyPhrase)
+    }
+
+    @Test fun sentCandidatesCarryKeyPhrases() = runBlocking {
+        server.enqueue(ok("""{"candidates":[{"text":"See you soon","toneNote":"편함","altText":"Nos vemos pronto","keyPhrase":"See you","altKeyPhrase":"Nos vemos"}]}"""))
+        val c = ai.suggestSent("곧 보자", Lang.EN).getOrThrow().single()
+        assertEquals("See you", c.keyPhrase); assertEquals("Nos vemos", c.altKeyPhrase)
+    }
+
+    @Test fun extractKeyPhrasesReturnsOneEntryPerSentence() = runBlocking {
+        server.enqueue(ok("""{"phrases":["See you","por un momento"]}"""))
+        assertEquals(listOf("See you", "por un momento"), ai.extractKeyPhrases(listOf("See you soon", "Lo pensé por un momento"), Lang.EN).getOrThrow())
+    }
+
+    @Test fun extractKeyPhrasesRejectsAWrongCount() = runBlocking {
+        server.enqueue(ok("""{"phrases":["only one"]}"""))
+        server.enqueue(ok("""{"phrases":["only one"]}"""))
+        assertTrue(ai.extractKeyPhrases(listOf("a", "b"), Lang.EN).isFailure)
+    }
 }

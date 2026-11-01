@@ -224,4 +224,22 @@ class TranslateViewModelTest {
         off.setInput("Good night"); off.translate().join(); off.saveReceived().join()
         assertEquals(Notice.Saved(1), off.state.value.notice)
     }
+
+    @Test fun receivedKeyPhraseIsShownEditableAndSaved() = runBlocking {
+        ai.received = { Result.success(ReceivedResult(Lang.EN, "번역", "설명", "texto", keyPhrase = "see you", altKeyPhrase = "")) }
+        vm.setInput("See you tomorrow"); vm.translate().join()
+        assertEquals("See you", vm.state.value.keyPhrase) // 문장에 쓰인 표기로 맞춘다
+        vm.setKeyPhrase("tomorrow")
+        vm.saveReceived().join()
+        val en = db.dao().allTexts().first { it.lang == Lang.EN }
+        assertEquals("tomorrow", en.keyPhrase)
+    }
+
+    @Test fun clearingTheKeyPhraseSavesNone() = runBlocking {
+        ai.received = { Result.success(ReceivedResult(Lang.EN, "번역", "설명", "texto", keyPhrase = "see you")) }
+        vm.setInput("See you tomorrow"); vm.translate().join()
+        vm.setKeyPhrase("")
+        vm.saveReceived().join()
+        assertNull(db.dao().allTexts().first { it.lang == Lang.EN }.keyPhrase)
+    }
 }
