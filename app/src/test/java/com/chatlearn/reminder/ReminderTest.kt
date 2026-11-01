@@ -1,5 +1,6 @@
 package com.chatlearn.reminder
 
+import java.time.DayOfWeek
 import java.time.LocalDateTime
 import java.time.ZoneId
 import kotlin.test.Test
@@ -29,4 +30,26 @@ class ReminderTest {
     }
 
     @Test fun nothingDueMeansNoNotification() = assertNull(reminderText(0, 0))
+
+    @Test fun gentleAndCheerTonesChangeWordingButNotCounts() {
+        val gentle = reminderText(due = 5, newCards = 2, tone = ReminderTone.GENTLE)!!
+        val cheer = reminderText(due = 5, newCards = 0, tone = ReminderTone.CHEER)!!
+        assertEquals(true, "5" in gentle && "2" in gentle && gentle != reminderText(5, 2))
+        assertEquals(true, "5" in cheer && cheer != reminderText(5, 0))
+        assertNull(reminderText(0, 3, tone = ReminderTone.CHEER))
+    }
+
+    @Test fun dayMaskUsesMondayAsBitZero() {
+        val weekdaysOnly = 0b0011111
+        assertEquals(true, isReminderDay(weekdaysOnly, DayOfWeek.MONDAY))
+        assertEquals(true, isReminderDay(weekdaysOnly, DayOfWeek.FRIDAY))
+        assertEquals(false, isReminderDay(weekdaysOnly, DayOfWeek.SATURDAY))
+        assertEquals(false, isReminderDay(weekdaysOnly, DayOfWeek.SUNDAY))
+        assertEquals(true, isReminderDay(ALL_DAYS, DayOfWeek.SUNDAY))
+    }
+
+    @Test fun toneFromNameFallsBackToPlain() {
+        assertEquals(ReminderTone.CHEER, ReminderTone.fromName("CHEER"))
+        assertEquals(ReminderTone.PLAIN, ReminderTone.fromName("nope"))
+    }
 }

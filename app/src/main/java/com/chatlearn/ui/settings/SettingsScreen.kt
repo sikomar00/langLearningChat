@@ -116,11 +116,33 @@ fun SettingsScreen(vm: SettingsViewModel) {
             ) notifPermission.launch(android.Manifest.permission.POST_NOTIFICATIONS)
         })
         if (s.reminderEnabled) {
+            Text("알림 시각", style = MaterialTheme.typography.labelLarge)
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 listOf(8, 12, 18, 20, 22).forEach { h ->
                     FilterChip(selected = s.reminderHour == h, onClick = { vm.saveReminder(true, h) }, label = { Text(if (h < 12) "오전 ${h}시" else if (h == 12) "낮 12시" else "오후 ${h - 12}시") })
                 }
             }
+            Text("알림 받을 요일", style = MaterialTheme.typography.labelLarge)
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                listOf("월", "화", "수", "목", "금", "토", "일").forEachIndexed { i, d ->
+                    val on = s.reminderDays and (1 shl i) != 0
+                    FilterChip(selected = on, onClick = {
+                        val next = s.reminderDays xor (1 shl i)
+                        // 전부 끄면 알림이 영영 오지 않으니 최소 하루는 남긴다.
+                        if (next != 0) vm.saveReminderDays(next)
+                    }, label = { Text(d) })
+                }
+            }
+            Text("알림 말투", style = MaterialTheme.typography.labelLarge)
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                com.chatlearn.reminder.ReminderTone.entries.forEach { t ->
+                    FilterChip(selected = s.reminderTone == t.name, onClick = { vm.saveReminderTone(t.name) }, label = { Text(t.label) })
+                }
+            }
+            Text(
+                "예: " + com.chatlearn.reminder.reminderText(5, 0, com.chatlearn.reminder.ReminderTone.fromName(s.reminderTone)),
+                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
 
     }

@@ -29,6 +29,8 @@ class SettingsViewModel(private val settings: SettingsRepository, private val re
     }
     fun saveDailyGoal(n: Int) = viewModelScope.launch { settings.setDailyGoal(n) }
     fun saveUseSaved(on: Boolean) = viewModelScope.launch { settings.setUseSavedExpressions(on) }
+    fun saveReminderDays(mask: Int) = viewModelScope.launch { settings.setReminderDays(mask) }
+    fun saveReminderTone(name: String) = viewModelScope.launch { settings.setReminderTone(name) }
     fun saveDynamicColor(on: Boolean) = viewModelScope.launch { settings.setDynamicColor(on) }
     fun saveAutoExpand(on: Boolean) = viewModelScope.launch { settings.setAutoExpand(on) }
 

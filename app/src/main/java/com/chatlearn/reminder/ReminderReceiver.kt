@@ -31,9 +31,10 @@ class ReminderReceiver : BroadcastReceiver() {
                 if (intent.action == ACTION_REMINDER) {
                     val dayStart = java.time.LocalDate.now().atStartOfDay(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
                     // 오늘 이미 복습했다면 알리지 않는다.
-                    if (!container.repo.reviewedSince(dayStart)) {
+                    // 쉬는 요일에도 울리지 않는다(다음 날 예약은 아래에서 그대로 이어진다).
+                    if (isReminderDay(s.reminderDays, java.time.LocalDate.now().dayOfWeek) && !container.repo.reviewedSince(dayStart)) {
                         val queue = container.reviewSession().loadQueue()
-                        reminderText(queue.size, queue.count { it.card.lastReviewedAt == null })?.let { show(context, it) }
+                        reminderText(queue.size, queue.count { it.card.lastReviewedAt == null }, ReminderTone.fromName(s.reminderTone))?.let { show(context, it) }
                     }
                 }
                 ReminderScheduler(context).apply(true, s.reminderHour)
