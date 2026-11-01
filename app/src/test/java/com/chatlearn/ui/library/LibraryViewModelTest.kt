@@ -5,7 +5,9 @@ import com.chatlearn.data.*
 import com.chatlearn.expansion.ExpansionService
 import com.chatlearn.domain.Direction
 import com.chatlearn.domain.Lang
+import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
@@ -32,7 +34,12 @@ class LibraryViewModelTest {
         db = inMemoryDb(); repo = EntryRepository(db)
         vm = LibraryViewModel(repo, ExpansionService(repo, ai, { 1L }))
     }
-    @After fun tearDown() { Dispatchers.resetMain(); db.close() }
+    @After fun tearDown() {
+        // 화면 흐름(Room 구독)이 다른 스레드에서 Main을 쓰는 중에 되돌리면 경합으로 가끔 실패한다: 먼저 멈춘다.
+        vm.viewModelScope.cancel()
+        db.close()
+        Dispatchers.resetMain()
+    }
 
     private suspend fun save(text: String, tags: List<String>, at: Long) =
         (repo.saveEntry(EntryDraft(Direction.RECEIVED, Lang.EN, text, "한국어", "", null, tags), at) as SaveResult.Saved).id
