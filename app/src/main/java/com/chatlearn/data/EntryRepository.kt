@@ -43,6 +43,13 @@ internal fun <T> interleave(a: List<T>, b: List<T>): List<T> {
 class EntryRepository(internal val db: AppDatabase) {
     private val dao get() = db.dao()
 
+    /** 이름으로 태그를 찾아 사용 시각을 갱신하고, 없으면 새로 만든다. */
+    private suspend fun tagIdFor(name: String, now: Long): Long {
+        val id = dao.findTagId(name)
+        if (id != null) { dao.touchTag(id, now); return id }
+        return dao.insertTag(TagEntity(name = name, lastUsedAt = now))
+    }
+
     suspend fun saveEntry(d: EntryDraft, now: Long): SaveResult = db.withTransaction {
         val text = d.chatText.trim()
         dao.findEntryIdByChatText(d.chatLang, text)?.let { return@withTransaction SaveResult.Duplicate(it) }
@@ -53,8 +60,7 @@ class EntryRepository(internal val db: AppDatabase) {
         dao.upsertText(EntryTextEntity(id, d.chatLang, text, chatOrigin))
         dao.upsertText(EntryTextEntity(id, Lang.KO, d.koText.trim(), koOrigin))
         d.tags.map { it.trim() }.filter { it.isNotEmpty() }.distinct().forEach { name ->
-            val tagId = dao.findTagId(name) ?: dao.insertTag(TagEntity(name = name))
-            dao.insertEntryTag(EntryTagEntity(id, tagId))
+            dao.insertEntryTag(EntryTagEntity(id, tagIdFor(name, now)))
         }
         val s = Scheduler.initial(now)
         dao.insertCard(
@@ -80,11 +86,10 @@ class EntryRepository(internal val db: AppDatabase) {
         combine(dao.observeLogs(), dao.observeCards(), observeLibrary()) { logs, cards, items -> StatsInput(logs, cards, items) }
 
     /** 문장의 태그를 [tags] 목록으로 통째로 바꾼다. 어떤 문장에도 안 붙은 태그는 삭제한다. */
-    suspend fun setTags(entryId: Long, tags: List<String>) = db.withTransaction {
+    suspend fun setTags(entryId: Long, tags: List<String>, now: Long) = db.withTransaction {
         dao.deleteEntryTags(entryId)
         tags.map { it.trim() }.filter { it.isNotEmpty() }.distinct().forEach { name ->
-            val tagId = dao.findTagId(name) ?: dao.insertTag(TagEntity(name = name))
-            dao.insertEntryTag(EntryTagEntity(entryId, tagId))
+            dao.insertEntryTag(EntryTagEntity(entryId, tagIdFor(name, now)))
         }
         dao.deleteOrphanTags()
     }
@@ -99,6 +104,7 @@ class EntryRepository(internal val db: AppDatabase) {
             dao.renameTag(oldId, newName)
             RenameResult.Renamed
         } else {
+            dao.touchTag(existingId, maxOf(dao.tagLastUsed(existingId), dao.tagLastUsed(oldId)))
             dao.copyTagLinks(oldId, existingId)
             dao.deleteTag(oldId) // 외래 키 CASCADE로 옛 연결도 함께 지워진다
             RenameResult.Merged

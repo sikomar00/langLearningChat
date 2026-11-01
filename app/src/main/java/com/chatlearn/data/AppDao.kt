@@ -17,6 +17,8 @@ interface AppDao {
     @Insert(onConflict = OnConflictStrategy.IGNORE) suspend fun insertEntryTag(et: EntryTagEntity)
 
     @Query("SELECT id FROM tag WHERE name = :name") suspend fun findTagId(name: String): Long?
+    @Query("UPDATE tag SET lastUsedAt = :at WHERE id = :id") suspend fun touchTag(id: Long, at: Long)
+    @Query("SELECT lastUsedAt FROM tag WHERE id = :id") suspend fun tagLastUsed(id: Long): Long
     @Query("DELETE FROM entry_tag WHERE entryId = :entryId") suspend fun deleteEntryTags(entryId: Long)
     @Query("DELETE FROM tag WHERE id NOT IN (SELECT DISTINCT tagId FROM entry_tag)") suspend fun deleteOrphanTags()
     @Query("UPDATE tag SET name = :name WHERE id = :id") suspend fun renameTag(id: Long, name: String)
@@ -36,11 +38,7 @@ interface AppDao {
     @Query("SELECT et.entryId AS entryId, t.name AS name FROM entry_tag et JOIN tag t ON t.id = et.tagId")
     fun observeTagLinks(): Flow<List<TagLink>>
 
-    // 태그가 붙은 문장 중 가장 최근에 저장된 시각 순서(같으면 나중에 만든 태그 먼저)
-    @Query(
-        "SELECT t.name FROM tag t JOIN entry_tag et ON et.tagId = t.id JOIN entry e ON e.id = et.entryId " +
-            "GROUP BY t.id ORDER BY MAX(e.createdAt) DESC, t.id DESC"
-    )
+    @Query("SELECT name FROM tag WHERE id IN (SELECT tagId FROM entry_tag) ORDER BY lastUsedAt DESC, id DESC")
     fun observeTagsByRecency(): Flow<List<String>>
 
     @Query("SELECT * FROM review_log") fun observeLogs(): Flow<List<ReviewLogEntity>>

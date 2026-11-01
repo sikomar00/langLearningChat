@@ -21,7 +21,10 @@ fun filterLibrary(items: List<LibraryItem>, query: String, lang: Lang?, tag: Str
     }
 }
 
-class LibraryViewModel(private val repo: EntryRepository) : ViewModel() {
+class LibraryViewModel(
+    private val repo: EntryRepository,
+    private val clock: () -> Long = System::currentTimeMillis,
+) : ViewModel() {
     val query = MutableStateFlow("")
     val langFilter = MutableStateFlow<Lang?>(null)
     val tagFilter = MutableStateFlow<String?>(null)
@@ -52,7 +55,7 @@ class LibraryViewModel(private val repo: EntryRepository) : ViewModel() {
         if (current != null && current !in existing) tagFilter.value = null
     }
 
-    fun saveTags(id: Long, tags: List<String>) = viewModelScope.launch { repo.setTags(id, tags) }
+    fun saveTags(id: Long, tags: List<String>) = viewModelScope.launch { repo.setTags(id, tags, clock()) }
 
     fun renameTag(old: String, new: String) = viewModelScope.async {
         repo.renameTag(old, new).also { r ->

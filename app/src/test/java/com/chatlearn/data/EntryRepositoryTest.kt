@@ -79,22 +79,22 @@ class EntryRepositoryTest {
 
     @Test fun setTagsAddsRemovesAndReplaces() = runBlocking {
         val id = (repo.saveEntry(draft(tags = listOf("Alex", "여행")), now) as SaveResult.Saved).id
-        repo.setTags(id, listOf("Alex", "약속"))
+        repo.setTags(id, listOf("Alex", "약속"), now)
         assertEquals(listOf("Alex", "약속"), tagsOf(id))
-        repo.setTags(id, emptyList())
+        repo.setTags(id, emptyList(), now)
         assertEquals(emptyList(), tagsOf(id))
     }
 
     @Test fun setTagsIgnoresBlankAndDuplicateNames() = runBlocking {
         val id = (repo.saveEntry(draft(), now) as SaveResult.Saved).id
-        repo.setTags(id, listOf(" Alex ", "", "Alex", "  "))
+        repo.setTags(id, listOf(" Alex ", "", "Alex", "  "), now)
         assertEquals(listOf("Alex"), tagsOf(id))
     }
 
     @Test fun tagsNoLongerUsedByAnyEntryAreDeleted() = runBlocking {
         val a = (repo.saveEntry(draft(text = "a", tags = listOf("Alex", "여행")), now) as SaveResult.Saved).id
         repo.saveEntry(draft(text = "b", tags = listOf("Alex")), now + 1)
-        repo.setTags(a, listOf("Alex")) // 여행은 아무 문장에도 안 남는다
+        repo.setTags(a, listOf("Alex"), now) // 여행은 아무 문장에도 안 남는다
         assertEquals(listOf("Alex"), repo.observeRecentTags().first())
         assertEquals(1, db.dao().allTags().size)
     }
@@ -124,6 +124,29 @@ class EntryRepositoryTest {
         assertEquals(RenameResult.Unchanged, repo.renameTag("Alex", "Alex"))
         assertEquals(RenameResult.Unchanged, repo.renameTag("없는태그", "새이름"))
         assertEquals(listOf("Alex"), tagsOf(id))
+    }
+
+    @Test fun savingWithATagBumpsItsLastUsedTime() = runBlocking {
+        repo.saveEntry(draft(text = "a", tags = listOf("Alex")), 1)
+        repo.saveEntry(draft(text = "b", tags = listOf("Sofía")), 2)
+        assertEquals(listOf("Sofía", "Alex"), repo.observeRecentTags().first())
+        repo.saveEntry(draft(text = "c", tags = listOf("Alex")), 3)
+        assertEquals(listOf("Alex", "Sofía"), repo.observeRecentTags().first())
+    }
+
+    @Test fun editingTagsOnAnOldSentenceMakesThemMostRecent() = runBlocking {
+        val a = (repo.saveEntry(draft(text = "a", tags = listOf("Alex")), 1) as SaveResult.Saved).id
+        repo.saveEntry(draft(text = "b", tags = listOf("Sofía")), 2)
+        repo.setTags(a, listOf("Alex", "여행"), now = 10)
+        // 둘 다 10: 나중에 만든 태그가 먼저
+        assertEquals(listOf("여행", "Alex", "Sofía"), repo.observeRecentTags().first())
+    }
+
+    @Test fun mergingTagsKeepsTheNewerLastUsedTime() = runBlocking {
+        repo.saveEntry(draft(text = "a", tags = listOf("Alex")), 5)
+        repo.saveEntry(draft(text = "b", tags = listOf("알렉스")), 1)
+        repo.renameTag("Alex", "알렉스")
+        assertEquals(5L, db.dao().allTags().single().lastUsedAt)
     }
 
     @Test fun noTagsMeansNoSuggestions() = runBlocking {
