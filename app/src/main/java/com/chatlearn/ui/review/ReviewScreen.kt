@@ -39,6 +39,8 @@ import com.chatlearn.ui.components.LabeledText
 import com.chatlearn.ui.components.LoadingBox
 import com.chatlearn.ui.components.SectionCard
 import androidx.compose.material.icons.filled.Cancel
+import androidx.compose.material.icons.filled.LocalFireDepartment
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.material.icons.filled.Info
 import com.chatlearn.ui.components.langLabel
 import com.chatlearn.stats.StatsViewModel
@@ -57,13 +59,15 @@ fun ReviewScreen(vm: ReviewViewModel, statsVm: StatsViewModel) {
             }
         }
         Spacer(Modifier.height(12.dp))
-        if (showStats) StatsScreen(statsVm) else ReviewPane(vm)
+        if (showStats) StatsScreen(statsVm) else ReviewPane(vm, statsVm)
     }
 }
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun ReviewPane(vm: ReviewViewModel) {
+private fun ReviewPane(vm: ReviewViewModel, statsVm: StatsViewModel) {
+    val stats by statsVm.stats.collectAsStateWithLifecycle()
+    val streak = stats?.streak ?: 0
     val state by vm.state.collectAsStateWithLifecycle()
     val custom by vm.custom.collectAsStateWithLifecycle()
     val progress by vm.progress.collectAsStateWithLifecycle()
@@ -77,7 +81,13 @@ private fun ReviewPane(vm: ReviewViewModel) {
     LaunchedEffect(Unit) { vm.ensureStarted() }
 
     Column(Modifier.fillMaxSize().imePadding().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        custom?.let { Text("선택 복습 ${it}장", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary) }
+        Row(Modifier.fillMaxWidth(), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+            Text(
+                custom?.let { "선택 복습 ${it}장" }.orEmpty(), Modifier.weight(1f),
+                style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary,
+            )
+            if (streak > 0) StreakBadge(streak)
+        }
         if (state is ReviewUi.Prompt || state is ReviewUi.Graded) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
                 Text("${minOf(progress.done + 1, progress.total)} / ${progress.total}", Modifier.weight(1f), style = MaterialTheme.typography.labelMedium)
@@ -127,9 +137,17 @@ private fun ReviewPane(vm: ReviewViewModel) {
                 Button(onClick = { vm.begin() }, Modifier.fillMaxWidth()) { Text("시작") }
             }
             is ReviewUi.Done -> {
-                Text("오늘 ${s.count}개를 복습했어요.", style = MaterialTheme.typography.titleMedium)
-                if (goal.reached) Text("오늘 목표를 달성했어요! 더 해도 좋아요.", color = MaterialTheme.statusColors.success, style = MaterialTheme.typography.titleMedium)
-                else if (goal.enabled) Text("오늘 목표까지 ${goal.goal - goal.done}장 남았어요.")
+                val today = stats?.today
+                SectionCard("오늘의 복습") {
+                    Text("${s.count}개를 복습했어요", style = MaterialTheme.typography.headlineSmall)
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        SummaryStat("정답률", today?.let { com.chatlearn.stats.percent(it) } ?: "-", Modifier.weight(1f))
+                        SummaryStat("연속 학습", if (streak > 0) "${streak}일" else "-", Modifier.weight(1f))
+                        if (goal.enabled) SummaryStat("오늘 목표", "${goal.done}/${goal.goal}", Modifier.weight(1f))
+                    }
+                    if (goal.reached) Text("오늘 목표를 달성했어요! 더 해도 좋아요.", color = MaterialTheme.statusColors.success, style = MaterialTheme.typography.titleMedium)
+                    else if (goal.enabled) Text("오늘 목표까지 ${goal.goal - goal.done}장 남았어요.")
+                }
                 OutlinedButton(onClick = { vm.start(preview = true) }) { Text(if (custom != null) "평소 복습으로" else "더 있는지 확인") }
             }
             is ReviewUi.Prompt -> {
@@ -298,16 +316,43 @@ private fun ReviewPane(vm: ReviewViewModel) {
 
 @Composable
 private fun VerdictBanner(verdictName: String) {
+    val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    // 시스템에서 애니메이션을 끈 경우(접근성)에는 움직임을 생략한다.
+    val animate = remember { android.provider.Settings.Global.getFloat(ctx.contentResolver, android.provider.Settings.Global.ANIMATOR_DURATION_SCALE, 1f) > 0f }
+    val scale = remember { androidx.compose.animation.core.Animatable(if (animate) 0.92f else 1f) }
+    LaunchedEffect(verdictName) {
+        if (verdictName == "CORRECT") haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
+        if (animate) scale.animateTo(1f, androidx.compose.animation.core.spring(dampingRatio = 0.45f, stiffness = 400f))
+    }
     val (color, bg, icon) = when (verdictName) {
         "CORRECT" -> Triple(MaterialTheme.statusColors.success, MaterialTheme.statusColors.success.copy(alpha = 0.12f), Icons.Default.CheckCircle)
         "CLOSE" -> Triple(MaterialTheme.colorScheme.tertiary, MaterialTheme.colorScheme.tertiary.copy(alpha = 0.12f), Icons.Default.Info)
         else -> Triple(MaterialTheme.colorScheme.error, MaterialTheme.colorScheme.error.copy(alpha = 0.12f), Icons.Default.Cancel)
     }
-    Surface(color = bg, shape = MaterialTheme.shapes.medium, modifier = Modifier.fillMaxWidth()) {
+    Surface(color = bg, shape = MaterialTheme.shapes.medium, modifier = Modifier.fillMaxWidth().graphicsLayer { scaleX = scale.value; scaleY = scale.value }) {
         Row(Modifier.padding(16.dp), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Icon(icon, contentDescription = null, tint = color, modifier = Modifier.size(28.dp))
             Text(verdictLabel(verdictName), style = MaterialTheme.typography.titleLarge, color = color)
         }
+    }
+}
+
+@Composable
+private fun StreakBadge(days: Int) {
+    Surface(color = MaterialTheme.colorScheme.tertiaryContainer, shape = MaterialTheme.shapes.extraLarge) {
+        Row(Modifier.padding(horizontal = 10.dp, vertical = 4.dp), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            Icon(Icons.Default.LocalFireDepartment, contentDescription = null, Modifier.size(18.dp), tint = MaterialTheme.colorScheme.tertiary)
+            Text("${days}일 연속", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onTertiaryContainer)
+        }
+    }
+}
+
+@Composable
+private fun SummaryStat(label: String, value: String, modifier: Modifier = Modifier) {
+    Column(modifier, horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally) {
+        Text(value, style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.primary)
+        Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 
