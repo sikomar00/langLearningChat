@@ -202,6 +202,40 @@ class GeminiAiServiceTest {
         assertFalse(e.message.orEmpty().contains("ab"))
     }
 
+    @Test fun receivedMessageCarriesTheOtherLanguageVersion() = runBlocking {
+        server.enqueue(ok("""{"detectedLang":"en","koTranslation":"a","note":"b","altText":"¿Cómo estás?"}"""))
+        assertEquals("¿Cómo estás?", ai.translateReceived("How are you?").getOrThrow().altText)
+    }
+
+    @Test fun missingAltTextIsAnEmptyStringNotAnError() = runBlocking {
+        server.enqueue(ok("""{"detectedLang":"en","koTranslation":"a","note":"b"}"""))
+        assertEquals("", ai.translateReceived("hi").getOrThrow().altText)
+    }
+
+    @Test fun sentCandidatesCarryTheOtherLanguageVersion() = runBlocking {
+        server.enqueue(ok("""{"candidates":[{"text":"See you soon!","toneNote":"편함","altText":"¡Nos vemos pronto!"}]}"""))
+        assertEquals("¡Nos vemos pronto!", ai.suggestSent("곧 보자", Lang.EN).getOrThrow().single().altText)
+    }
+
+    @Test fun batchTranslationKeepsOrderAndCount() = runBlocking {
+        server.enqueue(ok("""{"texts":["Hola","Adiós"]}"""))
+        assertEquals(listOf("Hola", "Adiós"), ai.translateBatch(listOf("Hello", "Bye"), Lang.EN, Lang.ES).getOrThrow())
+        val body = server.takeRequest().body.readUtf8()
+        assertTrue(body.contains("Hello") && body.contains("Bye"))
+    }
+
+    @Test fun batchWithWrongCountIsBadFormat() = runBlocking {
+        server.enqueue(ok("""{"texts":["Hola"]}"""))
+        server.enqueue(ok("""{"texts":["Hola"]}"""))
+        val e = ai.translateBatch(listOf("Hello", "Bye"), Lang.EN, Lang.ES).exceptionOrNull() as AiException
+        assertEquals(AiError.BAD_FORMAT, e.kind)
+    }
+
+    @Test fun emptyBatchNeverCallsTheServer() = runBlocking {
+        assertEquals(emptyList(), ai.translateBatch(emptyList(), Lang.EN, Lang.ES).getOrThrow())
+        assertEquals(0, server.requestCount)
+    }
+
     @Test fun translateToReturnsText() = runBlocking {
         server.enqueue(ok("""{"text":"Hola"}"""))
         assertEquals("Hola", ai.translateTo("Hello", Lang.EN, Lang.ES).getOrThrow())

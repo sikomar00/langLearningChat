@@ -7,8 +7,8 @@ enum class AiError { RATE_LIMIT, OFFLINE, TIMEOUT, OVERLOADED, BAD_KEY, BAD_FORM
 
 class AiException(val kind: AiError) : Exception(kind.name)
 
-data class ReceivedResult(val detectedLang: Lang?, val koTranslation: String, val note: String)
-data class SentCandidate(val text: String, val toneNote: String)
+data class ReceivedResult(val detectedLang: Lang?, val koTranslation: String, val note: String, val altText: String = "")
+data class SentCandidate(val text: String, val toneNote: String, val altText: String = "")
 data class GradeRequest(
     val promptText: String,
     val promptLang: Lang,
@@ -23,4 +23,5 @@ interface AiService {
     suspend fun suggestSent(koText: String, target: Lang): Result<List<SentCandidate>>
     suspend fun gradeAnswer(req: GradeRequest): Result<GradeResult>
     suspend fun translateTo(text: String, from: Lang, to: Lang): Result<String>
+    suspend fun translateBatch(items: List<String>, from: Lang, to: Lang): Result<List<String>>
 }
