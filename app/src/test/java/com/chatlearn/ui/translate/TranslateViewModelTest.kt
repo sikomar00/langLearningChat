@@ -2,6 +2,7 @@ package com.chatlearn.ui.translate
 
 import com.chatlearn.ai.*
 import com.chatlearn.data.*
+import com.chatlearn.domain.Direction
 import com.chatlearn.domain.Lang
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -241,5 +242,24 @@ class TranslateViewModelTest {
         vm.setKeyPhrase("")
         vm.saveReceived().join()
         assertNull(db.dao().allTexts().first { it.lang == Lang.EN }.keyPhrase)
+    }
+
+    private suspend fun seedKnown() {
+        repo.saveEntry(EntryDraft(Direction.RECEIVED, Lang.EN, "See you tomorrow", "내일 봐", "", null, emptyList(), keyPhrase = "See you"), 500)
+    }
+
+    @Test fun sentModePassesSavedExpressionsOfTheTargetLanguage() = runBlocking {
+        seedKnown()
+        vm.setMode(TranslateMode.SENT); vm.setTarget(Lang.EN)
+        vm.setInput("곧 보자"); vm.translate().join()
+        assertEquals(listOf("See you" to "내일 봐"), ai.lastKnown.map { it.phrase to it.ko })
+    }
+
+    @Test fun turningTheSettingOffSendsNothing() = runBlocking {
+        seedKnown()
+        val off = TranslateViewModel(ai, repo, { 1_000L }, useSaved = { false })
+        off.setMode(TranslateMode.SENT); off.setTarget(Lang.EN)
+        off.setInput("곧 보자"); off.translate().join()
+        assertTrue(ai.lastKnown.isEmpty())
     }
 }

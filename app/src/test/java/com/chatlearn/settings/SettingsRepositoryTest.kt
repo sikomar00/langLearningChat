@@ -91,4 +91,10 @@ class SettingsRepositoryTest {
         repo.setDailyGoal(-4); assertEquals(0, repo.settings.first().dailyGoal)
         repo.setDailyGoal(9999); assertEquals(200, repo.settings.first().dailyGoal)
     }
+
+    @Test fun useSavedExpressionsDefaultsToOnAndCanBeSwitched() = runBlocking {
+        assertTrue(repo.settings.first().useSavedExpressions)
+        repo.setUseSavedExpressions(false)
+        assertFalse(repo.settings.first().useSavedExpressions)
+    }
 }

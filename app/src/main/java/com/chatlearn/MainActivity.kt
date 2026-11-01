@@ -51,7 +51,9 @@ class MainActivity : ComponentActivity() {
             @Suppress("UNCHECKED_CAST")
             override fun <T : ViewModel> create(modelClass: Class<T>): T = when (modelClass) {
                 TranslateViewModel::class.java ->
-                    TranslateViewModel(c.ai, c.repo, System::currentTimeMillis) { c.settings.settings.first().autoExpand }
+                    TranslateViewModel(c.ai, c.repo, System::currentTimeMillis, useSaved = { c.settings.settings.first().useSavedExpressions }) {
+                        c.settings.settings.first().autoExpand
+                    }
                 LibraryViewModel::class.java -> LibraryViewModel(c.repo, c.expansion, keyPhraseService = c.keyPhrases)
                 ReviewViewModel::class.java -> ReviewViewModel(c.reviewSession())
                 SettingsViewModel::class.java -> SettingsViewModel(c.settings, c.repo, c.ai) { on, hour -> c.reminders.apply(on, hour) }

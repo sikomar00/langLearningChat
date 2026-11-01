@@ -82,6 +82,14 @@ fun SettingsScreen(vm: SettingsViewModel) {
             Switch(checked = s.autoExpand, onCheckedChange = { vm.saveAutoExpand(it) })
         }
 
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text("보낼 말에 내 표현 쓰기")
+                Text("보낼 말 후보를 만들 때 내가 저장한 핵심 표현을 자연스러울 때만 넣어 줘요.", style = MaterialTheme.typography.bodySmall)
+            }
+            Switch(checked = s.useSavedExpressions, onCheckedChange = { vm.saveUseSaved(it) })
+        }
+
         val notifPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
             if (!granted) message = "알림 권한이 꺼져 있어요. 휴대폰 설정 > 앱 > ChatLearn > 알림에서 켜 주세요."
         }

@@ -188,6 +188,10 @@ class EntryRepository(internal val db: AppDatabase) {
         ok != null
     }
 
+    /** 보낼 말을 만들 때 AI에 참고로 줄, 내가 저장한 핵심 표현(최근 순)과 한국어 뜻. */
+    suspend fun knownExpressions(lang: Lang, limit: Int = 40): List<com.chatlearn.ai.KnownExpression> =
+        dao.knownExpressions(lang, limit).map { com.chatlearn.ai.KnownExpression(it.phrase, it.ko) }
+
     suspend fun keyPhraseTargets(): List<KeyPhrasePending> =
         dao.textsWithoutKeyPhrase().map { KeyPhrasePending(it.entryId, it.lang, it.text) }
     fun observeMissingKeyPhrases(): Flow<Int> = dao.observeMissingKeyPhrases()

@@ -28,6 +28,7 @@ class SettingsViewModel(private val settings: SettingsRepository, private val re
         onReminderChanged(enabled, hour.coerceIn(0, 23))
     }
     fun saveDailyGoal(n: Int) = viewModelScope.launch { settings.setDailyGoal(n) }
+    fun saveUseSaved(on: Boolean) = viewModelScope.launch { settings.setUseSavedExpressions(on) }
     fun saveAutoExpand(on: Boolean) = viewModelScope.launch { settings.setAutoExpand(on) }
 
     /** 저장된 키와 모델로 연결을 확인한다. 문제가 없으면 null. */

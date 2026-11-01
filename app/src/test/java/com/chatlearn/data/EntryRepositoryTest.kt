@@ -297,4 +297,21 @@ class EntryRepositoryTest {
         repo.saveEntry(draft(), 1_000)
         assertEquals("안부 인사", repo.queue(1_000, 0, 10).single().note)
     }
+
+    @Test fun knownExpressionsListSavedPhrasesWithTheirKoreanMeaningNewestFirst() = runBlocking {
+        repo.saveEntry(draft("See you tomorrow", "내일 봐").copy(keyPhrase = "See you"), 1_000)
+        repo.saveEntry(draft("It is up to you", "네가 정해").copy(keyPhrase = "up to you"), 2_000)
+        repo.saveEntry(draft("No phrase here", "표현 없음"), 3_000)
+        repo.saveEntry(draft("Blank phrase", "빈 표현"), 4_000)
+        val ids = db.dao().allTexts().filter { it.lang == Lang.EN && it.text == "Blank phrase" }
+        repo.setKeyPhrase(ids.single().entryId, Lang.EN, "")
+        val known = repo.knownExpressions(Lang.EN)
+        assertEquals(listOf("up to you" to "네가 정해", "See you" to "내일 봐"), known.map { it.phrase to it.ko })
+    }
+
+    @Test fun knownExpressionsAreLimitedAndPerLanguage() = runBlocking {
+        repeat(5) { repo.saveEntry(draft("Sentence number $it", "뜻 $it").copy(keyPhrase = "number $it"), 1_000L + it) }
+        assertEquals(3, repo.knownExpressions(Lang.EN, limit = 3).size)
+        assertTrue(repo.knownExpressions(Lang.ES).isEmpty())
+    }
 }

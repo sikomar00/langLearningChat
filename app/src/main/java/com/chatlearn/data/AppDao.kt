@@ -5,6 +5,7 @@ import com.chatlearn.domain.Lang
 import kotlinx.coroutines.flow.Flow
 
 data class TagLink(val entryId: Long, val name: String)
+data class KnownExpressionRow(val phrase: String, val ko: String)
 data class KeyPhraseTarget(val entryId: Long, val lang: Lang, val text: String)
 data class ExpansionTarget(val entryId: Long, val chatLang: Lang, val chatText: String)
 
@@ -26,6 +27,13 @@ interface AppDao {
     @Insert suspend fun insertLog(l: ReviewLogEntity): Long
     @Query("UPDATE entry_text SET keyPhrase = :phrase WHERE entryId = :entryId AND lang = :lang")
     suspend fun setKeyPhrase(entryId: Long, lang: Lang, phrase: String?)
+    @Query(
+        "SELECT t.keyPhrase AS phrase, k.text AS ko FROM entry_text t " +
+            "JOIN entry_text k ON k.entryId = t.entryId AND k.lang = 'KO' " +
+            "JOIN entry e ON e.id = t.entryId " +
+            "WHERE t.lang = :lang AND t.keyPhrase IS NOT NULL AND t.keyPhrase != '' ORDER BY e.createdAt DESC, e.id DESC LIMIT :limit"
+    )
+    suspend fun knownExpressions(lang: Lang, limit: Int): List<KnownExpressionRow>
     @Query("SELECT * FROM entry_text WHERE lang != 'KO' AND keyPhrase IS NULL") suspend fun textsWithoutKeyPhrase(): List<EntryTextEntity>
     @Query("SELECT COUNT(*) FROM entry_text WHERE lang != 'KO' AND keyPhrase IS NULL") fun observeMissingKeyPhrases(): Flow<Int>
     @Query("SELECT COUNT(DISTINCT cardId) FROM review_log WHERE reviewedAt >= :since") suspend fun distinctCardsSince(since: Long): Int

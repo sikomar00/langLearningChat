@@ -15,10 +15,12 @@ class FakeAiService : AiService {
         { items, _, _ -> Result.success(items.map { "[번역] $it" }) }
     var keyPhrases: (List<String>, Lang) -> Result<List<String>> =
         { items, _ -> Result.success(items.map { "" }) }
+    var lastKnown: List<KnownExpression> = emptyList()
     val calls = mutableListOf<String>()
 
     override suspend fun translateReceived(text: String) = received(text).also { calls += "received" }
-    override suspend fun suggestSent(koText: String, target: Lang) = sent(koText, target).also { calls += "sent" }
+    override suspend fun suggestSent(koText: String, target: Lang, known: List<KnownExpression>) =
+        sent(koText, target).also { calls += "sent"; lastKnown = known }
     override suspend fun gradeAnswer(req: GradeRequest) = grade(req).also { calls += "grade" }
     override suspend fun translateTo(text: String, from: Lang, to: Lang) = translate(text, from, to).also { calls += "translate" }
     override suspend fun extractKeyPhrases(items: List<String>, lang: Lang) =

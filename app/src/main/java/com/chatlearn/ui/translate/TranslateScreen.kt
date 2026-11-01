@@ -108,6 +108,9 @@ fun TranslateScreen(vm: TranslateViewModel, onSpeak: (String, Lang) -> Unit = { 
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(c.text, style = MaterialTheme.typography.titleMedium)
                     Text(c.toneNote, style = MaterialTheme.typography.bodyMedium)
+                    if (c.usedPhrase.isNotBlank() && c.text.contains(c.usedPhrase, ignoreCase = true)) {
+                        Text("✨ 내가 저장한 표현을 썼어요: ${c.usedPhrase}", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.tertiary)
+                    }
                     if (c.keyPhrase.isNotBlank() && c.text.contains(c.keyPhrase, ignoreCase = true)) {
                         Text("핵심 표현: ${c.keyPhrase}", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
                     }

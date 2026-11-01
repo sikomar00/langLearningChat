@@ -270,4 +270,19 @@ class GeminiAiServiceTest {
         server.enqueue(ok("""{"phrases":["only one"]}"""))
         assertTrue(ai.extractKeyPhrases(listOf("a", "b"), Lang.EN).isFailure)
     }
+
+    @Test fun savedExpressionsAreSentAlongWhenGiven() = runBlocking {
+        server.enqueue(ok("""{"candidates":[{"text":"See you soon","toneNote":"편함","altText":"","keyPhrase":"","altKeyPhrase":"","usedPhrase":"See you"}]}"""))
+        val c = ai.suggestSent("곧 보자", Lang.EN, listOf(KnownExpression("See you", "내일 봐"))).getOrThrow().single()
+        assertEquals("See you", c.usedPhrase)
+        val prompt = server.takeRequest().body.readUtf8()
+        assertTrue(prompt.contains("See you") && prompt.contains("내일 봐"))
+    }
+
+    @Test fun noSavedExpressionsMeansNoSuchPromptSection() = runBlocking {
+        server.enqueue(ok("""{"candidates":[{"text":"Hi","toneNote":"x"}]}"""))
+        val c = ai.suggestSent("안녕", Lang.EN).getOrThrow().single()
+        assertEquals("", c.usedPhrase)
+        assertFalse(server.takeRequest().body.readUtf8().contains("saved these expressions"))
+    }
 }

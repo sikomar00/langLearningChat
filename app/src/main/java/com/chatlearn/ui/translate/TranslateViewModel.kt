@@ -49,6 +49,7 @@ class TranslateViewModel(
     private val ai: AiService,
     private val repo: EntryRepository,
     private val clock: () -> Long,
+    private val useSaved: suspend () -> Boolean = { true },
     private val autoExpand: suspend () -> Boolean = { true },
 ) : ViewModel() {
     private val _state = MutableStateFlow(TranslateUiState())
@@ -100,7 +101,7 @@ class TranslateViewModel(
                 onFailure = { e -> _state.update { it.copy(loading = false, error = e.toUiError()) } },
             )
         } else {
-            ai.suggestSent(text, s.targetLang).fold(
+            ai.suggestSent(text, s.targetLang, if (useSaved()) repo.knownExpressions(s.targetLang) else emptyList()).fold(
                 onSuccess = { list -> _state.update { it.copy(loading = false, candidates = list) } },
                 onFailure = { e -> _state.update { it.copy(loading = false, error = e.toUiError()) } },
             )
