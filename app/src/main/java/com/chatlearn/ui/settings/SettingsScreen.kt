@@ -53,7 +53,7 @@ fun SettingsScreen(vm: SettingsViewModel) {
     }
 
     var tab by rememberSaveable { mutableIntStateOf(0) }
-    val tabs = listOf("AI", "복습", "문장", "백업")
+    val tabs = listOf("AI", "복습", "문장", "화면", "백업")
     Column(Modifier.fillMaxSize()) {
     TabRow(selectedTabIndex = tab) {
         tabs.forEachIndexed { i, t -> Tab(selected = tab == i, onClick = { tab = i }, text = { Text(t) }) }
@@ -129,6 +129,14 @@ fun SettingsScreen(vm: SettingsViewModel) {
         SwitchRow("보낼 말에 내 표현 쓰기", "보낼 말 후보를 만들 때 내가 저장한 핵심 표현을 자연스러울 때만 넣어 줘요.", s.useSavedExpressions, { vm.saveUseSaved(it) })
     }
     if (tab == 3) {
+        if (android.os.Build.VERSION.SDK_INT >= 31) {
+            SwitchRow("시스템 색 따르기", "배경화면에서 뽑은 색으로 앱 색을 바꿔요. 끄면 기본 보라색을 써요.", s.dynamicColor, { vm.saveDynamicColor(it) })
+        } else {
+            Text("이 기기(Android 12 미만)에서는 시스템 색을 쓸 수 없어요.", style = MaterialTheme.typography.bodyMedium)
+        }
+        Text("밝은/어두운 모드는 휴대폰 설정을 따라가요.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+    if (tab == 4) {
         Text("오늘 AI 호출: ${s.aiCallsToday}회")
 
         Text("백업", style = MaterialTheme.typography.titleMedium)

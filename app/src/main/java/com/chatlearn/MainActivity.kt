@@ -70,8 +70,8 @@ class MainActivity : ComponentActivity() {
             } as T
         }
         setContent {
-            AppTheme {
-                val settings by c.settings.settings.collectAsStateWithLifecycle(initialValue = null)
+            val settings by c.settings.settings.collectAsStateWithLifecycle(initialValue = null)
+            AppTheme(dynamicColor = settings?.dynamicColor ?: false) {
                 // 회전·프로세스 재생성 뒤에도 보던 탭을 유지한다.
                 var tab by rememberSaveable { mutableStateOf<Tab?>(null) }
                 // 키가 없으면 첫 화면을 설정으로 안내한다

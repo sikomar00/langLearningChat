@@ -45,8 +45,16 @@ val MaterialTheme.statusColors: StatusColors
     @Composable get() = LocalStatusColors.current
 
 @Composable
-fun AppTheme(darkTheme: Boolean = isSystemInDarkTheme(), content: @Composable () -> Unit) {
-    val scheme: ColorScheme = if (darkTheme) DarkScheme else LightScheme
+fun AppTheme(darkTheme: Boolean = isSystemInDarkTheme(), dynamicColor: Boolean = false, content: @Composable () -> Unit) {
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    // 배경화면 기반 색은 Android 12(API 31) 이상에서만 지원된다.
+    val useDynamic = dynamicColor && android.os.Build.VERSION.SDK_INT >= 31
+    val scheme: ColorScheme = when {
+        useDynamic && darkTheme -> androidx.compose.material3.dynamicDarkColorScheme(ctx)
+        useDynamic -> androidx.compose.material3.dynamicLightColorScheme(ctx)
+        darkTheme -> DarkScheme
+        else -> LightScheme
+    }
     val status = StatusColors(success = if (darkTheme) SuccessDark else SuccessLight)
     CompositionLocalProvider(LocalStatusColors provides status) {
         MaterialTheme(colorScheme = scheme, typography = AppTypography, shapes = AppShapes, content = content)

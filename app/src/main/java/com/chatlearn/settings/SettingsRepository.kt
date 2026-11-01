@@ -20,6 +20,7 @@ data class AppSettings(
     val reminderHour: Int = 20,
     val dailyGoal: Int = 10,
     val useSavedExpressions: Boolean = true,
+    val dynamicColor: Boolean = false,
 )
 
 interface SecretStore {
@@ -49,6 +50,7 @@ interface SettingsRepository {
     suspend fun setReminder(enabled: Boolean, hour: Int)
     suspend fun setDailyGoal(n: Int)
     suspend fun setUseSavedExpressions(on: Boolean)
+    suspend fun setDynamicColor(on: Boolean) {}
     suspend fun recordAiCall()
 }
 
@@ -68,12 +70,13 @@ class DataStoreSettingsRepository(
     private val REMINDER_HOUR = intPreferencesKey("reminder_hour")
     private val DAILY_GOAL = intPreferencesKey("daily_goal")
     private val USE_SAVED = booleanPreferencesKey("use_saved_expressions")
+    private val DYNAMIC_COLOR = booleanPreferencesKey("dynamic_color")
 
     private fun today() = Instant.ofEpochMilli(clock()).atZone(ZoneId.systemDefault()).toLocalDate().toString()
 
     override val settings: Flow<AppSettings> = combine(store.data, keyFlow) { p, key ->
         val sameDay = p[CALL_DAY] == today()
-        AppSettings(key, p[MODEL] ?: DEFAULT_MODEL, p[NEW_PER_DAY] ?: 10, if (sameDay) p[CALL_COUNT] ?: 0 else 0, p[AUTO_EXPAND] ?: true, p[REMINDER_ON] ?: false, p[REMINDER_HOUR] ?: 20, p[DAILY_GOAL] ?: 10, p[USE_SAVED] ?: true)
+        AppSettings(key, p[MODEL] ?: DEFAULT_MODEL, p[NEW_PER_DAY] ?: 10, if (sameDay) p[CALL_COUNT] ?: 0 else 0, p[AUTO_EXPAND] ?: true, p[REMINDER_ON] ?: false, p[REMINDER_HOUR] ?: 20, p[DAILY_GOAL] ?: 10, p[USE_SAVED] ?: true, p[DYNAMIC_COLOR] ?: false)
     }
 
     override fun currentApiKey() = secret.get()
@@ -97,6 +100,8 @@ class DataStoreSettingsRepository(
     override suspend fun setDailyGoal(n: Int) { store.edit { it[DAILY_GOAL] = n.coerceIn(0, 200) } }
 
     override suspend fun setUseSavedExpressions(on: Boolean) { store.edit { it[USE_SAVED] = on } }
+
+    override suspend fun setDynamicColor(on: Boolean) { store.edit { it[DYNAMIC_COLOR] = on } }
 
     override suspend fun recordAiCall() {
         store.edit {
