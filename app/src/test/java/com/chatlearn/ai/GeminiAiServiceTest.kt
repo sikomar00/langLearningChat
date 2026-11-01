@@ -299,4 +299,20 @@ class GeminiAiServiceTest {
         server.enqueue(ok("""{"meaningKo":"","baseForm":"x","note":""}"""))
         assertTrue(ai.lookupWord("x", "x y", Lang.EN).isFailure)
     }
+
+    @Test fun batchOfReceivedMessagesIsParsedInOrder() = runBlocking {
+        server.enqueue(ok("""{"results":[
+            {"detectedLang":"es","koTranslation":"안녕","note":"인사","altText":"Hi","keyPhrase":"","altKeyPhrase":""},
+            {"detectedLang":"other","koTranslation":"x","note":"y","altText":"","keyPhrase":"","altKeyPhrase":""}]}"""))
+        val r = ai.translateReceivedBatch(listOf("Hola", "Olá")).getOrThrow()
+        assertEquals(listOf(Lang.ES, null), r.map { it.detectedLang })
+        assertEquals("안녕", r[0].koTranslation)
+        assertEquals(1, calls) // 한 번의 요청
+    }
+
+    @Test fun batchWithAWrongCountFails() = runBlocking {
+        server.enqueue(ok("""{"results":[{"detectedLang":"es","koTranslation":"a","note":"b","altText":"","keyPhrase":"","altKeyPhrase":""}]}"""))
+        server.enqueue(ok("""{"results":[{"detectedLang":"es","koTranslation":"a","note":"b","altText":"","keyPhrase":"","altKeyPhrase":""}]}"""))
+        assertTrue(ai.translateReceivedBatch(listOf("a", "b")).isFailure)
+    }
 }

@@ -37,6 +37,8 @@ interface AiService {
     suspend fun suggestSent(koText: String, target: Lang, known: List<KnownExpression> = emptyList()): Result<List<SentCandidate>>
     suspend fun gradeAnswer(req: GradeRequest): Result<GradeResult>
     suspend fun translateTo(text: String, from: Lang, to: Lang): Result<String>
+    /** 여러 메시지를 한 번에 번역한다. 입력과 같은 수·순서로 돌려준다. */
+    suspend fun translateReceivedBatch(items: List<String>): Result<List<ReceivedResult>>
     /** [sentence] 속 [word]의 뜻을 한국어 학습자에게 설명한다. */
     suspend fun lookupWord(word: String, sentence: String, lang: Lang): Result<WordInfo>
     /** 문장마다 배울 핵심 표현 하나(문장에서 그대로 떼어 낸 부분). 없으면 빈 문자열. 입력과 같은 수·순서로 돌려준다. */

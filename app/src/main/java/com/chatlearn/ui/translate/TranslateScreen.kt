@@ -18,6 +18,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.chatlearn.ai.AiError
 import com.chatlearn.domain.Lang
+import com.chatlearn.domain.splitMessages
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
@@ -69,7 +70,9 @@ fun TranslateScreen(vm: TranslateViewModel, onSpeak: (String, Lang) -> Unit = { 
             }
         }
         Button(onClick = { vm.translate() }, enabled = s.input.isNotBlank() && !s.loading, modifier = Modifier.fillMaxWidth()) {
-            if (s.loading) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp) else Text("번역")
+            val lineCount = if (s.mode == TranslateMode.RECEIVED) splitMessages(s.input).size else 0
+            if (s.loading) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+            else Text(if (lineCount >= 2) "문장별로 번역 (${lineCount}개)" else "번역")
         }
 
         s.error?.let {
@@ -83,9 +86,32 @@ fun TranslateScreen(vm: TranslateViewModel, onSpeak: (String, Lang) -> Unit = { 
                 when (it) {
                     is Notice.Saved -> if (it.cards >= 2) "저장했어요. 영어·스페인어 카드 ${it.cards}장을 만들었어요." else "저장했어요."
                     Notice.Duplicate -> "이미 저장된 문장이에요."
+                    is Notice.BatchSaved -> "${it.saved}개를 저장했어요." + if (it.duplicates > 0) " (이미 있는 ${it.duplicates}개는 건너뛰었어요)" else ""
                 },
                 color = MaterialTheme.colorScheme.primary,
             )
+        }
+
+        if (s.batch.isNotEmpty()) {
+            val chosen = s.batch.count { it.selected }
+            Text("저장할 문장을 골라 주세요", style = MaterialTheme.typography.titleSmall)
+            s.batch.forEachIndexed { i, b ->
+                Card(Modifier.fillMaxWidth().clickable(enabled = b.savable) { vm.toggleBatch(i) }) {
+                    Row(Modifier.padding(12.dp), verticalAlignment = androidx.compose.ui.Alignment.Top) {
+                        Checkbox(checked = b.selected, onCheckedChange = null, enabled = b.savable)
+                        Column(Modifier.weight(1f).padding(start = 8.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            Text(b.text, style = MaterialTheme.typography.bodyLarge)
+                            if (b.savable) {
+                                Text(b.result!!.koTranslation, style = MaterialTheme.typography.bodyMedium)
+                                if (b.keyPhrase.isNotBlank()) Text("핵심 표현: ${b.keyPhrase}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+                            } else {
+                                Text("영어나 스페인어가 아니라서 저장할 수 없어요.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+                            }
+                        }
+                    }
+                }
+            }
+            Button(onClick = { vm.saveBatch() }, enabled = chosen > 0, modifier = Modifier.fillMaxWidth()) { Text("선택한 ${chosen}개 저장") }
         }
 
         s.received?.let { r ->

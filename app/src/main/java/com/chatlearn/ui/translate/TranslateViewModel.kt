@@ -7,6 +7,7 @@ import com.chatlearn.data.*
 import com.chatlearn.domain.Direction
 import com.chatlearn.domain.Lang
 import com.chatlearn.domain.normalizeKeyPhrase
+import com.chatlearn.domain.splitMessages
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -36,6 +37,7 @@ sealed interface LookupState {
 sealed interface Notice {
     data class Saved(val cards: Int) : Notice
     data object Duplicate : Notice
+    data class BatchSaved(val saved: Int, val duplicates: Int) : Notice
 }
 
 data class TranslateUiState(
@@ -51,7 +53,15 @@ data class TranslateUiState(
     val notice: Notice? = null,
     val keyPhrase: String = "", // 받은 말의 핵심 표현(저장 전에 고칠 수 있다)
     val lookup: LookupState? = null, // 눌러 본 단어의 뜻
+    val batch: List<BatchItem> = emptyList(), // 여러 줄을 붙여넣었을 때 줄별 번역 결과
 )
+
+/** 붙여넣은 대화의 한 줄. [result]가 null이거나 지원하지 않는 언어면 저장할 수 없다. */
+data class BatchItem(val text: String, val result: ReceivedResult?, val selected: Boolean, val keyPhrase: String) {
+    val savable: Boolean get() = result?.detectedLang != null
+}
+
+private const val BATCH_CHUNK = 10
 
 class TranslateViewModel(
     private val ai: AiService,
@@ -64,23 +74,23 @@ class TranslateViewModel(
     val state: StateFlow<TranslateUiState> = _state.asStateFlow()
 
     fun setMode(m: TranslateMode) = _state.update {
-        it.copy(mode = m, received = null, lookup = null, candidates = emptyList(), error = null, notice = null)
+        it.copy(mode = m, received = null, lookup = null, batch = emptyList(), candidates = emptyList(), error = null, notice = null)
     }
     fun setInput(s: String) = _state.update { it.copy(input = s) }
 
     /** 입력과 결과, 안내 문구를 모두 비운다. 태그와 모드는 그대로 둔다. */
     fun clearInput() = _state.update {
-        it.copy(input = "", source = "", received = null, lookup = null, candidates = emptyList(), error = null, notice = null)
+        it.copy(input = "", source = "", received = null, lookup = null, batch = emptyList(), candidates = emptyList(), error = null, notice = null)
     }
 
     /** 붙여넣기: 입력을 통째로 바꾸고, 이전 입력의 결과는 지운다. */
     fun replaceInput(text: String) = _state.update {
-        it.copy(input = text.trim(), source = "", received = null, lookup = null, candidates = emptyList(), error = null, notice = null)
+        it.copy(input = text.trim(), source = "", received = null, lookup = null, batch = emptyList(), candidates = emptyList(), error = null, notice = null)
     }
     /** 다른 앱에서 공유한 메시지: 받은 말 모드로 바꾸고 바로 번역한다. */
     fun receiveShared(text: String): Job {
         _state.update {
-            it.copy(mode = TranslateMode.RECEIVED, input = text.trim(), source = "", received = null, lookup = null, candidates = emptyList(), error = null, notice = null)
+            it.copy(mode = TranslateMode.RECEIVED, input = text.trim(), source = "", received = null, lookup = null, batch = emptyList(), candidates = emptyList(), error = null, notice = null)
         }
         return translate()
     }
@@ -119,8 +129,11 @@ class TranslateViewModel(
         val s = _state.value
         val text = s.input.trim()
         if (text.isEmpty() || s.loading) return@launch
-        _state.update { it.copy(loading = true, source = text, error = null, notice = null, received = null, lookup = null, candidates = emptyList()) }
-        if (s.mode == TranslateMode.RECEIVED) {
+        _state.update { it.copy(loading = true, source = text, error = null, notice = null, received = null, lookup = null, batch = emptyList(), candidates = emptyList()) }
+        val lines = if (s.mode == TranslateMode.RECEIVED) splitMessages(text) else emptyList()
+        if (lines.size >= 2) {
+            translateBatch(lines)
+        } else if (s.mode == TranslateMode.RECEIVED) {
             ai.translateReceived(text).fold(
                 onSuccess = { r ->
                     if (r.detectedLang == null) _state.update { it.copy(loading = false, error = TranslateError.UnsupportedLang) }
@@ -133,6 +146,46 @@ class TranslateViewModel(
                 onSuccess = { list -> _state.update { it.copy(loading = false, candidates = list) } },
                 onFailure = { e -> _state.update { it.copy(loading = false, error = e.toUiError()) } },
             )
+        }
+    }
+
+    // 10줄씩 묶어 요청한다. 한 묶음이라도 실패하면 전체를 실패로 보고 입력은 그대로 둔다.
+    private suspend fun translateBatch(lines: List<String>) {
+        val results = mutableListOf<ReceivedResult>()
+        for (chunk in lines.chunked(BATCH_CHUNK)) {
+            val r = ai.translateReceivedBatch(chunk)
+            if (r.isFailure) {
+                _state.update { it.copy(loading = false, error = r.exceptionOrNull()!!.toUiError()) }
+                return
+            }
+            results += r.getOrThrow()
+        }
+        val items = lines.zip(results).map { (line, r) ->
+            BatchItem(line, r, selected = r.detectedLang != null, keyPhrase = normalizeKeyPhrase(line, r.keyPhrase).orEmpty())
+        }
+        _state.update { it.copy(loading = false, batch = items) }
+    }
+
+    fun toggleBatch(index: Int) = _state.update { st ->
+        st.copy(batch = st.batch.mapIndexed { i, b -> if (i == index && b.savable) b.copy(selected = !b.selected) else b })
+    }
+
+    /** 고른 줄을 모두 저장한다. 이미 있는 문장은 건너뛰고 개수만 알려 준다. */
+    fun saveBatch(): Job = viewModelScope.launch {
+        val s = _state.value
+        val expand = autoExpand()
+        var saved = 0; var dup = 0
+        s.batch.filter { it.selected && it.savable }.forEach { b ->
+            val r = b.result!!
+            val draft = EntryDraft(
+                Direction.RECEIVED, r.detectedLang!!, b.text, r.koTranslation, r.note, null, parseTags(s.tag), r.altText,
+                keyPhrase = b.keyPhrase.ifBlank { null }, altKeyPhrase = r.altKeyPhrase,
+            )
+            if (repo.saveEntry(draft, clock(), expand) is SaveResult.Saved) saved++ else dup++
+        }
+        _state.update {
+            it.copy(input = "", source = "", received = null, lookup = null, batch = emptyList(), candidates = emptyList(),
+                error = null, keyPhrase = "", notice = Notice.BatchSaved(saved, dup))
         }
     }
 
@@ -157,7 +210,7 @@ class TranslateViewModel(
         val cards = if (r is SaveResult.Saved) repo.cardCount(r.id) else 0
         _state.update {
             if (r is SaveResult.Saved) {
-                it.copy(input = "", source = "", received = null, lookup = null, candidates = emptyList(), error = null, notice = Notice.Saved(cards), keyPhrase = "")
+                it.copy(input = "", source = "", received = null, lookup = null, batch = emptyList(), candidates = emptyList(), error = null, notice = Notice.Saved(cards), keyPhrase = "")
             } else {
                 it.copy(notice = Notice.Duplicate)
             }

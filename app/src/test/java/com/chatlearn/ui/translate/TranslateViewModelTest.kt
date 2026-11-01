@@ -307,4 +307,57 @@ class TranslateViewModelTest {
         vm.dismissLookup()
         assertNull(vm.state.value.lookup)
     }
+
+    private val chat = "Hello there\nSee you tomorrow\nOlá amigo"
+
+    @Test fun severalLinesAreTranslatedInOneBatchCall() = runBlocking {
+        vm.setInput(chat); vm.translate().join()
+        val items = vm.state.value.batch
+        assertEquals(listOf("Hello there", "See you tomorrow", "Olá amigo"), items.map { it.text })
+        assertEquals(listOf("receivedBatch"), ai.calls)
+        assertNull(vm.state.value.received)
+    }
+
+    @Test fun unsupportedLanguageLinesStartUnselected() = runBlocking {
+        ai.receivedBatch = { items -> Result.success(items.map { ReceivedResult(if (it.startsWith("Ol")) null else Lang.EN, "k", "n", "a") }) }
+        vm.setInput(chat); vm.translate().join()
+        assertEquals(listOf(true, true, false), vm.state.value.batch.map { it.selected })
+        vm.toggleBatch(2)
+        assertFalse(vm.state.value.batch[2].selected) // 지원하지 않는 언어는 켤 수 없다
+        vm.toggleBatch(0)
+        assertFalse(vm.state.value.batch[0].selected)
+    }
+
+    @Test fun savingStoresOnlySelectedLinesAndCountsDuplicates() = runBlocking {
+        repo.saveEntry(EntryDraft(Direction.RECEIVED, Lang.EN, "Hello there", "안녕", "", null, emptyList()), 1)
+        vm.setInput(chat); vm.translate().join()
+        vm.toggleBatch(1) // See you tomorrow 제외
+        vm.setTag("Alex")
+        vm.saveBatch().join()
+        val notice = vm.state.value.notice
+        assertEquals(Notice.BatchSaved(saved = 1, duplicates = 1), notice) // Olá amigo만 새로 저장, Hello there는 중복
+        assertEquals(setOf("Hello there", "Olá amigo"), db.dao().allTexts().filter { it.lang == Lang.EN }.map { it.text }.toSet())
+        assertTrue(vm.state.value.batch.isEmpty())
+        assertEquals("", vm.state.value.input)
+    }
+
+    @Test fun moreThanTenLinesAreSentInChunks() = runBlocking {
+        vm.setInput((1..15).joinToString("\n") { "line $it" }); vm.translate().join()
+        assertEquals(2, ai.calls.count { it == "receivedBatch" })
+        assertEquals(15, vm.state.value.batch.size)
+    }
+
+    @Test fun aFailedBatchShowsTheErrorAndKeepsTheInput() = runBlocking {
+        ai.receivedBatch = { Result.failure(AiException(AiError.OVERLOADED)) }
+        vm.setInput(chat); vm.translate().join()
+        assertEquals(TranslateError.Ai(AiError.OVERLOADED), vm.state.value.error)
+        assertTrue(vm.state.value.batch.isEmpty())
+        assertEquals(chat, vm.state.value.input)
+    }
+
+    @Test fun aSingleLineStillUsesTheSingleMessagePath() = runBlocking {
+        vm.setInput("Hello there"); vm.translate().join()
+        assertEquals(listOf("received"), ai.calls)
+        assertTrue(vm.state.value.batch.isEmpty())
+    }
 }
