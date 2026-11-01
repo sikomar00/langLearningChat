@@ -43,6 +43,7 @@ class AppContainer(context: Context) {
     )
 
     val tts: Tts = AndroidTts(context)
+    val reminders = com.chatlearn.reminder.ReminderScheduler(context)
     val expansion = ExpansionService(repo, ai, System::currentTimeMillis)
 
     fun reviewSession() = ReviewSession(

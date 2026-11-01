@@ -78,6 +78,29 @@ fun SettingsScreen(vm: SettingsViewModel) {
             Switch(checked = s.autoExpand, onCheckedChange = { vm.saveAutoExpand(it) })
         }
 
+        val notifPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+            if (!granted) message = "알림 권한이 꺼져 있어요. 휴대폰 설정 > 앱 > ChatLearn > 알림에서 켜 주세요."
+        }
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text("복습 알림")
+                Text("정해둔 시각에 복습할 카드가 있으면 알려 줘요.", style = MaterialTheme.typography.bodySmall)
+            }
+            Switch(checked = s.reminderEnabled, onCheckedChange = { on ->
+                vm.saveReminder(on, s.reminderHour)
+                if (on && android.os.Build.VERSION.SDK_INT >= 33 &&
+                    androidx.core.content.ContextCompat.checkSelfPermission(ctx, android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED
+                ) notifPermission.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+            })
+        }
+        if (s.reminderEnabled) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                listOf(8, 12, 18, 20, 22).forEach { h ->
+                    FilterChip(selected = s.reminderHour == h, onClick = { vm.saveReminder(true, h) }, label = { Text(if (h < 12) "오전 ${h}시" else if (h == 12) "낮 12시" else "오후 ${h - 12}시") })
+                }
+            }
+        }
+
         Text("오늘 AI 호출: ${s.aiCallsToday}회")
 
         HorizontalDivider()

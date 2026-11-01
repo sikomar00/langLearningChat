@@ -13,6 +13,8 @@ import androidx.compose.ui.Modifier
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.launch
 import androidx.lifecycle.viewmodel.compose.viewModel
 import kotlinx.coroutines.flow.first
 import com.chatlearn.stats.StatsViewModel
@@ -43,6 +45,8 @@ class MainActivity : ComponentActivity() {
         // 회전 등으로 다시 만들어질 때 같은 문장을 또 번역하지 않는다.
         if (savedInstanceState == null) pendingShare = sharedTextOf(intent)
         val c = (application as ChatLearnApp).container
+        // 예약이 사라졌을 수 있으니(강제 종료, 설정 변경) 앱을 열 때마다 설정대로 다시 맞춘다.
+        lifecycleScope.launch { c.settings.settings.first().let { c.reminders.apply(it.reminderEnabled, it.reminderHour) } }
         val factory = object : ViewModelProvider.Factory {
             @Suppress("UNCHECKED_CAST")
             override fun <T : ViewModel> create(modelClass: Class<T>): T = when (modelClass) {
@@ -50,7 +54,7 @@ class MainActivity : ComponentActivity() {
                     TranslateViewModel(c.ai, c.repo, System::currentTimeMillis) { c.settings.settings.first().autoExpand }
                 LibraryViewModel::class.java -> LibraryViewModel(c.repo, c.expansion)
                 ReviewViewModel::class.java -> ReviewViewModel(c.reviewSession())
-                SettingsViewModel::class.java -> SettingsViewModel(c.settings, c.repo, c.ai)
+                SettingsViewModel::class.java -> SettingsViewModel(c.settings, c.repo, c.ai) { on, hour -> c.reminders.apply(on, hour) }
                 StatsViewModel::class.java -> StatsViewModel(c.repo)
                 else -> error("unknown ViewModel")
             } as T

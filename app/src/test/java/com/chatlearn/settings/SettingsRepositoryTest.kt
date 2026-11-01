@@ -69,4 +69,19 @@ class SettingsRepositoryTest {
         repo.setNewPerDay(-3)
         assertEquals(0, repo.settings.first().newPerDay)
     }
+
+    @Test fun reminderDefaultsToOffAtEightPm() = runBlocking {
+        val s = repo.settings.first()
+        assertFalse(s.reminderEnabled)
+        assertEquals(20, s.reminderHour)
+    }
+
+    @Test fun reminderIsSavedAndHourIsClamped() = runBlocking {
+        repo.setReminder(true, 7)
+        assertEquals(true to 7, repo.settings.first().let { it.reminderEnabled to it.reminderHour })
+        repo.setReminder(true, 99)
+        assertEquals(23, repo.settings.first().reminderHour)
+        repo.setReminder(false, -3)
+        assertEquals(0, repo.settings.first().reminderHour)
+    }
 }

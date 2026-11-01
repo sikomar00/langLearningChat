@@ -16,6 +16,8 @@ data class AppSettings(
     val newPerDay: Int,
     val aiCallsToday: Int,
     val autoExpand: Boolean = true,
+    val reminderEnabled: Boolean = false,
+    val reminderHour: Int = 20,
 )
 
 interface SecretStore {
@@ -42,6 +44,7 @@ interface SettingsRepository {
     suspend fun setModel(m: String)
     suspend fun setNewPerDay(n: Int)
     suspend fun setAutoExpand(on: Boolean)
+    suspend fun setReminder(enabled: Boolean, hour: Int)
     suspend fun recordAiCall()
 }
 
@@ -57,12 +60,14 @@ class DataStoreSettingsRepository(
     private val CALL_DAY = stringPreferencesKey("call_day")
     private val CALL_COUNT = intPreferencesKey("call_count")
     private val AUTO_EXPAND = booleanPreferencesKey("auto_expand")
+    private val REMINDER_ON = booleanPreferencesKey("reminder_on")
+    private val REMINDER_HOUR = intPreferencesKey("reminder_hour")
 
     private fun today() = Instant.ofEpochMilli(clock()).atZone(ZoneId.systemDefault()).toLocalDate().toString()
 
     override val settings: Flow<AppSettings> = combine(store.data, keyFlow) { p, key ->
         val sameDay = p[CALL_DAY] == today()
-        AppSettings(key, p[MODEL] ?: DEFAULT_MODEL, p[NEW_PER_DAY] ?: 10, if (sameDay) p[CALL_COUNT] ?: 0 else 0, p[AUTO_EXPAND] ?: true)
+        AppSettings(key, p[MODEL] ?: DEFAULT_MODEL, p[NEW_PER_DAY] ?: 10, if (sameDay) p[CALL_COUNT] ?: 0 else 0, p[AUTO_EXPAND] ?: true, p[REMINDER_ON] ?: false, p[REMINDER_HOUR] ?: 20)
     }
 
     override fun currentApiKey() = secret.get()
@@ -78,6 +83,10 @@ class DataStoreSettingsRepository(
     override suspend fun setNewPerDay(n: Int) { store.edit { it[NEW_PER_DAY] = n.coerceAtLeast(0) } }
 
     override suspend fun setAutoExpand(on: Boolean) { store.edit { it[AUTO_EXPAND] = on } }
+
+    override suspend fun setReminder(enabled: Boolean, hour: Int) {
+        store.edit { it[REMINDER_ON] = enabled; it[REMINDER_HOUR] = hour.coerceIn(0, 23) }
+    }
 
     override suspend fun recordAiCall() {
         store.edit {
