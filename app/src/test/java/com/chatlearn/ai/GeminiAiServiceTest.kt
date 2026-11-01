@@ -45,6 +45,28 @@ class GeminiAiServiceTest {
         assertEquals(1, calls)
     }
 
+    @Test fun parsesCorrectionOfLearnersOwnSentence() = runBlocking {
+        server.enqueue(ok("""{"detectedLang":"en","corrected":"I don't know.","natural":false,"explanationKo":"don't로 줄여 써요.","koTranslation":"몰라.","alternatives":["No idea."],"keyPhrase":"don't know","altText":"No lo sé.","altKeyPhrase":"No lo sé"}"""))
+        val r = ai.correctSentence("i dont know").getOrThrow()
+        assertEquals(Lang.EN, r.detectedLang)
+        assertEquals("I don't know.", r.corrected)
+        assertFalse(r.natural)
+        assertEquals("don't로 줄여 써요.", r.explanationKo)
+        assertEquals("몰라.", r.koTranslation)
+        assertEquals(listOf("No idea."), r.alternatives)
+        assertEquals("don't know", r.keyPhrase)
+        assertEquals("No lo sé.", r.altText)
+        val sent = Json.parseToJsonElement(server.takeRequest().body.readUtf8()).jsonObject
+        val props = sent["generationConfig"]!!.jsonObject["responseSchema"]!!.jsonObject["properties"]!!.jsonObject
+        assertEquals("BOOLEAN", props["natural"]!!.jsonObject["type"]!!.jsonPrimitive.content)
+        assertTrue(sent["contents"].toString().contains("i dont know"))
+    }
+
+    @Test fun correctionOfOtherLanguageMapsToNull() = runBlocking {
+        server.enqueue(ok("""{"detectedLang":"other","corrected":"Olá","natural":true,"explanationKo":"","koTranslation":"","alternatives":[],"keyPhrase":"","altText":"","altKeyPhrase":""}"""))
+        assertNull(ai.correctSentence("Olá").getOrThrow().detectedLang)
+    }
+
     @Test fun unsupportedLanguageMapsToNull() = runBlocking {
         server.enqueue(ok("""{"detectedLang":"other","koTranslation":"x","note":"y"}"""))
         assertNull(ai.translateReceived("Olá, tudo bem?").getOrThrow().detectedLang)

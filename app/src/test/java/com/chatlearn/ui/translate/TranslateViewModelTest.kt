@@ -53,6 +53,63 @@ class TranslateViewModelTest {
         assertEquals(listOf("Alex"), item.tags)
     }
 
+    @Test fun pasteAndTranslateReplacesInputAndRunsTheCurrentMode() = runBlocking {
+        vm.setMode(TranslateMode.SENT)
+        vm.setInput("이전 입력")
+        vm.pasteAndTranslate("  내일 보자 \n").join()
+        assertEquals("내일 보자", vm.state.value.input)
+        assertEquals(listOf("sent"), ai.calls)
+        assertEquals("Hi!", vm.state.value.candidates.single().text)
+    }
+
+    @Test fun correctionModeShowsTheFixAndSavesTheCorrectedSentenceAsSent() = runBlocking {
+        vm.setMode(TranslateMode.CORRECT)
+        vm.setInput("i dont know")
+        vm.translate().join()
+        assertEquals(listOf("correct"), ai.calls)
+        assertEquals("I don't know.", vm.state.value.correction?.corrected)
+        vm.saveCorrection().join()
+        assertEquals(Notice.Saved(2), vm.state.value.notice)
+        assertNull(vm.state.value.correction)
+        val item = repo.observeLibrary().first().single()
+        assertEquals(Direction.SENT, item.entry.direction)
+        assertEquals("I don't know.", item.texts[Lang.EN])
+        assertEquals("몰라.", item.texts[Lang.KO])
+        assertEquals("No lo sé.", item.texts[Lang.ES])
+        assertEquals("don't로 줄여 써요.", item.entry.note)
+        assertEquals("don't know", item.keyPhrases[Lang.EN])
+    }
+
+    @Test fun correctionOfUnsupportedLanguageShowsError() = runBlocking {
+        ai.correct = { Result.success(CorrectionResult(null, "Olá", true, "", "", emptyList(), "", "", "")) }
+        vm.setMode(TranslateMode.CORRECT)
+        vm.setInput("Olá")
+        vm.translate().join()
+        assertEquals(TranslateError.UnsupportedLang, vm.state.value.error)
+        assertNull(vm.state.value.correction)
+    }
+
+    @Test fun switchingModeClearsTheCorrection() = runBlocking {
+        vm.setMode(TranslateMode.CORRECT)
+        vm.setInput("i dont know")
+        vm.translate().join()
+        vm.setMode(TranslateMode.RECEIVED)
+        assertNull(vm.state.value.correction)
+    }
+
+    @Test fun pickedPastDateIsSavedAsLearnedDateAndKeptForTheNextSave() = runBlocking {
+        val zone = java.time.ZoneId.systemDefault()
+        val day = java.time.Instant.ofEpochMilli(1_000L).atZone(zone).toLocalDate().minusDays(5)
+        vm.setLearnedOn(day)
+        vm.setInput("How are you?")
+        vm.translate().join()
+        vm.saveReceived().join()
+        val saved = repo.observeLibrary().first().single()
+        assertEquals(day, java.time.Instant.ofEpochMilli(saved.entry.createdAt).atZone(zone).toLocalDate())
+        // 지난 대화를 몰아서 저장할 때 매번 다시 고르지 않게 고른 날짜는 남는다.
+        assertEquals(day, vm.state.value.learnedOn)
+    }
+
     @Test fun unsupportedLanguageShowsErrorAndCannotSave() = runBlocking {
         ai.received = { Result.success(ReceivedResult(null, "x", "y")) }
         vm.setInput("Olá, tudo bem?")

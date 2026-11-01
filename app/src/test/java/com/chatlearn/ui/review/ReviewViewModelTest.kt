@@ -111,6 +111,56 @@ class ReviewViewModelTest {
         Unit
     }
 
+    @Test fun spokenAnswerFillsTheFirstFieldOrIsAppended() = runBlocking {
+        repo.saveEntry(EntryDraft(Direction.RECEIVED, Lang.EN, "Hi there", "안녕", "", null, emptyList()), now - 1)
+        vm.start().join()
+        vm.putSpokenAnswer("hi")
+        assertEquals("hi", assertIs<ReviewUi.Prompt>(vm.state.value).answers[0])
+        vm.putSpokenAnswer("there")
+        assertEquals("hi there", assertIs<ReviewUi.Prompt>(vm.state.value).answers[0])
+    }
+
+    @Test fun refreshPicksUpCardsThatBecameDueWhileTheTabWasEmpty() = runBlocking {
+        vm.ensureStarted().join()
+        assertEquals(ReviewUi.Empty, vm.state.value)
+        repo.saveEntry(EntryDraft(Direction.RECEIVED, Lang.EN, "Hi", "안녕", "", null, emptyList()), now - 1)
+        vm.refresh(force = false).join()
+        assertEquals(ReviewUi.Ready(1, 1), vm.state.value)
+    }
+
+    @Test fun refreshNeverInterruptsACardOnScreen() = runBlocking {
+        repo.saveEntry(EntryDraft(Direction.RECEIVED, Lang.EN, "Hi", "안녕", "", null, emptyList()), now - 1)
+        vm.start().join()
+        vm.setAnswer("Hi")
+        vm.refresh(force = true).join()
+        assertEquals("Hi", assertIs<ReviewUi.Prompt>(vm.state.value).answers.single())
+    }
+
+    @Test fun onlyAForcedRefreshReplacesTheDoneSummary() = runBlocking {
+        repo.saveEntry(EntryDraft(Direction.RECEIVED, Lang.EN, "Hi", "안녕", "", null, emptyList()), now - 1)
+        vm.start().join()
+        vm.setAnswer("Hi"); vm.submit().join(); vm.rate(Rating.GOOD).join()
+        repo.saveEntry(EntryDraft(Direction.RECEIVED, Lang.EN, "Bye", "잘 가", "", null, emptyList()), now - 1)
+        vm.refresh(force = false).join()
+        assertEquals(ReviewUi.Done(1), vm.state.value)
+        vm.refresh(force = true).join()
+        assertEquals(ReviewUi.Ready(1, 1), vm.state.value)
+    }
+
+    @Test fun afterTodaysNewCardLimitYouCanLearnMore() = runBlocking {
+        val v = ReviewViewModel(ReviewSession(repo, ai, { now }, { 1 }, { false }, { 0.0 }))
+        listOf("One" to "하나", "Two" to "둘", "Three" to "셋").forEach { (en, ko) ->
+            repo.saveEntry(EntryDraft(Direction.RECEIVED, Lang.EN, en, ko, "", null, emptyList()), now - 1)
+        }
+        v.start().join()
+        v.setAnswer("x"); v.submit().join(); v.rate(Rating.GOOD).join()
+        assertEquals(ReviewUi.Done(1), v.state.value)
+        assertEquals(2, v.moreNew.value)
+        v.learnMore(5).join()
+        assertIs<ReviewUi.Prompt>(v.state.value)
+        assertEquals(2, v.progress.value.total)
+    }
+
     @Test fun doubleTapOnRatingRecordsOnlyOnce() = runBlocking {
         repo.saveEntry(EntryDraft(Direction.RECEIVED, Lang.EN, "Hi", "안녕", "", null, emptyList()), now - 1)
         vm.start().join()
@@ -129,6 +179,16 @@ class ReviewViewModelTest {
         vm.rate(Rating.AGAIN).join()
         assertIs<ReviewUi.Prompt>(vm.state.value)
         Unit
+    }
+
+    @Test fun doneCountsACardOnceEvenWhenRetriedAfterAgain() = runBlocking {
+        repo.saveEntry(EntryDraft(Direction.RECEIVED, Lang.EN, "Hi", "안녕", "", null, emptyList()), now - 1)
+        vm.start().join()
+        vm.setAnswer("x"); vm.submit().join(); vm.rate(Rating.AGAIN).join()
+        vm.setAnswer("Hi"); vm.submit().join(); vm.rate(Rating.GOOD).join()
+        val d = assertIs<ReviewUi.Done>(vm.state.value)
+        assertEquals(1, d.cards)
+        assertEquals(2, d.count)
     }
 
     @Test fun startWithQueuesSelectedCardsEvenWhenNotDue() = runBlocking {

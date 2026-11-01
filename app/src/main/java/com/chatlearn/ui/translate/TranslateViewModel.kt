@@ -20,7 +20,8 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
-enum class TranslateMode { RECEIVED, SENT }
+/** 받은 말(번역), 보낼 말(한국어 → 후보), 첨삭(내가 쓴 영어·스페인어 고치기). */
+enum class TranslateMode { RECEIVED, SENT, CORRECT }
 
 sealed interface TranslateError {
     data object UnsupportedLang : TranslateError
@@ -55,6 +56,7 @@ data class TranslateUiState(
     val lookup: LookupState? = null, // 눌러 본 단어의 뜻
     val batch: List<BatchItem> = emptyList(), // 여러 줄을 붙여넣었을 때 줄별 번역 결과
     val learnedOn: java.time.LocalDate? = null, // 이 표현을 알게 된 날. null이면 오늘(저장하는 날)
+    val correction: CorrectionResult? = null, // 첨삭 결과
 )
 
 /** 붙여넣은 대화의 한 줄. [result]가 null이거나 지원하지 않는 언어면 저장할 수 없다. */
@@ -75,7 +77,7 @@ class TranslateViewModel(
     val state: StateFlow<TranslateUiState> = _state.asStateFlow()
 
     fun setMode(m: TranslateMode) = _state.update {
-        it.copy(mode = m, received = null, lookup = null, batch = emptyList(), candidates = emptyList(), error = null, notice = null)
+        it.copy(mode = m, received = null, lookup = null, batch = emptyList(), candidates = emptyList(), correction = null, error = null, notice = null)
     }
     fun setInput(s: String) = _state.update { it.copy(input = s) }
 
@@ -90,17 +92,23 @@ class TranslateViewModel(
 
     /** 입력과 결과, 안내 문구를 모두 비운다. 태그와 모드는 그대로 둔다. */
     fun clearInput() = _state.update {
-        it.copy(input = "", source = "", received = null, lookup = null, batch = emptyList(), candidates = emptyList(), error = null, notice = null)
+        it.copy(input = "", source = "", received = null, lookup = null, batch = emptyList(), candidates = emptyList(), correction = null, error = null, notice = null)
     }
 
     /** 붙여넣기: 입력을 통째로 바꾸고, 이전 입력의 결과는 지운다. */
     fun replaceInput(text: String) = _state.update {
-        it.copy(input = text.trim(), source = "", received = null, lookup = null, batch = emptyList(), candidates = emptyList(), error = null, notice = null)
+        it.copy(input = text.trim(), source = "", received = null, lookup = null, batch = emptyList(), candidates = emptyList(), correction = null, error = null, notice = null)
     }
+    /** 붙여넣기 버튼: 입력을 클립보드 내용으로 바꾸고 지금 모드로 바로 번역(첨삭)한다. */
+    fun pasteAndTranslate(text: String): Job {
+        replaceInput(text)
+        return translate()
+    }
+
     /** 다른 앱에서 공유한 메시지: 받은 말 모드로 바꾸고 바로 번역한다. */
     fun receiveShared(text: String): Job {
         _state.update {
-            it.copy(mode = TranslateMode.RECEIVED, input = text.trim(), source = "", received = null, lookup = null, batch = emptyList(), candidates = emptyList(), error = null, notice = null)
+            it.copy(mode = TranslateMode.RECEIVED, input = text.trim(), source = "", received = null, lookup = null, batch = emptyList(), candidates = emptyList(), correction = null, error = null, notice = null)
         }
         return translate()
     }
@@ -139,7 +147,7 @@ class TranslateViewModel(
         val s = _state.value
         val text = s.input.trim()
         if (text.isEmpty() || s.loading) return@launch
-        _state.update { it.copy(loading = true, source = text, error = null, notice = null, received = null, lookup = null, batch = emptyList(), candidates = emptyList()) }
+        _state.update { it.copy(loading = true, source = text, error = null, notice = null, received = null, lookup = null, batch = emptyList(), candidates = emptyList(), correction = null) }
         val lines = if (s.mode == TranslateMode.RECEIVED) splitMessages(text) else emptyList()
         if (lines.size >= 2) {
             translateBatch(lines)
@@ -148,6 +156,14 @@ class TranslateViewModel(
                 onSuccess = { r ->
                     if (r.detectedLang == null) _state.update { it.copy(loading = false, error = TranslateError.UnsupportedLang) }
                     else _state.update { it.copy(loading = false, received = r, keyPhrase = normalizeKeyPhrase(text, r.keyPhrase).orEmpty()) }
+                },
+                onFailure = { e -> _state.update { it.copy(loading = false, error = e.toUiError()) } },
+            )
+        } else if (s.mode == TranslateMode.CORRECT) {
+            ai.correctSentence(text).fold(
+                onSuccess = { r ->
+                    if (r.detectedLang == null) _state.update { it.copy(loading = false, error = TranslateError.UnsupportedLang) }
+                    else _state.update { it.copy(loading = false, correction = r) }
                 },
                 onFailure = { e -> _state.update { it.copy(loading = false, error = e.toUiError()) } },
             )
@@ -215,12 +231,22 @@ class TranslateViewModel(
         report(repo.saveEntry(draft, clock(), autoExpand()))
     }
 
+    /** 첨삭 결과를 보낸 말로 저장한다: 고친 문장, 한국어 뜻, 해설(설명), 다른 언어 문장. */
+    fun saveCorrection(): Job = viewModelScope.launch {
+        val s = _state.value
+        val c = s.correction ?: return@launch
+        val lang = c.detectedLang ?: return@launch
+        val draft = EntryDraft(Direction.SENT, lang, c.corrected, c.koTranslation, c.explanationKo, null, parseTags(s.tag), c.altText.ifBlank { null },
+            keyPhrase = normalizeKeyPhrase(c.corrected, c.keyPhrase), altKeyPhrase = c.altKeyPhrase.ifBlank { null }, learnedAt = learnedAt())
+        report(repo.saveEntry(draft, clock(), autoExpand()))
+    }
+
     // 저장에 성공하면 다음 표현을 바로 입력할 수 있게 입력과 결과를 비운다. 중복이면 그대로 둔다.
     private suspend fun report(r: SaveResult) {
         val cards = if (r is SaveResult.Saved) repo.cardCount(r.id) else 0
         _state.update {
             if (r is SaveResult.Saved) {
-                it.copy(input = "", source = "", received = null, lookup = null, batch = emptyList(), candidates = emptyList(), error = null, notice = Notice.Saved(cards), keyPhrase = "")
+                it.copy(input = "", source = "", received = null, lookup = null, batch = emptyList(), candidates = emptyList(), correction = null, error = null, notice = Notice.Saved(cards), keyPhrase = "")
             } else {
                 it.copy(notice = Notice.Duplicate)
             }

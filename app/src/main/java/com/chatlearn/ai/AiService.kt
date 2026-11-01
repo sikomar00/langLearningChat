@@ -18,6 +18,16 @@ data class SentCandidate(
     val usedPhrase: String = "",
 )
 
+/**
+ * 내가 직접 쓴 영어·스페인어 문장을 고친 결과. [natural]이면 고칠 곳이 없다([corrected]는 원문과 같다).
+ * [detectedLang]이 null이면 영어·스페인어가 아니다.
+ */
+data class CorrectionResult(
+    val detectedLang: Lang?, val corrected: String, val natural: Boolean, val explanationKo: String,
+    val koTranslation: String, val alternatives: List<String>, val keyPhrase: String = "",
+    val altText: String = "", val altKeyPhrase: String = "",
+)
+
 /** 문장 속 단어 하나의 뜻([meaningKo], 문맥 기준), 사전형([baseForm]), 짧은 설명([note]). */
 data class WordInfo(val meaningKo: String, val baseForm: String, val note: String)
 
@@ -44,4 +54,6 @@ interface AiService {
     /** 문장마다 배울 핵심 표현 하나(문장에서 그대로 떼어 낸 부분). 없으면 빈 문자열. 입력과 같은 수·순서로 돌려준다. */
     suspend fun extractKeyPhrases(items: List<String>, lang: Lang): Result<List<String>>
     suspend fun translateBatch(items: List<String>, from: Lang, to: Lang): Result<List<String>>
+    /** 내가 쓴 문장을 원어민이 채팅에서 쓸 만한 문장으로 고치고 이유를 설명한다(첨삭). */
+    suspend fun correctSentence(text: String): Result<CorrectionResult>
 }

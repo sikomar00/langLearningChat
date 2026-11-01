@@ -12,3 +12,11 @@ fun learnedAtMillis(date: LocalDate?, today: LocalDate, zone: ZoneId): Long? {
     if (date == null || !date.isBefore(today)) return null
     return date.atTime(12, 0).atZone(zone).toInstant().toEpochMilli()
 }
+
+/** 번역 화면 칩에 보일 날짜: 오늘, 어제, 올해면 "10월 28일", 다른 해면 연도까지. */
+fun learnedLabel(date: LocalDate?, today: LocalDate): String = when {
+    date == null || !date.isBefore(today) -> "오늘"
+    date == today.minusDays(1) -> "어제"
+    date.year == today.year -> "${date.monthValue}월 ${date.dayOfMonth}일"
+    else -> "${date.year}년 ${date.monthValue}월 ${date.dayOfMonth}일"
+}

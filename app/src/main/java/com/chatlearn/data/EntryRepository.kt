@@ -160,6 +160,8 @@ class EntryRepository(internal val db: AppDatabase) {
         }
     }
 
+    suspend fun countDueNew(now: Long): Int = dao.countDueNew(now)
+
     /** 라이브러리에서 고른 문장의 카드. 기한과 하루 새 카드 수 제한은 보지 않는다. */
     suspend fun cardsFor(entryIds: Set<Long>, answerLang: Lang?): List<DueCard> {
         if (entryIds.isEmpty()) return emptyList()

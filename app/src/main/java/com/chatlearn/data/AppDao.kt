@@ -87,6 +87,10 @@ interface AppDao {
     )
     suspend fun introducedToday(dayStart: Long): Int
 
+    /** 아직 한 번도 복습하지 않았고 기한이 된 새 카드 수(오늘 한도와 상관없이). */
+    @Query("SELECT COUNT(*) FROM review_card WHERE lastReviewedAt IS NULL AND dueAt <= :now")
+    suspend fun countDueNew(now: Long): Int
+
     // 폴더
     @Insert suspend fun insertFolder(f: FolderEntity): Long
     @Query("SELECT id FROM folder WHERE name = :name") suspend fun findFolderId(name: String): Long?

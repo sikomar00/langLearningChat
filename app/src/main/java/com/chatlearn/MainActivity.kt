@@ -33,25 +33,24 @@ import com.chatlearn.ui.settings.SettingsScreen
 import com.chatlearn.ui.settings.SettingsViewModel
 import com.chatlearn.ui.translate.TranslateScreen
 import com.chatlearn.ui.translate.TranslateViewModel
-import com.chatlearn.ui.translate.sharedTextOf
 
 private enum class Tab(val label: String) { TRANSLATE("번역"), LIBRARY("라이브러리"), REVIEW("복습"), SETTINGS("설정") }
 
 class MainActivity : ComponentActivity() {
-    // 다른 앱에서 공유/선택 메뉴로 넘어온 문장. 화면이 받아 번역하면 비운다.
-    private var pendingShare by mutableStateOf<String?>(null)
+    // 공유·선택 메뉴로 넘어온 문장이나 알림·바로가기·위젯이 시킨 일. 화면이 처리하면 비운다.
+    private var pendingLaunch by mutableStateOf<LaunchRequest?>(null)
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
-        pendingShare = sharedTextOf(intent)
+        pendingLaunch = launchRequestOf(intent)
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
         // 회전 등으로 다시 만들어질 때 같은 문장을 또 번역하지 않는다.
-        if (savedInstanceState == null) pendingShare = sharedTextOf(intent)
+        if (savedInstanceState == null) pendingLaunch = launchRequestOf(intent)
         val c = (application as ChatLearnApp).container
         // 예약이 사라졌을 수 있으니(강제 종료, 설정 변경) 앱을 열 때마다 설정대로 다시 맞춘다.
         lifecycleScope.launch { c.settings.settings.first().let { c.reminders.apply(it.reminderEnabled, it.reminderHour) } }
@@ -77,8 +76,22 @@ class MainActivity : ComponentActivity() {
                 // 키가 없으면 첫 화면을 설정으로 안내한다
                 val reviewVm: ReviewViewModel = viewModel(factory = factory)
                 val translateVm: TranslateViewModel = viewModel(factory = factory)
-                LaunchedEffect(pendingShare) {
-                    pendingShare?.let { translateVm.receiveShared(it); tab = Tab.TRANSLATE; pendingShare = null }
+                val windowInfo = androidx.compose.ui.platform.LocalWindowInfo.current
+                val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
+                LaunchedEffect(pendingLaunch) {
+                    when (val r = pendingLaunch ?: return@LaunchedEffect) {
+                        is LaunchRequest.Shared -> { translateVm.receiveShared(r.text); tab = Tab.TRANSLATE }
+                        LaunchRequest.Review -> { reviewVm.refresh(force = true); tab = Tab.REVIEW }
+                        is LaunchRequest.Compose -> { translateVm.setMode(r.mode); tab = Tab.TRANSLATE }
+                        LaunchRequest.PasteTranslate -> {
+                            tab = Tab.TRANSLATE
+                            translateVm.setMode(com.chatlearn.ui.translate.TranslateMode.RECEIVED)
+                            // Android 10부터는 창이 포커스를 얻은 뒤에만 클립보드를 읽을 수 있다.
+                            snapshotFlow { windowInfo.isWindowFocused }.first { it }
+                            clipboard.getText()?.text?.takeIf { it.isNotBlank() }?.let { translateVm.pasteAndTranslate(it) }
+                        }
+                    }
+                    pendingLaunch = null
                 }
                 val current = tab ?: if (settings != null && settings!!.apiKey.isBlank()) Tab.SETTINGS else Tab.TRANSLATE
                 // 첫 화면이 아닌 탭에서 뒤로가기를 누르면 앱을 끝내지 않고 번역 탭으로 돌아간다.

@@ -33,9 +33,10 @@ class AppContainer(context: Context) {
         .build()
     val repo = EntryRepository(db)
     val settings: SettingsRepository = DataStoreSettingsRepository(context.settingsStore, EncryptedSecretStore(context))
+    private val debuggable = (context.applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0
     val ai: AiService = GeminiAiService(
         geminiHttpClient(),
-        "https://generativelanguage.googleapis.com",
+        com.chatlearn.ai.aiBaseUrl(debuggable, if (debuggable) runCatching { java.io.File(context.filesDir, "ai_base_url.txt").readText() }.getOrNull() else null),
         apiKey = { settings.currentApiKey() },
         model = { settings.currentModel() },
         onCall = { appScope.launch { settings.recordAiCall() } },

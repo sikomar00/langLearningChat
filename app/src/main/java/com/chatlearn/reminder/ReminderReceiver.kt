@@ -52,7 +52,9 @@ class ReminderReceiver : BroadcastReceiver() {
         nm.createNotificationChannel(NotificationChannel(CHANNEL_ID, "복습 알림", NotificationManager.IMPORTANCE_DEFAULT))
         val open = PendingIntent.getActivity(
             context, 0,
-            Intent(context, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP),
+            // 알림을 누르면 바로 복습 탭이 열린다.
+            Intent(context, MainActivity::class.java).setAction(com.chatlearn.ACTION_OPEN).putExtra(com.chatlearn.EXTRA_TARGET, "review")
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP),
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
         nm.notify(

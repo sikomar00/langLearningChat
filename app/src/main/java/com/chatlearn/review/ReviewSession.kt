@@ -57,12 +57,16 @@ class ReviewSession(
 ) {
     fun now(): Long = clock()
 
-    suspend fun loadQueue(): List<DueCard> {
+    /** [extraNew]는 오늘 새 카드 한도에 더 얹을 장 수("새 카드 더 배우기"). */
+    suspend fun loadQueue(extraNew: Int = 0): List<DueCard> {
         val now = clock()
         val dayStart = Instant.ofEpochMilli(now).atZone(ZoneId.systemDefault()).toLocalDate()
             .atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
-        return spreadSiblings(repo.queue(now, dayStart, newPerDay()))
+        return spreadSiblings(repo.queue(now, dayStart, newPerDay() + extraNew))
     }
+
+    /** 오늘 한도 때문에 아직 못 낸 새 카드 수. */
+    suspend fun newCardsWaiting(): Int = repo.countDueNew(clock())
 
     private data class Undo(val before: ReviewCardEntity, val logId: Long)
     private var lastUndo: Undo? = null

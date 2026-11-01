@@ -32,7 +32,8 @@ sealed interface ReviewUi {
         val suggested: Rating,
         val responseMs: Long,
     ) : ReviewUi
-    data class Done(val count: Int) : ReviewUi
+    /** [count]: 평가한 횟수(다시 푼 것 포함), [cards]: 복습한 카드 수. */
+    data class Done(val count: Int, val cards: Int = count) : ReviewUi
 }
 
 /** [done]개를 끝냈고 이번 세션에서 낼 카드가 [total]장(다시 평가한 카드 포함). */
@@ -59,8 +60,15 @@ class ReviewViewModel(private val session: ReviewSession) : ViewModel() {
     val goal: StateFlow<GoalProgress> = _goal.asStateFlow()
     private suspend fun refreshGoal() { _goal.value = session.todayProgress() }
 
+    private val _moreNew = MutableStateFlow(0)
+    /** 다 끝냈거나 비었을 때, 오늘 한도 밖에서 더 배울 수 있는 새 카드 수. */
+    val moreNew: StateFlow<Int> = _moreNew.asStateFlow()
+    private suspend fun refreshMoreNew() { _moreNew.value = session.newCardsWaiting() }
+
     private val queue = ArrayDeque<DueCard>()
     private var reviewed = 0
+    /** 이번 세션에서 평가한 카드 id(평가 순서대로, 다시 푼 카드는 여러 번). */
+    private val ratedCards = mutableListOf<Long>()
     private var started = false
     private var rating = false
 
@@ -70,6 +78,31 @@ class ReviewViewModel(private val session: ReviewSession) : ViewModel() {
         return start(preview = true)
     }
 
+    /**
+     * 탭에 다시 들어왔거나 알림으로 열었을 때 큐를 새로 읽는다. 문제·채점 화면이면 건드리지 않는다.
+     * 다 끝낸 요약(Done)은 [force]일 때만 바꾼다(되돌리기와 요약을 지키려고).
+     */
+    fun refresh(force: Boolean): Job {
+        val s = _state.value
+        val idle = s is ReviewUi.Empty || s is ReviewUi.Ready || (force && s is ReviewUi.Done)
+        if (!started || !idle || rating) return if (!started) start(preview = true) else Job().apply { complete() }
+        return start(preview = true)
+    }
+
+    /** 오늘 새 카드 한도를 다 쓴 뒤 [n]장을 더 배운다. 요약 없이 바로 시작한다. */
+    fun learnMore(n: Int): Job = viewModelScope.launch {
+        started = true
+        _state.value = ReviewUi.Loading
+        _custom.value = null
+        clearUndo()
+        reviewed = 0
+        ratedCards.clear()
+        queue.clear()
+        queue.addAll(session.loadQueue(extraNew = n))
+        refreshGoal()
+        if (queue.isEmpty()) { _progress.value = ReviewProgress(0, 0); _state.value = ReviewUi.Empty; refreshMoreNew() } else showNext()
+    }
+
     /** [preview]면 첫 카드를 바로 내지 않고 요약(Ready)을 먼저 보여 준다. */
     fun start(preview: Boolean = false): Job = viewModelScope.launch {
         started = true
@@ -77,11 +110,12 @@ class ReviewViewModel(private val session: ReviewSession) : ViewModel() {
         _custom.value = null
         clearUndo()
         reviewed = 0
+        ratedCards.clear()
         queue.clear()
         queue.addAll(session.loadQueue())
         refreshGoal()
         if (queue.isEmpty()) {
-            _progress.value = ReviewProgress(0, 0); _state.value = ReviewUi.Empty
+            _progress.value = ReviewProgress(0, 0); _state.value = ReviewUi.Empty; refreshMoreNew()
         } else if (preview) {
             _progress.value = ReviewProgress(0, queue.size)
             _state.value = ReviewUi.Ready(queue.size, queue.count { it.card.lastReviewedAt == null })
@@ -99,6 +133,7 @@ class ReviewViewModel(private val session: ReviewSession) : ViewModel() {
         _state.value = ReviewUi.Loading
         clearUndo()
         reviewed = 0
+        ratedCards.clear()
         queue.clear()
         queue.addAll(session.loadSelected(entryIds, answerLang))
         _custom.value = queue.size
@@ -109,7 +144,8 @@ class ReviewViewModel(private val session: ReviewSession) : ViewModel() {
     private suspend fun showNext() {
         val next = queue.removeFirstOrNull()
         _progress.value = ReviewProgress(reviewed, reviewed + queue.size + if (next == null) 0 else 1)
-        _state.value = if (next == null) ReviewUi.Done(reviewed) else {
+        if (next == null) refreshMoreNew()
+        _state.value = if (next == null) ReviewUi.Done(reviewed, ratedCards.distinct().size) else {
             val item = session.prepare(next)
             ReviewUi.Prompt(item, List(item.blankCount) { "" }, session.now())
         }
@@ -132,6 +168,7 @@ class ReviewViewModel(private val session: ReviewSession) : ViewModel() {
         if (cur is ReviewUi.Prompt && cur.item.card.id != g.item.card.id) queue.addFirst(DueCard(cur.item.card, cur.item.texts, cur.item.keyPhrases, cur.item.note))
         queue.removeAll { it.card.id == g.item.card.id }
         reviewed = (reviewed - 1).coerceAtLeast(0)
+        ratedCards.removeLastOrNull()
         clearUndo()
         _state.value = g
         refreshProgress()
@@ -196,6 +233,12 @@ class ReviewViewModel(private val session: ReviewSession) : ViewModel() {
         showNext()
     }
 
+    /** 마이크로 받은 말을 첫 입력칸에 넣는다(이미 쓴 게 있으면 이어 붙인다). */
+    fun putSpokenAnswer(spoken: String) {
+        val p = _state.value as? ReviewUi.Prompt ?: return
+        setAnswer(appendSpoken(p.answers[0], spoken), 0)
+    }
+
     fun setAnswer(s: String, index: Int = 0) {
         val p = _state.value as? ReviewUi.Prompt ?: return
         if (index !in p.answers.indices) return
@@ -233,6 +276,7 @@ class ReviewViewModel(private val session: ReviewSession) : ViewModel() {
             try {
                 val updated = session.rate(g.item, r, g.outcome, g.answer, g.responseMs)
                 reviewed++
+                ratedCards += g.item.card.id
                 lastGraded = g
                 _canUndo.value = true
                 refreshGoal()

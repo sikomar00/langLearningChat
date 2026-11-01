@@ -20,6 +20,9 @@ class FakeAiService : AiService {
     }
     var lookup: (String, String, Lang) -> Result<WordInfo> =
         { w, _, _ -> Result.success(WordInfo("뜻:$w", w, "설명")) }
+    var correct: (String) -> Result<CorrectionResult> = { t ->
+        Result.success(CorrectionResult(Lang.EN, "I don't know.", false, "don't로 줄여 써요.", "몰라.", listOf("No idea."), "don't know", "No lo sé.", "No lo sé"))
+    }
     var lastKnown: List<KnownExpression> = emptyList()
     val calls = mutableListOf<String>()
 
@@ -36,4 +39,5 @@ class FakeAiService : AiService {
         keyPhrases(items, lang).also { calls += "keyphrases" }
     override suspend fun translateBatch(items: List<String>, from: Lang, to: Lang) =
         batch(items, from, to).also { calls += "batch" }
+    override suspend fun correctSentence(text: String) = correct(text).also { calls += "correct" }
 }
