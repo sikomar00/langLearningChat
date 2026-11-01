@@ -30,6 +30,50 @@ class BackupTest {
         )
     }
 
+    private val v1Json = """{"version":1,"entries":[{"id":1,"createdAt":1,"direction":"RECEIVED","chatLang":"EN","note":"n","tone":null}],""" +
+        """"texts":[{"entryId":1,"lang":"EN","text":"Hello","origin":"ORIGINAL"},{"entryId":1,"lang":"KO","text":"안녕","origin":"AI"}],""" +
+        """"cards":[{"id":1,"entryId":1,"answerLang":"EN","dueAt":5,"intervalDays":1.0,"ease":2.5,"reps":1,"lapses":0,"lastReviewedAt":4}],""" +
+        """"logs":[{"id":1,"cardId":1,"reviewedAt":4,"promptLang":"KO","userAnswer":"Hello","aiVerdict":"CORRECT","aiFeedback":"ok","rating":"GOOD"}],""" +
+        """"tags":[{"id":1,"name":"Alex"}],"entryTags":[{"entryId":1,"tagId":1}]}"""
+
+    @Test fun aV1BackupFileStillImportsWithDefaultsForNewFields() = runBlocking {
+        repo.importAll(Backup.decode(v1Json))
+        val log = db.dao().allLogs().single()
+        assertEquals(ExerciseKind.TRANSLATE, log.exercise)
+        assertNull(log.responseMs)
+        assertEquals(0L, db.dao().allTags().single().lastUsedAt)
+        assertEquals(listOf("Alex"), repo.observeLibrary().first().single().tags)
+    }
+
+    @Test fun anOldExportWithoutAVersionKeyStillDecodes() {
+        val noVersion = v1Json.replace("\"version\":1,", "")
+        assertEquals(1, Backup.decode(noVersion).entries.size)
+    }
+
+    @Test fun exportedFileDeclaresVersion2() = runBlocking {
+        assertTrue(Backup.encode(repo.exportAll()).contains("\"version\":2"))
+    }
+
+    @Test fun aVersion2FileIsAcceptedAndVersion3IsRejected() {
+        val empty = BackupData(version = 2, entries = emptyList(), texts = emptyList(), cards = emptyList(),
+            logs = emptyList(), tags = emptyList(), entryTags = emptyList())
+        assertEquals(2, Backup.decode(Backup.encode(empty)).version)
+        assertFailsWith<BackupFormatException> { Backup.decode(Backup.encode(empty.copy(version = 3))) }
+    }
+
+    @Test fun newFieldsSurviveARoundTrip() = runBlocking {
+        seed()
+        val card = db.dao().allCards().single()
+        db.dao().insertLog(ReviewLogEntity(cardId = card.id, reviewedAt = 2, promptLang = Lang.KO, userAnswer = "x",
+            aiVerdict = Verdict.WRONG, aiFeedback = null, rating = Rating.AGAIN, responseMs = 4321, exercise = ExerciseKind.DICTATION))
+        db.dao().touchTag(db.dao().allTags().single().id, 777)
+        repo.importAll(Backup.decode(Backup.encode(repo.exportAll())))
+        val last = db.dao().allLogs().maxByOrNull { it.id }!!
+        assertEquals(ExerciseKind.DICTATION, last.exercise)
+        assertEquals(4321L, last.responseMs)
+        assertEquals(777L, db.dao().allTags().single().lastUsedAt)
+    }
+
     @Test fun roundTripPreservesEverythingIncludingNastyText() = runBlocking {
         seed()
         val json = Backup.encode(repo.exportAll())

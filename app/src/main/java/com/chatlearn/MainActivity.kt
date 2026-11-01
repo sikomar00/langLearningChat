@@ -13,6 +13,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import kotlinx.coroutines.flow.first
 import com.chatlearn.stats.StatsViewModel
 import com.chatlearn.ui.library.LibraryScreen
 import com.chatlearn.ui.library.LibraryViewModel
@@ -32,7 +33,8 @@ class MainActivity : ComponentActivity() {
         val factory = object : ViewModelProvider.Factory {
             @Suppress("UNCHECKED_CAST")
             override fun <T : ViewModel> create(modelClass: Class<T>): T = when (modelClass) {
-                TranslateViewModel::class.java -> TranslateViewModel(c.ai, c.repo, System::currentTimeMillis)
+                TranslateViewModel::class.java ->
+                    TranslateViewModel(c.ai, c.repo, System::currentTimeMillis) { c.settings.settings.first().autoExpand }
                 LibraryViewModel::class.java -> LibraryViewModel(c.repo, c.expansion)
                 ReviewViewModel::class.java -> ReviewViewModel(c.reviewSession())
                 SettingsViewModel::class.java -> SettingsViewModel(c.settings, c.repo)

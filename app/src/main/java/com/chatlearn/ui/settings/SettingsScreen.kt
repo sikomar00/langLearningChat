@@ -7,6 +7,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -51,6 +52,14 @@ fun SettingsScreen(vm: SettingsViewModel) {
 
         OutlinedTextField(perDay, { perDay = it.filter(Char::isDigit) }, Modifier.fillMaxWidth(), singleLine = true, label = { Text("하루 새 카드 수") })
         Button(onClick = { vm.saveNewPerDay(perDay.toIntOrNull() ?: 10); message = "저장했어요." }) { Text("새 카드 수 저장") }
+
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text("저장할 때 다른 언어도 만들기")
+                Text("영어 문장이면 스페인어 카드도, 스페인어 문장이면 영어 카드도 함께 만들어요.", style = MaterialTheme.typography.bodySmall)
+            }
+            Switch(checked = s.autoExpand, onCheckedChange = { vm.saveAutoExpand(it) })
+        }
 
         Text("오늘 AI 호출: ${s.aiCallsToday}회")
 

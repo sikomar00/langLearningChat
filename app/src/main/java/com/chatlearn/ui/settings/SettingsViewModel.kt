@@ -18,6 +18,7 @@ class SettingsViewModel(private val settings: SettingsRepository, private val re
     fun saveKey(k: String) = viewModelScope.launch { settings.setApiKey(k) }
     fun saveModel(m: String) = viewModelScope.launch { settings.setModel(m) }
     fun saveNewPerDay(n: Int) = viewModelScope.launch { settings.setNewPerDay(n) }
+    fun saveAutoExpand(on: Boolean) = viewModelScope.launch { settings.setAutoExpand(on) }
 
     suspend fun exportJson(): String = Backup.encode(repo.exportAll())
     suspend fun importJson(s: String): Result<Unit> = runCatching { repo.importAll(Backup.decode(s)) }

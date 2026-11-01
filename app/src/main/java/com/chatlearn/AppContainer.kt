@@ -10,7 +10,9 @@ import com.chatlearn.data.AppDatabase
 import com.chatlearn.data.EntryRepository
 import com.chatlearn.data.Migrations
 import com.chatlearn.expansion.ExpansionService
+import com.chatlearn.review.AndroidTts
 import com.chatlearn.review.ReviewSession
+import com.chatlearn.review.Tts
 import com.chatlearn.settings.DataStoreSettingsRepository
 import com.chatlearn.settings.EncryptedSecretStore
 import com.chatlearn.settings.SettingsRepository
@@ -40,7 +42,10 @@ class AppContainer(context: Context) {
         onHttpError = { code, body -> android.util.Log.w("GeminiAi", "HTTP $code: $body") },
     )
 
+    val tts: Tts = AndroidTts(context)
     val expansion = ExpansionService(repo, ai, System::currentTimeMillis)
 
-    fun reviewSession() = ReviewSession(repo, ai, System::currentTimeMillis, { settings.settings.first().newPerDay })
+    fun reviewSession() = ReviewSession(
+        repo, ai, System::currentTimeMillis, { settings.settings.first().newPerDay }, tts = tts,
+    )
 }
