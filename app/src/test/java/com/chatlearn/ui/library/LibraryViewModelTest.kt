@@ -25,11 +25,12 @@ class LibraryViewModelTest {
     private lateinit var db: AppDatabase
     private lateinit var repo: EntryRepository
     private lateinit var vm: LibraryViewModel
+    private val ai = FakeAiService()
 
     @Before fun setUp() {
         Dispatchers.setMain(UnconfinedTestDispatcher())
         db = inMemoryDb(); repo = EntryRepository(db)
-        vm = LibraryViewModel(repo, ExpansionService(repo, FakeAiService(), { 1L }))
+        vm = LibraryViewModel(repo, ExpansionService(repo, ai, { 1L }))
     }
     @After fun tearDown() { Dispatchers.resetMain(); db.close() }
 
@@ -56,6 +57,32 @@ class LibraryViewModelTest {
         val report = vm.expandAll().await()
         assertEquals(2, report.created)
         assertEquals(0, vm.unexpanded.first { it == 0 })
+    }
+
+    @Test fun anEntryWithOtherLanguageTextButNoCardIsStillUnexpanded() = runBlocking {
+        val id = save("a", emptyList(), 1)
+        repo.putText(id, Lang.ES, "texto", com.chatlearn.domain.TextOrigin.AI) // 복습 중 즉석 번역으로 생긴 텍스트
+        assertEquals(1, vm.unexpanded.first { it == 1 })
+        assertFalse(id in vm.expandedIds.first())
+        assertTrue(vm.expandOne(id).await())
+        assertTrue(id in vm.expandedIds.first { id in it })
+        assertEquals(0, vm.unexpanded.first { it == 0 })
+    }
+
+    @Test fun aSecondExpandAllWhileOneIsRunningReusesItAndCallsAiOnce() = runBlocking {
+        repeat(3) { save("s$it", emptyList(), it.toLong()) }
+        val first = vm.expandAll()
+        val second = vm.expandAll()
+        first.await(); second.await()
+        assertEquals(1, ai.calls.count { it == "batch" })
+    }
+
+    @Test fun expandAllFailureIsReportedNotThrown() = runBlocking {
+        save("a", emptyList(), 1)
+        ai.batch = { _, _, _ -> throw IllegalStateException("boom") }
+        val report = vm.expandAll().await()
+        assertEquals(1, report.failedBatches)
+        assertEquals(0, report.created)
     }
 
     @Test fun tagFilterIsClearedWhenItsTagDisappears() = runBlocking {

@@ -6,7 +6,9 @@ import com.chatlearn.data.EntryRepository
 import com.chatlearn.data.LibraryItem
 import com.chatlearn.data.RenameResult
 import com.chatlearn.data.StatsInput
+import com.chatlearn.expansion.ExpansionReport
 import com.chatlearn.expansion.ExpansionService
+import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.async
 import com.chatlearn.domain.Lang
 import com.chatlearn.domain.TextOrigin
@@ -43,12 +45,34 @@ class LibraryViewModel(
     val statsInput: StateFlow<StatsInput?> =
         repo.observeStatsInput().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
+    /** 반대 언어 카드까지 가진(=확장된) 문장의 id. 텍스트만 있고 카드가 없는 문장은 포함되지 않는다. */
+    val expandedIds: StateFlow<Set<Long>> = repo.observeStatsInput()
+        .map { si -> si.cards.groupingBy { it.entryId }.eachCount().filterValues { it >= 2 }.keys }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptySet())
+
     /** 반대 언어 카드가 아직 없는 문장 수. "전체 확장" 버튼 표시에 쓴다. */
-    val unexpanded: StateFlow<Int> = repo.observeStatsInput()
-        .map { si -> si.items.count { item -> si.cards.count { it.entryId == item.entry.id } < 2 } }
+    val unexpanded: StateFlow<Int> = combine(all, expandedIds) { items, ids -> items.count { it.entry.id !in ids } }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
 
-    fun expandAll() = viewModelScope.async { expansion.expandAll() }
+    private var expandRun: Deferred<ExpansionReport>? = null
+    private val _expanding = MutableStateFlow(false)
+    /** 전체 확장이 진행 중인가. 화면을 벗어났다 돌아와도 유지된다. */
+    val expanding: StateFlow<Boolean> = _expanding.asStateFlow()
+
+    /** 이미 실행 중이면 그 실행을 그대로 돌려줘서 같은 번역 요청이 중복되지 않게 한다. 예외는 실패한 묶음 1개로 보고한다. */
+    fun expandAll(): Deferred<ExpansionReport> {
+        expandRun?.takeIf { it.isActive }?.let { return it }
+        val run = viewModelScope.async {
+            _expanding.value = true
+            try {
+                runCatching { expansion.expandAll() }.getOrElse { ExpansionReport(created = 0, skipped = 0, failedBatches = 1) }
+            } finally {
+                _expanding.value = false
+            }
+        }
+        expandRun = run
+        return run
+    }
     fun expandOne(id: Long) = viewModelScope.async { expansion.expandOne(id) }
 
     /** 태그 자동완성 후보(최근 사용 순). */

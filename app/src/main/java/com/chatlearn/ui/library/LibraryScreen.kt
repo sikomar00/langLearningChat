@@ -36,24 +36,25 @@ fun LibraryScreen(vm: LibraryViewModel) {
     val tag by vm.tagFilter.collectAsStateWithLifecycle()
     val tags by vm.allTags.collectAsStateWithLifecycle()
     val recentTags by vm.recentTags.collectAsStateWithLifecycle()
-    var selected by remember { mutableStateOf<LibraryItem?>(null) }
+    // id만 기억하고 항목은 매번 최신 데이터에서 찾아서, 열린 상세 창이 확장 결과를 바로 반영하게 한다.
+    var selectedId by remember { mutableStateOf<Long?>(null) }
+    val selected = items.firstOrNull { it.entry.id == selectedId }
+    val expandedIds by vm.expandedIds.collectAsStateWithLifecycle()
     var managingTags by remember { mutableStateOf(false) }
 
     Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         OutlinedTextField(value = query, onValueChange = { vm.query.value = it }, modifier = Modifier.fillMaxWidth(), singleLine = true, label = { Text("검색") })
         val unexpanded by vm.unexpanded.collectAsStateWithLifecycle()
         var expandMessage by remember { mutableStateOf<String?>(null) }
-        var expanding by remember { mutableStateOf(false) }
+        val expanding by vm.expanding.collectAsStateWithLifecycle()
         val scope = rememberCoroutineScope()
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             if (tags.isNotEmpty()) TextButton(onClick = { managingTags = true }) { Text("태그 관리") }
             if (unexpanded > 0) TextButton(enabled = !expanding, onClick = {
-                expanding = true
                 scope.launch {
                     val r = vm.expandAll().await()
                     expandMessage = "다른 언어 카드 ${r.created}개를 만들었어요." +
                         if (r.failedBatches > 0) " (실패한 묶음 ${r.failedBatches}개는 다시 눌러 보세요)" else ""
-                    expanding = false
                 }
             }) { Text(if (expanding) "확장 중…" else "전체 확장 ($unexpanded)") }
         }
@@ -71,7 +72,7 @@ fun LibraryScreen(vm: LibraryViewModel) {
         }
         LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             items(items, key = { it.entry.id }) { item ->
-                Card(Modifier.fillMaxWidth().clickable { selected = item }) {
+                Card(Modifier.fillMaxWidth().clickable { selectedId = item.entry.id }) {
                     Column(Modifier.padding(12.dp)) {
                         Text(item.texts[item.entry.chatLang].orEmpty(), style = MaterialTheme.typography.titleMedium)
                         Text(item.texts[Lang.KO].orEmpty(), style = MaterialTheme.typography.bodyMedium)
@@ -81,17 +82,17 @@ fun LibraryScreen(vm: LibraryViewModel) {
         }
     }
 
-    selected?.let { item -> DetailDialog(item, recentTags, vm) { selected = null } }
+    selected?.let { item -> DetailDialog(item, item.entry.id in expandedIds, recentTags, vm) { selectedId = null } }
     if (managingTags) TagManagerDialog(tags, vm) { managingTags = false }
 }
 
 @Composable
-private fun DetailDialog(item: LibraryItem, recentTags: List<String>, vm: LibraryViewModel, onClose: () -> Unit) {
+private fun DetailDialog(item: LibraryItem, hasAltCard: Boolean, recentTags: List<String>, vm: LibraryViewModel, onClose: () -> Unit) {
     var ko by remember(item.entry.id) { mutableStateOf(item.texts[Lang.KO].orEmpty()) }
     var note by remember(item.entry.id) { mutableStateOf(item.entry.note) }
     val altLang = if (item.entry.chatLang == Lang.EN) Lang.ES else Lang.EN
     val altText = item.texts[altLang]
-    var alt by remember(item.entry.id) { mutableStateOf(altText.orEmpty()) }
+    var alt by remember(item.entry.id, altText) { mutableStateOf(altText.orEmpty()) }
     val editedTags = remember(item.entry.id) { mutableStateListOf(*item.tags.toTypedArray()) }
     var tagInput by remember(item.entry.id) { mutableStateOf("") }
     var confirmDelete by remember { mutableStateOf(false) }
@@ -104,19 +105,21 @@ private fun DetailDialog(item: LibraryItem, recentTags: List<String>, vm: Librar
         text = {
             Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 SentenceStatsLine(item.entry.id, vm)
-                if (altText != null) {
+                if (hasAltCard && altText != null) {
                     OutlinedTextField(
                         alt, { alt = it }, modifier = Modifier.fillMaxWidth(),
                         label = { Text(if (altLang == Lang.ES) "스페인어 확장" else "영어 확장") },
                         supportingText = { if (item.origins[altLang] == TextOrigin.AI) Text("AI 번역 · 고치면 내 문장으로 저장돼요") },
                     )
-                } else {
+                } else if (!hasAltCard) {
                     var making by remember { mutableStateOf(false) }
+                    var failed by remember { mutableStateOf(false) }
                     val scope2 = rememberCoroutineScope()
                     OutlinedButton(enabled = !making, onClick = {
-                        making = true
-                        scope2.launch { vm.expandOne(item.entry.id).await(); making = false }
+                        making = true; failed = false
+                        scope2.launch { failed = !vm.expandOne(item.entry.id).await(); making = false }
                     }) { Text(if (making) "만드는 중…" else "다른 언어 카드 만들기") }
+                    if (failed) Text("만들지 못했어요. 잠시 후 다시 시도해 주세요.", color = MaterialTheme.colorScheme.error)
                 }
                 OutlinedTextField(ko, { ko = it }, label = { Text("한국어") }, modifier = Modifier.fillMaxWidth())
                 OutlinedTextField(note, { note = it }, label = { Text("설명") }, modifier = Modifier.fillMaxWidth())
@@ -151,7 +154,7 @@ private fun DetailDialog(item: LibraryItem, recentTags: List<String>, vm: Librar
         confirmButton = {
             TextButton(onClick = {
                 vm.saveText(item.entry.id, Lang.KO, ko); vm.saveNote(item.entry.id, note)
-                if (altText != null && alt.isNotBlank() && alt != altText) vm.saveText(item.entry.id, altLang, alt)
+                if (hasAltCard && altText != null && alt.isNotBlank() && alt != altText) vm.saveText(item.entry.id, altLang, alt)
                 // 입력창에 쓰다 만 태그도 잃지 않게 함께 저장한다.
                 vm.saveTags(item.entry.id, (editedTags + parseTags(tagInput)).distinct())
                 onClose()
