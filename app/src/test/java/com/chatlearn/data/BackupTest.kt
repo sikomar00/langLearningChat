@@ -50,16 +50,17 @@ class BackupTest {
         assertEquals(1, Backup.decode(noVersion).entries.size)
     }
 
-    @Test fun exportedFileDeclaresVersion3() = runBlocking {
-        assertTrue(Backup.encode(repo.exportAll()).contains("\"version\":3"))
+    @Test fun exportedFileDeclaresVersion4() = runBlocking {
+        assertTrue(Backup.encode(repo.exportAll()).contains("\"version\":4"))
     }
 
-    @Test fun versions2And3AreAcceptedAndVersion4IsRejected() {
+    @Test fun versions2To4AreAcceptedAndVersion5IsRejected() {
         val empty = BackupData(version = 2, entries = emptyList(), texts = emptyList(), cards = emptyList(),
             logs = emptyList(), tags = emptyList(), entryTags = emptyList())
         assertEquals(2, Backup.decode(Backup.encode(empty)).version)
         assertEquals(3, Backup.decode(Backup.encode(empty.copy(version = 3))).version)
-        assertFailsWith<BackupFormatException> { Backup.decode(Backup.encode(empty.copy(version = 4))) }
+        assertEquals(4, Backup.decode(Backup.encode(empty.copy(version = 4))).version)
+        assertFailsWith<BackupFormatException> { Backup.decode(Backup.encode(empty.copy(version = 5))) }
     }
 
     @Test fun keyPhrasesSurviveARoundTripAndOldFilesHaveNone() = runBlocking {

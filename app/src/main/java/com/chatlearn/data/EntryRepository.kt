@@ -16,6 +16,8 @@ data class EntryDraft(
     val altText: String? = null,
     val keyPhrase: String? = null,
     val altKeyPhrase: String? = null,
+    /** 알게 된 날(밀리초). null이면 저장하는 지금. */
+    val learnedAt: Long? = null,
 )
 
 sealed interface SaveResult {
@@ -71,7 +73,7 @@ class EntryRepository(internal val db: AppDatabase) {
     suspend fun saveEntry(d: EntryDraft, now: Long, expand: Boolean = true): SaveResult = db.withTransaction {
         val text = d.chatText.trim()
         dao.findEntryIdByChatText(d.chatLang, text)?.let { return@withTransaction SaveResult.Duplicate(it) }
-        val id = dao.insertEntry(EntryEntity(createdAt = now, direction = d.direction, chatLang = d.chatLang, note = d.note, tone = d.tone))
+        val id = dao.insertEntry(EntryEntity(createdAt = d.learnedAt ?: now, direction = d.direction, chatLang = d.chatLang, note = d.note, tone = d.tone))
         val (chatOrigin, koOrigin) =
             if (d.direction == Direction.RECEIVED) TextOrigin.ORIGINAL to TextOrigin.AI
             else TextOrigin.AI to TextOrigin.USER
@@ -216,18 +218,49 @@ class EntryRepository(internal val db: AppDatabase) {
     suspend fun textsOf(entryId: Long): Map<Lang, String> = dao.textsFor(entryId).associate { it.lang to it.text }
 
     suspend fun deleteEntry(id: Long) = dao.deleteEntry(id)
+    suspend fun deleteEntries(ids: Collection<Long>) { if (ids.isNotEmpty()) dao.deleteEntries(ids.toList()) }
+
+    /** 알게 된 날(저장일)을 고친다. */
+    suspend fun setLearnedAt(id: Long, at: Long) = dao.setCreatedAt(id, at)
+
+    fun observeFolders(): Flow<List<FolderEntity>> = dao.observeFolders()
+
+    /** 같은 이름의 폴더가 있으면 그 id를, 없으면 새로 만들어 돌려준다. 이름이 비면 null. */
+    suspend fun createFolder(name: String, now: Long): Long? = db.withTransaction {
+        val clean = name.trim()
+        if (clean.isEmpty()) return@withTransaction null
+        dao.findFolderId(clean) ?: dao.insertFolder(FolderEntity(name = clean, createdAt = now))
+    }
+
+    /** 폴더 이름을 바꾼다. 이미 있는 이름이면 바꾸지 않고 false. */
+    suspend fun renameFolder(id: Long, name: String): Boolean = db.withTransaction {
+        val clean = name.trim()
+        val existing = dao.findFolderId(clean)
+        if (clean.isEmpty() || (existing != null && existing != id)) return@withTransaction false
+        dao.renameFolder(id, clean)
+        true
+    }
+
+    /** 폴더만 지운다. 안에 있던 문장은 지워지지 않고 폴더 없는 상태로 돌아온다. */
+    suspend fun deleteFolder(id: Long) = dao.deleteFolder(id)
+
+    /** 문장들을 폴더로 옮긴다. [folderId]가 null이면 폴더에서 꺼낸다. */
+    suspend fun moveToFolder(ids: Collection<Long>, folderId: Long?) { if (ids.isNotEmpty()) dao.setFolder(ids.toList(), folderId) }
     suspend fun updateNote(id: Long, note: String) = dao.updateNote(id, note)
 
     suspend fun exportAll(): BackupData = db.withTransaction {
         BackupData(
             entries = dao.allEntries(), texts = dao.allTexts(), cards = dao.allCards(),
             logs = dao.allLogs(), tags = dao.allTags(), entryTags = dao.allEntryTags(),
+            folders = dao.allFolders(),
         )
     }
 
     suspend fun importAll(d: BackupData) = db.withTransaction {
         dao.deleteAllEntries()
         dao.deleteAllTags()
+        dao.deleteAllFolders()
+        dao.insertFolders(d.folders) // 문장이 폴더를 가리키므로 폴더가 먼저 들어가야 한다
         dao.insertEntries(d.entries)
         dao.insertTexts(d.texts)
         dao.insertCards(d.cards)

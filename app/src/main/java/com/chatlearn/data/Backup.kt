@@ -5,19 +5,20 @@ import kotlinx.serialization.json.Json
 
 @Serializable
 data class BackupData(
-    val version: Int = 3,
+    val version: Int = 4,
     val entries: List<EntryEntity>,
     val texts: List<EntryTextEntity>,
     val cards: List<ReviewCardEntity>,
     val logs: List<ReviewLogEntity>,
     val tags: List<TagEntity>,
     val entryTags: List<EntryTagEntity>,
+    val folders: List<FolderEntity> = emptyList(),
 )
 
 class BackupFormatException(msg: String) : Exception(msg)
 
 object Backup {
-    const val CURRENT_VERSION = 3
+    const val CURRENT_VERSION = 4
     // 기본값도 파일에 쓴다: 값이 기본값과 같다는 이유로 필드가 빠지면 나중에 기본값이 바뀔 때 의미가 달라진다.
     private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
 

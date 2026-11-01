@@ -54,6 +54,7 @@ data class TranslateUiState(
     val keyPhrase: String = "", // 받은 말의 핵심 표현(저장 전에 고칠 수 있다)
     val lookup: LookupState? = null, // 눌러 본 단어의 뜻
     val batch: List<BatchItem> = emptyList(), // 여러 줄을 붙여넣었을 때 줄별 번역 결과
+    val learnedOn: java.time.LocalDate? = null, // 이 표현을 알게 된 날. null이면 오늘(저장하는 날)
 )
 
 /** 붙여넣은 대화의 한 줄. [result]가 null이거나 지원하지 않는 언어면 저장할 수 없다. */
@@ -77,6 +78,15 @@ class TranslateViewModel(
         it.copy(mode = m, received = null, lookup = null, batch = emptyList(), candidates = emptyList(), error = null, notice = null)
     }
     fun setInput(s: String) = _state.update { it.copy(input = s) }
+
+    /** 알게 된 날을 고른다. null이면 오늘로 되돌린다. 저장해도 유지돼서 지난 대화를 몰아서 저장할 때 편하다. */
+    fun setLearnedOn(date: java.time.LocalDate?) = _state.update { it.copy(learnedOn = date) }
+
+    private fun learnedAt(): Long? {
+        val zone = java.time.ZoneId.systemDefault()
+        val today = java.time.Instant.ofEpochMilli(clock()).atZone(zone).toLocalDate()
+        return learnedAtMillis(_state.value.learnedOn, today, zone)
+    }
 
     /** 입력과 결과, 안내 문구를 모두 비운다. 태그와 모드는 그대로 둔다. */
     fun clearInput() = _state.update {
@@ -179,7 +189,7 @@ class TranslateViewModel(
             val r = b.result!!
             val draft = EntryDraft(
                 Direction.RECEIVED, r.detectedLang!!, b.text, r.koTranslation, r.note, null, parseTags(s.tag), r.altText,
-                keyPhrase = b.keyPhrase.ifBlank { null }, altKeyPhrase = r.altKeyPhrase,
+                keyPhrase = b.keyPhrase.ifBlank { null }, altKeyPhrase = r.altKeyPhrase, learnedAt = learnedAt(),
             )
             if (repo.saveEntry(draft, clock(), expand) is SaveResult.Saved) saved++ else dup++
         }
@@ -194,14 +204,14 @@ class TranslateViewModel(
         val r = s.received ?: return@launch
         val lang = r.detectedLang ?: return@launch
         val draft = EntryDraft(Direction.RECEIVED, lang, s.source, r.koTranslation, r.note, null, parseTags(s.tag), r.altText,
-            keyPhrase = s.keyPhrase.ifBlank { null }, altKeyPhrase = r.altKeyPhrase)
+            keyPhrase = s.keyPhrase.ifBlank { null }, altKeyPhrase = r.altKeyPhrase, learnedAt = learnedAt())
         report(repo.saveEntry(draft, clock(), autoExpand()))
     }
 
     fun onCandidateCopied(c: SentCandidate): Job = viewModelScope.launch {
         val s = _state.value
         val draft = EntryDraft(Direction.SENT, s.targetLang, c.text, s.source, c.toneNote, null, parseTags(s.tag), c.altText,
-            keyPhrase = c.keyPhrase, altKeyPhrase = c.altKeyPhrase)
+            keyPhrase = c.keyPhrase, altKeyPhrase = c.altKeyPhrase, learnedAt = learnedAt())
         report(repo.saveEntry(draft, clock(), autoExpand()))
     }
 

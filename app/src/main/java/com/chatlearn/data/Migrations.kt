@@ -4,6 +4,16 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
 object Migrations {
+    val MIGRATION_3_4 = object : Migration(3, 4) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            // 폴더: 문장은 폴더 하나에만 들어간다. 폴더를 지우면 문장은 남고 폴더만 비운다(SET NULL).
+            db.execSQL("CREATE TABLE IF NOT EXISTS folder (id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, name TEXT NOT NULL, createdAt INTEGER NOT NULL)")
+            db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_folder_name ON folder (name)")
+            db.execSQL("ALTER TABLE entry ADD COLUMN folderId INTEGER REFERENCES folder(id) ON UPDATE NO ACTION ON DELETE SET NULL")
+            db.execSQL("CREATE INDEX IF NOT EXISTS index_entry_folderId ON entry (folderId)")
+        }
+    }
+
     val MIGRATION_2_3 = object : Migration(2, 3) {
         override fun migrate(db: SupportSQLiteDatabase) {
             db.execSQL("ALTER TABLE entry_text ADD COLUMN keyPhrase TEXT")

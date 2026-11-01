@@ -19,6 +19,11 @@ import com.chatlearn.ui.components.SectionCard
 import com.chatlearn.ui.components.LoadingBox
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.FolderOpen
+import com.chatlearn.data.FolderEntity
+import com.chatlearn.ui.components.PastDatePickerDialog
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import com.chatlearn.data.RenameResult
@@ -63,10 +68,18 @@ fun LibraryScreen(vm: LibraryViewModel, onGoTranslate: () -> Unit = {}, onStartR
     val statusFilter by vm.statusFilter.collectAsStateWithLifecycle()
     val progress by vm.progress.collectAsStateWithLifecycle()
     val pendingDelete by vm.pendingDelete.collectAsStateWithLifecycle()
+    val folders by vm.folders.collectAsStateWithLifecycle()
+    val folderCounts by vm.folderCounts.collectAsStateWithLifecycle()
+    val folderFilter by vm.folderFilter.collectAsStateWithLifecycle()
+    val folderNames = remember(folders) { folders.associate { it.id to it.name } }
+    // 폴더 선택 창을 띄울 문장들(스와이프는 1개, 선택 모드는 여러 개). null이면 닫힘.
+    var moveTargets by remember { mutableStateOf<Set<Long>?>(null) }
+    var confirmBulkDelete by remember { mutableStateOf(false) }
+    var folderDialog by remember { mutableStateOf<FolderDialogKind?>(null) }
     val snackbar = remember { SnackbarHostState() }
     val listState = rememberLazyListState()
     // 필터·정렬·검색을 바꾸면 목록 맨 위부터 보여 준다. 안 그러면 이전 위치에 남아 위쪽 항목이 사라진 것처럼 보인다.
-    LaunchedEffect(statusFilter, sort, lang, tag, query) { listState.scrollToItem(0) }
+    LaunchedEffect(statusFilter, sort, lang, tag, query, folderFilter) { listState.scrollToItem(0) }
     LaunchedEffect(pendingDelete) {
         if (pendingDelete != null) {
             val r = snackbar.showSnackbar("삭제했어요", actionLabel = "되돌리기", duration = SnackbarDuration.Indefinite)
@@ -86,7 +99,16 @@ fun LibraryScreen(vm: LibraryViewModel, onGoTranslate: () -> Unit = {}, onStartR
                     Text(if (chosen.size == visibleIds.size) "선택 해제" else "전체 선택")
                 }
                 TextButton(onClick = { picked = null }) { Text("취소") }
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                 Button(enabled = chosen.isNotEmpty(), onClick = { onStartReview(chosen, lang); picked = null }) { Text("선택 복습") }
+                OutlinedButton(enabled = chosen.isNotEmpty(), onClick = { moveTargets = chosen }) {
+                    Icon(Icons.Default.Folder, contentDescription = null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("폴더로")
+                }
+                OutlinedButton(
+                    enabled = chosen.isNotEmpty(), onClick = { confirmBulkDelete = true },
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                ) { Icon(Icons.Default.Delete, contentDescription = null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("삭제") }
             }
         }
         val unexpanded by vm.unexpanded.collectAsStateWithLifecycle()
@@ -139,6 +161,31 @@ fun LibraryScreen(vm: LibraryViewModel, onGoTranslate: () -> Unit = {}, onStartR
                 }
             }
         }
+        // 폴더: 전체 / 폴더 없음 / 각 폴더 / 새 폴더
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            item { FilterChip(selected = folderFilter == null, onClick = { vm.folderFilter.value = null }, label = { Text("전체") }) }
+            if (folders.isNotEmpty() && (folderCounts[FOLDER_UNFILED] ?: 0) > 0) item {
+                FilterChip(
+                    selected = folderFilter == FOLDER_UNFILED, onClick = { vm.folderFilter.value = if (folderFilter == FOLDER_UNFILED) null else FOLDER_UNFILED },
+                    label = { Text("폴더 없음 ${folderCounts[FOLDER_UNFILED] ?: 0}") },
+                )
+            }
+            items(folders, key = { it.id }) { f ->
+                FilterChip(
+                    selected = folderFilter == f.id, onClick = { vm.folderFilter.value = if (folderFilter == f.id) null else f.id },
+                    leadingIcon = { Icon(if (folderFilter == f.id) Icons.Default.FolderOpen else Icons.Default.Folder, contentDescription = null, Modifier.size(18.dp)) },
+                    label = { Text("${f.name} ${folderCounts[f.id] ?: 0}") },
+                )
+            }
+            item { AssistChip(onClick = { folderDialog = FolderDialogKind.Create }, label = { Text("+ 폴더") }) }
+        }
+        folders.firstOrNull { it.id == folderFilter }?.let { f ->
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text("'${f.name}' 폴더", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary, modifier = Modifier.weight(1f))
+                TextButton(onClick = { folderDialog = FolderDialogKind.Rename(f) }) { Text("이름 변경") }
+                TextButton(onClick = { folderDialog = FolderDialogKind.Delete(f) }) { Text("폴더 삭제", color = MaterialTheme.colorScheme.error) }
+            }
+        }
         if (showFilters) {
             LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 items(listOf(Lang.EN to "영어", Lang.ES to "스페인어")) { (l, label) ->
@@ -184,16 +231,69 @@ fun LibraryScreen(vm: LibraryViewModel, onGoTranslate: () -> Unit = {}, onStartR
             Text(summary, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
         }
         message?.let { Text(it, color = MaterialTheme.colorScheme.primary, modifier = Modifier.clickable { message = null }) }
+        moveTargets?.let { ids ->
+            val anyInFolder = items.any { it.entry.id in ids && it.entry.folderId != null }
+            FolderPickerDialog(
+                folders = folders, counts = folderCounts, canRemove = anyInFolder,
+                onPick = { fid ->
+                    vm.moveToFolder(ids, fid)
+                    message = if (fid == null) "${ids.size}개를 폴더에서 꺼냈어요." else "${ids.size}개를 '${folderNames[fid]}' 폴더로 옮겼어요."
+                    moveTargets = null; picked = null
+                },
+                onCreate = { name ->
+                    scope.launch {
+                        val fid = vm.createFolder(name).await()
+                        if (fid != null) {
+                            vm.moveToFolder(ids, fid).join()
+                            message = "${ids.size}개를 '${name.trim()}' 폴더로 옮겼어요."
+                            moveTargets = null; picked = null
+                        }
+                    }
+                },
+                onDismiss = { moveTargets = null },
+            )
+        }
+        if (confirmBulkDelete) AlertDialog(
+            onDismissRequest = { confirmBulkDelete = false },
+            title = { Text("${chosen.size}개를 삭제할까요?") },
+            text = { Text("복습 기록도 함께 지워지고 되돌릴 수 없어요.") },
+            confirmButton = {
+                TextButton(onClick = { vm.deleteMany(chosen); confirmBulkDelete = false; picked = null }) {
+                    Text("삭제", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = { TextButton(onClick = { confirmBulkDelete = false }) { Text("취소") } },
+        )
+        folderDialog?.let { kind ->
+            when (kind) {
+                FolderDialogKind.Create -> NameDialog("새 폴더", "", "만들기", onDismiss = { folderDialog = null }) { name ->
+                    val fid = vm.createFolder(name).await()
+                    if (fid != null) { vm.folderFilter.value = fid; folderDialog = null; null } else "이름을 입력해 주세요."
+                }
+                is FolderDialogKind.Rename -> NameDialog("폴더 이름 변경", kind.folder.name, "변경", onDismiss = { folderDialog = null }) { name ->
+                    if (vm.renameFolder(kind.folder.id, name).await()) { folderDialog = null; null } else "이미 있거나 비어 있는 이름이에요."
+                }
+                is FolderDialogKind.Delete -> AlertDialog(
+                    onDismissRequest = { folderDialog = null },
+                    title = { Text("'${kind.folder.name}' 폴더를 삭제할까요?") },
+                    text = { Text("폴더만 지워지고 안의 문장은 그대로 남아요.") },
+                    confirmButton = { TextButton(onClick = { vm.deleteFolder(kind.folder.id); folderDialog = null }) { Text("삭제", color = MaterialTheme.colorScheme.error) } },
+                    dismissButton = { TextButton(onClick = { folderDialog = null }) { Text("취소") } },
+                )
+            }
+        }
         // 첫 목록이 오기 전 잠깐 비어 보이는 것을 "없음"으로 오해하지 않게 한다.
         var settled by remember { mutableStateOf(false) }
         LaunchedEffect(Unit) { kotlinx.coroutines.delay(350); settled = true }
         if (items.isEmpty()) {
             if (!settled) LoadingBox()
-            else if (statusFilter != StatusFilter.ALL || query.isNotBlank() || lang != null || tag != null) {
+            else if (folderFilter != null && statusFilter == StatusFilter.ALL && query.isBlank() && lang == null && tag == null) {
+                EmptyState("이 폴더는 비어 있어요.\n문장을 오른쪽으로 밀어 폴더에 넣어 보세요.", icon = Icons.Default.FolderOpen)
+            } else if (statusFilter != StatusFilter.ALL || query.isNotBlank() || lang != null || tag != null) {
                 EmptyState("조건에 맞는 문장이 없어요.", icon = Icons.Default.SearchOff)
             } else EmptyState("저장된 문장이 없어요.\n번역 탭에서 문장을 저장해 보세요.", icon = Icons.Default.Book, actionLabel = "번역하러 가기", onAction = onGoTranslate)
         } else if (picked == null) {
-            Text("문장을 길게 누르면 여러 개를 골라 복습할 수 있어요.", style = MaterialTheme.typography.bodySmall)
+            Text("길게 누르면 여러 개 선택 · 오른쪽으로 밀면 폴더 이동 · 왼쪽으로 밀면 삭제", style = MaterialTheme.typography.bodySmall)
         }
         // 많이 틀린 순으로 볼 때는 순서 자체가 의미라서 묶지 않는다.
         val effective = if (sort == LibrarySort.LAPSES) GroupBy.NONE else groupBy
@@ -214,20 +314,27 @@ fun LibraryScreen(vm: LibraryViewModel, onGoTranslate: () -> Unit = {}, onStartR
                     val badge = p?.let { if (g.state == null || g.state == EntryState.LATER) dueBadge(it, now) else null }
                     val onClick = { if (picked != null) picked = if (id in chosen) chosen - id else chosen + id else selectedId = id }
                     val onLongClick = { if (picked == null) picked = setOf(id) }
-                    if (compact) CompactRow(item, badge, p?.state == EntryState.DUE, p?.state ?: EntryState.NEW, picked != null, id in chosen, onClick, onLongClick)
-                    else EntryCard(item, badge, p?.state == EntryState.DUE, p?.state ?: EntryState.NEW, picked != null, id in chosen, onClick, onLongClick)
+                    val folderName = item.entry.folderId?.let { folderNames[it] }
+                    SwipeRow(
+                        enabled = picked == null,
+                        onMove = { moveTargets = setOf(id) },
+                        onDelete = { if (selectedId == id) selectedId = null; vm.delete(id) },
+                    ) {
+                        if (compact) CompactRow(item, badge, p?.state == EntryState.DUE, p?.state ?: EntryState.NEW, folderName, picked != null, id in chosen, onClick, onLongClick)
+                        else EntryCard(item, badge, p?.state == EntryState.DUE, p?.state ?: EntryState.NEW, folderName, picked != null, id in chosen, onClick, onLongClick)
+                    }
                 }
             }
         }
     }
 
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.BottomCenter) { SnackbarHost(snackbar) }
-    selected?.let { item -> DetailDialog(item, item.entry.id in expandedIds, recentTags, vm) { selectedId = null } }
+    selected?.let { item -> DetailDialog(item, item.entry.id in expandedIds, recentTags, folders, vm) { selectedId = null } }
     if (managingTags) TagManagerDialog(tags, vm) { managingTags = false }
 }
 
 @Composable
-private fun DetailDialog(item: LibraryItem, hasAltCard: Boolean, recentTags: List<String>, vm: LibraryViewModel, onClose: () -> Unit) {
+private fun DetailDialog(item: LibraryItem, hasAltCard: Boolean, recentTags: List<String>, folders: List<FolderEntity>, vm: LibraryViewModel, onClose: () -> Unit) {
     var ko by remember(item.entry.id) { mutableStateOf(item.texts[Lang.KO].orEmpty()) }
     var note by remember(item.entry.id) { mutableStateOf(item.entry.note) }
     val altLang = if (item.entry.chatLang == Lang.EN) Lang.ES else Lang.EN
@@ -294,6 +401,29 @@ private fun DetailDialog(item: LibraryItem, hasAltCard: Boolean, recentTags: Lis
                 }
                 SectionCard("설명 · 메모") {
                     OutlinedTextField(note, { note = it }, label = { Text("설명") }, modifier = Modifier.fillMaxWidth())
+                }
+                SectionCard("분류") {
+                    Text("폴더", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    @OptIn(ExperimentalLayoutApi::class)
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        FilterChip(selected = item.entry.folderId == null, onClick = { vm.moveToFolder(listOf(item.entry.id), null) }, label = { Text("없음") })
+                        folders.forEach { f ->
+                            FilterChip(selected = item.entry.folderId == f.id, onClick = { vm.moveToFolder(listOf(item.entry.id), f.id) }, label = { Text(f.name) })
+                        }
+                    }
+                    var pickingDate by remember { mutableStateOf(false) }
+                    val zone = ZoneId.systemDefault()
+                    val learned = Instant.ofEpochMilli(item.entry.createdAt).atZone(zone).toLocalDate()
+                    LabeledText("알게 된 날", learned.format(DateTimeFormatter.ofPattern("yyyy년 M월 d일 (E)", java.util.Locale.KOREAN)))
+                    OutlinedButton(onClick = { pickingDate = true }) { Text("날짜 바꾸기") }
+                    if (pickingDate) PastDatePickerDialog(
+                        initial = learned, today = java.time.LocalDate.now(zone), onDismiss = { pickingDate = false },
+                        onPick = { d ->
+                            // 같은 날을 다시 고르면 원래 시각을 유지한다.
+                            if (d != learned) vm.saveLearnedAt(item.entry.id, d.atTime(12, 0).atZone(zone).toInstant().toEpochMilli())
+                            pickingDate = false
+                        },
+                    )
                 }
                 SectionCard("태그") {
                     if (editedTags.isNotEmpty()) {
@@ -417,7 +547,7 @@ private fun Pill(text: String, container: androidx.compose.ui.graphics.Color, co
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun EntryCard(
-    item: LibraryItem, badge: String?, badgeAccent: Boolean, state: EntryState,
+    item: LibraryItem, badge: String?, badgeAccent: Boolean, state: EntryState, folderName: String?,
     selectionMode: Boolean, checked: Boolean, onClick: () -> Unit, onLongClick: () -> Unit,
 ) {
     Card(Modifier.fillMaxWidth().combinedClickable(onClick = onClick, onLongClick = onLongClick)) {
@@ -435,6 +565,7 @@ private fun EntryCard(
                 // 1줄: 언어·태그 칩, 오른쪽에 상태 배지
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     Pill(if (item.entry.chatLang == Lang.EN) "EN" else "ES", MaterialTheme.colorScheme.primaryContainer, MaterialTheme.colorScheme.onPrimaryContainer)
+                    folderName?.let { Pill(it, MaterialTheme.colorScheme.tertiaryContainer, MaterialTheme.colorScheme.onTertiaryContainer) }
                     item.tags.take(2).forEach { Pill(it, MaterialTheme.colorScheme.secondaryContainer, MaterialTheme.colorScheme.onSecondaryContainer) }
                     if (item.tags.size > 2) Text("+${item.tags.size - 2}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Spacer(Modifier.weight(1f))
@@ -459,7 +590,7 @@ private class LibGroup(val key: String, val title: String?, val items: List<Libr
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun CompactRow(
-    item: LibraryItem, badge: String?, badgeAccent: Boolean, state: EntryState,
+    item: LibraryItem, badge: String?, badgeAccent: Boolean, state: EntryState, folderName: String?,
     selectionMode: Boolean, checked: Boolean, onClick: () -> Unit, onLongClick: () -> Unit,
 ) {
     val barColor = when (state) {
@@ -477,6 +608,7 @@ private fun CompactRow(
             }
             Column(Modifier.padding(end = 4.dp), horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Pill(if (item.entry.chatLang == Lang.EN) "EN" else "ES", MaterialTheme.colorScheme.primaryContainer, MaterialTheme.colorScheme.onPrimaryContainer)
+                folderName?.let { Text(it, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.tertiary, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = 72.dp)) }
                 badge?.let {
                     Text(it, style = MaterialTheme.typography.labelSmall, color = if (badgeAccent) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
                 }
@@ -484,4 +616,112 @@ private fun CompactRow(
         }
         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
     }
+}
+
+sealed interface FolderDialogKind {
+    data object Create : FolderDialogKind
+    data class Rename(val folder: FolderEntity) : FolderDialogKind
+    data class Delete(val folder: FolderEntity) : FolderDialogKind
+}
+
+/**
+ * 한 줄을 옆으로 밀어 동작을 한다: 오른쪽으로 밀면 폴더 이동(제자리로 돌아옴), 왼쪽으로 밀면 삭제(되돌리기 가능).
+ * 선택 모드에서는 밀기를 끈다.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SwipeRow(enabled: Boolean, onMove: () -> Unit, onDelete: () -> Unit, content: @Composable () -> Unit) {
+    val state = rememberSwipeToDismissBoxState(confirmValueChange = { v ->
+        when (v) {
+            SwipeToDismissBoxValue.StartToEnd -> { onMove(); false }
+            SwipeToDismissBoxValue.EndToStart -> { onDelete(); true }
+            SwipeToDismissBoxValue.Settled -> false
+        }
+    })
+    SwipeToDismissBox(
+        state = state, enableDismissFromStartToEnd = enabled, enableDismissFromEndToStart = enabled,
+        backgroundContent = {
+            val toRight = state.dismissDirection == SwipeToDismissBoxValue.StartToEnd
+            val toLeft = state.dismissDirection == SwipeToDismissBoxValue.EndToStart
+            val bg = when {
+                toRight -> MaterialTheme.colorScheme.tertiaryContainer
+                toLeft -> MaterialTheme.colorScheme.errorContainer
+                else -> androidx.compose.ui.graphics.Color.Transparent
+            }
+            Box(Modifier.fillMaxSize().background(bg).padding(horizontal = 20.dp), contentAlignment = if (toLeft) Alignment.CenterEnd else Alignment.CenterStart) {
+                if (toRight) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Icon(Icons.Default.Folder, contentDescription = null, tint = MaterialTheme.colorScheme.onTertiaryContainer)
+                    Text("폴더로", color = MaterialTheme.colorScheme.onTertiaryContainer, style = MaterialTheme.typography.labelLarge)
+                }
+                if (toLeft) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("삭제", color = MaterialTheme.colorScheme.onErrorContainer, style = MaterialTheme.typography.labelLarge)
+                    Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.onErrorContainer)
+                }
+            }
+        },
+    ) {
+        // 밀 때 뒤의 색이 비치지 않게 불투명 배경을 깐다.
+        Surface(color = MaterialTheme.colorScheme.background) { content() }
+    }
+}
+
+/** 문장을 넣을 폴더를 고르거나 새로 만든다. */
+@Composable
+private fun FolderPickerDialog(
+    folders: List<FolderEntity>, counts: Map<Long, Int>, canRemove: Boolean,
+    onPick: (Long?) -> Unit, onCreate: (String) -> Unit, onDismiss: () -> Unit,
+) {
+    var name by remember { mutableStateOf("") }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("폴더로 옮기기") },
+        text = {
+            Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                if (folders.isEmpty()) Text("아직 폴더가 없어요. 아래에서 만들어 보세요.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                folders.forEach { f ->
+                    Row(
+                        Modifier.fillMaxWidth().heightIn(min = 48.dp).clickable { onPick(f.id) }.padding(horizontal = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        Icon(Icons.Default.Folder, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                        Text(f.name, Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
+                        Text("${counts[f.id] ?: 0}", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+                if (canRemove) TextButton(onClick = { onPick(null) }) { Text("폴더에서 꺼내기") }
+                HorizontalDivider(Modifier.padding(vertical = 8.dp))
+                OutlinedTextField(
+                    name, { name = it }, singleLine = true, modifier = Modifier.fillMaxWidth(), label = { Text("새 폴더 이름") },
+                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(imeAction = androidx.compose.ui.text.input.ImeAction.Done),
+                    keyboardActions = androidx.compose.foundation.text.KeyboardActions(onDone = { if (name.isNotBlank()) onCreate(name) }),
+                )
+                Button(enabled = name.isNotBlank(), onClick = { onCreate(name) }) { Text("만들어서 옮기기") }
+            }
+        },
+        confirmButton = {},
+        dismissButton = { TextButton(onClick = onDismiss) { Text("닫기") } },
+    )
+}
+
+/** 이름 입력 창. [onConfirm]이 문자열을 돌려주면 그것을 오류 문구로 보여 주고, null이면 성공으로 보고 호출한 쪽이 닫는다. */
+@Composable
+private fun NameDialog(title: String, initial: String, confirmLabel: String, onDismiss: () -> Unit, onConfirm: suspend (String) -> String?) {
+    var name by remember { mutableStateOf(initial) }
+    var error by remember { mutableStateOf<String?>(null) }
+    val scope = rememberCoroutineScope()
+    fun submit() { scope.launch { error = onConfirm(name) } }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title) },
+        text = {
+            OutlinedTextField(
+                name, { name = it; error = null }, singleLine = true, label = { Text("폴더 이름") },
+                isError = error != null, supportingText = { error?.let { Text(it) } },
+                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(imeAction = androidx.compose.ui.text.input.ImeAction.Done),
+                keyboardActions = androidx.compose.foundation.text.KeyboardActions(onDone = { submit() }),
+            )
+        },
+        confirmButton = { TextButton(enabled = name.isNotBlank(), onClick = { submit() }) { Text(confirmLabel) } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("취소") } },
+    )
 }

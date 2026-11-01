@@ -19,10 +19,14 @@ import com.chatlearn.domain.TextOrigin
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
-fun filterLibrary(items: List<LibraryItem>, query: String, lang: Lang?, tag: String?): List<LibraryItem> {
+/** 폴더 필터에서 "폴더 없음"을 뜻하는 값. */
+const val FOLDER_UNFILED = -1L
+
+fun filterLibrary(items: List<LibraryItem>, query: String, lang: Lang?, tag: String?, folder: Long? = null): List<LibraryItem> {
     val q = query.trim()
     return items.filter { item ->
-        (lang == null || item.entry.chatLang == lang) &&
+        (folder == null || (if (folder == FOLDER_UNFILED) item.entry.folderId == null else item.entry.folderId == folder)) &&
+            (lang == null || item.entry.chatLang == lang) &&
             (tag == null || tag in item.tags) &&
             (q.isEmpty() || item.texts.values.any { it.contains(q, ignoreCase = true) })
     }
@@ -38,6 +42,8 @@ class LibraryViewModel(
     val query = MutableStateFlow("")
     val langFilter = MutableStateFlow<Lang?>(null)
     val tagFilter = MutableStateFlow<String?>(null)
+    /** null=전체, [FOLDER_UNFILED]=폴더 없는 문장, 그 외=그 폴더. */
+    val folderFilter = MutableStateFlow<Long?>(null)
 
     val sort = MutableStateFlow(LibrarySort.RECENT)
     val statusFilter = MutableStateFlow(StatusFilter.ALL)
@@ -52,9 +58,19 @@ class LibraryViewModel(
         .map { si -> val now = clock(); si.cards.groupBy { it.entryId }.mapValues { progressOf(it.value, now) } }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
 
-    private val searched = combine(all, query, langFilter, tagFilter, _pendingDelete) { l, q, lang, tag, pending ->
-        filterLibrary(l.filter { it.entry.id != pending }, q, lang, tag)
+    private data class Filters(val q: String, val lang: Lang?, val tag: String?, val folder: Long?)
+    private val filters = combine(query, langFilter, tagFilter, folderFilter) { q, lang, tag, folder -> Filters(q, lang, tag, folder) }
+    private val searched = combine(all, filters, _pendingDelete) { l, f, pending ->
+        filterLibrary(l.filter { it.entry.id != pending }, f.q, f.lang, f.tag, f.folder)
     }
+
+    val folders: StateFlow<List<com.chatlearn.data.FolderEntity>> =
+        repo.observeFolders().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    /** 폴더별 문장 수. 키가 [FOLDER_UNFILED]이면 폴더 없는 문장 수. 삭제 대기 중인 문장은 센다(되돌릴 수 있으므로). */
+    val folderCounts: StateFlow<Map<Long, Int>> = all
+        .map { l -> l.groupingBy { it.entry.folderId ?: FOLDER_UNFILED }.eachCount() }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
     val items: StateFlow<List<LibraryItem>> =
         combine(searched, statusFilter, sort, progress) { l, sf, so, pr -> sortLibrary(filterByStatus(l, pr, sf), pr, so) }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
@@ -128,6 +144,13 @@ class LibraryViewModel(
     init {
         // 필터로 선택해 둔 태그가 사라지면(마지막 문장에서 제거, 이름 변경 등) 필터를 풀어서 빈 목록에 갇히지 않게 한다.
         viewModelScope.launch { all.collect { l -> dropStaleTagFilter(l.flatMap { it.tags }) } }
+        // 보고 있던 폴더가 지워지면 전체로 돌아간다.
+        viewModelScope.launch {
+            repo.observeFolders().collect { fs ->
+                val cur = folderFilter.value
+                if (cur != null && cur != FOLDER_UNFILED && fs.none { it.id == cur }) folderFilter.value = null
+            }
+        }
     }
 
     internal fun dropStaleTagFilter(existing: List<String>) {
@@ -169,4 +192,18 @@ class LibraryViewModel(
     fun saveText(id: Long, lang: Lang, text: String) = viewModelScope.launch {
         if (text.isNotBlank()) repo.putText(id, lang, text, TextOrigin.USER)
     }
+
+    /** 폴더를 만들어(이미 있으면 그대로 써서) id를 돌려준다. 이름이 비면 null. */
+    fun createFolder(name: String) = viewModelScope.async { repo.createFolder(name, clock()) }
+    fun renameFolder(id: Long, name: String) = viewModelScope.async { repo.renameFolder(id, name) }
+    fun deleteFolder(id: Long) = viewModelScope.launch { repo.deleteFolder(id) }
+
+    /** [folderId]가 null이면 폴더에서 꺼낸다. */
+    fun moveToFolder(ids: Collection<Long>, folderId: Long?) = viewModelScope.launch { repo.moveToFolder(ids, folderId) }
+
+    /** 여러 문장을 한 번에 지운다. 되돌리기는 없으니 호출 전에 확인을 받는다. */
+    fun deleteMany(ids: Collection<Long>) = viewModelScope.launch { repo.deleteEntries(ids) }
+
+    /** 알게 된 날(저장일)을 고친다. */
+    fun saveLearnedAt(id: Long, at: Long) = viewModelScope.launch { repo.setLearnedAt(id, at) }
 }

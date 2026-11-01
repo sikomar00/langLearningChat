@@ -87,6 +87,19 @@ interface AppDao {
     )
     suspend fun introducedToday(dayStart: Long): Int
 
+    // 폴더
+    @Insert suspend fun insertFolder(f: FolderEntity): Long
+    @Query("SELECT id FROM folder WHERE name = :name") suspend fun findFolderId(name: String): Long?
+    @Query("SELECT * FROM folder ORDER BY name COLLATE NOCASE") fun observeFolders(): Flow<List<FolderEntity>>
+    @Query("UPDATE folder SET name = :name WHERE id = :id") suspend fun renameFolder(id: Long, name: String)
+    @Query("DELETE FROM folder WHERE id = :id") suspend fun deleteFolder(id: Long)
+    @Query("UPDATE entry SET folderId = :folderId WHERE id IN (:ids)") suspend fun setFolder(ids: List<Long>, folderId: Long?)
+    @Query("DELETE FROM entry WHERE id IN (:ids)") suspend fun deleteEntries(ids: List<Long>)
+    @Query("UPDATE entry SET createdAt = :at WHERE id = :id") suspend fun setCreatedAt(id: Long, at: Long)
+    @Query("SELECT * FROM folder") suspend fun allFolders(): List<FolderEntity>
+    @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun insertFolders(l: List<FolderEntity>)
+    @Query("DELETE FROM folder") suspend fun deleteAllFolders()
+
     @Query("UPDATE entry SET note = :note WHERE id = :id") suspend fun updateNote(id: Long, note: String)
     @Query("DELETE FROM entry WHERE id = :id") suspend fun deleteEntry(id: Long)
 

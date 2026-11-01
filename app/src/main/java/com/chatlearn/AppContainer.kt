@@ -29,7 +29,7 @@ private val Context.settingsStore by preferencesDataStore("settings")
 class AppContainer(context: Context) {
     private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     val db: AppDatabase = Room.databaseBuilder(context, AppDatabase::class.java, "chatlearn.db")
-        .addMigrations(Migrations.MIGRATION_1_2, Migrations.MIGRATION_2_3)
+        .addMigrations(Migrations.MIGRATION_1_2, Migrations.MIGRATION_2_3, Migrations.MIGRATION_3_4)
         .build()
     val repo = EntryRepository(db)
     val settings: SettingsRepository = DataStoreSettingsRepository(context.settingsStore, EncryptedSecretStore(context))

@@ -54,7 +54,7 @@ class MigrationTest {
     }
 
     private fun openV2() = Room.databaseBuilder(ctx, AppDatabase::class.java, dbName)
-        .addMigrations(Migrations.MIGRATION_1_2, Migrations.MIGRATION_2_3)
+        .addMigrations(Migrations.MIGRATION_1_2, Migrations.MIGRATION_2_3, Migrations.MIGRATION_3_4)
         .allowMainThreadQueries()
         .build()
 
@@ -113,12 +113,50 @@ class MigrationTest {
     @Test fun v2UpgradesToV3KeepingTextsAndLeavingKeyPhrasesEmpty() = runBlocking {
         createV2()
         val db = Room.databaseBuilder(ctx, AppDatabase::class.java, dbName)
-            .addMigrations(Migrations.MIGRATION_2_3).allowMainThreadQueries().build()
+            .addMigrations(Migrations.MIGRATION_2_3, Migrations.MIGRATION_3_4).allowMainThreadQueries().build()
         val texts = db.dao().allTexts()
         assertEquals(2, texts.size)
         assertTrue(texts.all { it.keyPhrase == null })
         assertEquals("Hello", texts.first { it.lang == Lang.EN }.text)
         assertEquals(1, db.dao().allCards().size)
+        db.close()
+    }
+
+    private fun createV3() {
+        val root = Json.parseToJsonElement(File("schemas/com.chatlearn.data.AppDatabase/3.json").readText()).jsonObject
+        val database = root["database"]!!.jsonObject
+        val db = ctx.openOrCreateDatabase(dbName, Context.MODE_PRIVATE, null)
+        database["entities"]!!.jsonArray.forEach { e ->
+            val o = e.jsonObject
+            val table = o["tableName"]!!.jsonPrimitive.content
+            fun sql(s: String) = s.replace("\${TABLE_NAME}", table)
+            db.execSQL(sql(o["createSql"]!!.jsonPrimitive.content))
+            o["indices"]?.jsonArray?.forEach { db.execSQL(sql(it.jsonObject["createSql"]!!.jsonPrimitive.content)) }
+        }
+        database["setupQueries"]!!.jsonArray.forEach { db.execSQL(it.jsonPrimitive.content) }
+        listOf(
+            "INSERT INTO entry (id, createdAt, direction, chatLang, note, tone) VALUES (1, 100, 'RECEIVED', 'EN', 'n', NULL)",
+            "INSERT INTO entry_text (entryId, lang, text, origin) VALUES (1, 'EN', 'Hello', 'ORIGINAL')",
+            "INSERT INTO entry_text (entryId, lang, text, origin) VALUES (1, 'KO', '안녕', 'AI')",
+        ).forEach(db::execSQL)
+        db.version = 3
+        db.close()
+    }
+
+    @Test fun v3UpgradesToV4WithEntriesOutsideAnyFolderAndFolderDeleteKeepsEntries() = runBlocking {
+        createV3()
+        val db = Room.databaseBuilder(ctx, AppDatabase::class.java, dbName)
+            .addMigrations(Migrations.MIGRATION_3_4).allowMainThreadQueries().build()
+        val dao = db.dao()
+        val e = dao.allEntries().single()
+        assertEquals(100L, e.createdAt)
+        assertNull(e.folderId)
+        val folder = dao.insertFolder(FolderEntity(name = "여행", createdAt = 1))
+        dao.setFolder(listOf(e.id), folder)
+        assertEquals(folder, dao.allEntries().single().folderId)
+        dao.deleteFolder(folder) // 폴더만 지워지고 문장은 남아야 한다
+        assertNull(dao.allEntries().single().folderId)
+        assertEquals(1, dao.allEntries().size)
         db.close()
     }
 }

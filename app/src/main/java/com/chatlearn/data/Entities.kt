@@ -9,14 +9,29 @@ import com.chatlearn.domain.*
 import kotlinx.serialization.Serializable
 
 @Serializable
-@Entity(tableName = "entry")
+@Entity(tableName = "folder", indices = [Index("name", unique = true)])
+data class FolderEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val name: String,
+    val createdAt: Long = 0,
+)
+
+@Serializable
+@Entity(
+    tableName = "entry",
+    foreignKeys = [ForeignKey(FolderEntity::class, ["id"], ["folderId"], onDelete = ForeignKey.SET_NULL)],
+    indices = [Index("folderId")],
+)
 data class EntryEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    /** 이 표현을 알게 된(저장한) 날. 번역 화면에서 날짜를 골라 저장하면 그 날짜가 들어간다. */
     val createdAt: Long,
     val direction: Direction,
     val chatLang: Lang,
     val note: String,
     val tone: String?,
+    /** 들어 있는 폴더. null이면 폴더에 넣지 않은 문장. 폴더가 지워지면 null로 돌아간다. */
+    val folderId: Long? = null,
 )
 
 @Serializable
