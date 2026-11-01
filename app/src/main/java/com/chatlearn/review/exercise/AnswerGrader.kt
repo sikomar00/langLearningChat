@@ -17,6 +17,7 @@ object AnswerGrader {
     fun stripAccents(s: String): String =
         Normalizer.normalize(s, Normalizer.Form.NFD).replace(Regex("\\p{Mn}+"), "")
 
+    /** 글자 하나의 삽입·삭제·바꿈, 그리고 이웃한 두 글자의 자리 바꿈을 한 번의 수정으로 센다. */
     fun editDistance(a: String, b: String): Int {
         val dp = Array(a.length + 1) { IntArray(b.length + 1) }
         for (i in 0..a.length) dp[i][0] = i
@@ -26,9 +27,15 @@ object AnswerGrader {
                 dp[i - 1][j] + 1, dp[i][j - 1] + 1,
                 dp[i - 1][j - 1] + if (a[i - 1] == b[j - 1]) 0 else 1,
             )
+            if (i > 1 && j > 1 && a[i - 1] == b[j - 2] && a[i - 2] == b[j - 1]) {
+                dp[i][j] = minOf(dp[i][j], dp[i - 2][j - 2] + 1)
+            }
         }
         return dp[a.length][b.length]
     }
+
+    /** 빈칸 답에서 "거의 맞아요"로 봐 줄 수정 횟수: 8글자당 1번, 최소 1번. */
+    private fun clozeTolerance(answer: String): Int = maxOf(1, answer.length / 8)
 
     fun gradeCloze(answers: List<String>, inputs: List<String>): Verdict {
         require(answers.size == inputs.size)
@@ -36,7 +43,7 @@ object AnswerGrader {
             val na = normalize(a); val ni = normalize(i)
             when {
                 na == ni -> 0
-                stripAccents(na) == stripAccents(ni) || editDistance(na, ni) <= 1 -> 1
+                stripAccents(na) == stripAccents(ni) || editDistance(na, ni) <= clozeTolerance(na) -> 1
                 else -> 2
             }
         }

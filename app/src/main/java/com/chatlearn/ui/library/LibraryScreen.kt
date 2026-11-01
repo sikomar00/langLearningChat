@@ -22,6 +22,7 @@ import com.chatlearn.ui.translate.suggestTags
 import kotlinx.coroutines.launch
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -31,6 +32,8 @@ import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.chatlearn.data.LibraryItem
 import com.chatlearn.domain.Lang
+
+private const val AI_FAILED_HINT = "AI에 연결하지 못했어요. 설정 탭의 '연결 확인'으로 키와 모델, 인터넷을 확인해 주세요."
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -51,6 +54,9 @@ fun LibraryScreen(vm: LibraryViewModel, onStartReview: (Set<Long>, Lang?) -> Uni
     val progress by vm.progress.collectAsStateWithLifecycle()
     val pendingDelete by vm.pendingDelete.collectAsStateWithLifecycle()
     val snackbar = remember { SnackbarHostState() }
+    val listState = rememberLazyListState()
+    // 필터·정렬·검색을 바꾸면 목록 맨 위부터 보여 준다. 안 그러면 이전 위치에 남아 위쪽 항목이 사라진 것처럼 보인다.
+    LaunchedEffect(statusFilter, sort, lang, tag, query) { listState.scrollToItem(0) }
     LaunchedEffect(pendingDelete) {
         if (pendingDelete != null) {
             val r = snackbar.showSnackbar("삭제했어요", actionLabel = "되돌리기", duration = SnackbarDuration.Indefinite)
@@ -83,7 +89,8 @@ fun LibraryScreen(vm: LibraryViewModel, onStartReview: (Set<Long>, Lang?) -> Uni
             if (unexpanded > 0) TextButton(enabled = !expanding, onClick = {
                 scope.launch {
                     val r = vm.expandAll().await()
-                    expandMessage = "다른 언어 카드 ${r.created}개를 만들었어요." +
+                    expandMessage = if (r.created == 0 && r.failedBatches > 0) AI_FAILED_HINT
+                    else "다른 언어 카드 ${r.created}개를 만들었어요." +
                         if (r.failedBatches > 0) " (실패한 묶음 ${r.failedBatches}개는 다시 눌러 보세요)" else ""
                 }
             }) { Text(if (expanding) "확장 중…" else "전체 확장 ($unexpanded)") }
@@ -94,7 +101,8 @@ fun LibraryScreen(vm: LibraryViewModel, onStartReview: (Set<Long>, Lang?) -> Uni
             TextButton(enabled = !fillingKeys, onClick = {
                 scope.launch {
                     val r = vm.fillKeyPhrases().await()
-                    expandMessage = "핵심 표현 ${r.filled}개를 찾았어요." +
+                    expandMessage = if (r.filled == 0 && r.none == 0 && r.failedBatches > 0) AI_FAILED_HINT
+                    else "핵심 표현 ${r.filled}개를 찾았어요." +
                         if (r.failedBatches > 0) " (실패한 묶음 ${r.failedBatches}개는 다시 눌러 보세요)" else ""
                 }
             }) { Text(if (fillingKeys) "찾는 중…" else "핵심 표현 만들기 ($missingKeys)") }
@@ -126,7 +134,7 @@ fun LibraryScreen(vm: LibraryViewModel, onStartReview: (Set<Long>, Lang?) -> Uni
         } else if (picked == null) {
             Text("문장을 길게 누르면 여러 개를 골라 복습할 수 있어요.", style = MaterialTheme.typography.bodySmall)
         }
-        LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        LazyColumn(state = listState, verticalArrangement = Arrangement.spacedBy(8.dp)) {
             items(items, key = { it.entry.id }) { item ->
                 val id = item.entry.id
                 Card(Modifier.fillMaxWidth().combinedClickable(

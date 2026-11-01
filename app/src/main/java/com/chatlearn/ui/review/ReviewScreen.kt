@@ -184,7 +184,7 @@ private fun ReviewPane(vm: ReviewViewModel) {
             is ReviewUi.Graded -> {
                 when (s.item.exercise) {
                     ExerciseKind.TRANSLATE -> Text(s.item.promptText, style = MaterialTheme.typography.titleMedium)
-                    ExerciseKind.CLOZE -> Text(s.item.cloze!!.display, style = MaterialTheme.typography.titleMedium)
+                    ExerciseKind.CLOZE -> Text(s.item.reference, style = MaterialTheme.typography.titleMedium)
                     ExerciseKind.DICTATION -> Text("뜻: ${s.item.hintKo}", style = MaterialTheme.typography.titleMedium)
                 }
                 Text("내 답: ${s.answer}")
@@ -211,7 +211,7 @@ private fun ReviewPane(vm: ReviewViewModel) {
                                 }
                             })
                         }
-                        Text("정답: ${o.reference}")
+                        if (s.item.exercise != ExerciseKind.CLOZE) Text("정답: ${o.reference}")
                         if (s.item.hintKo.isNotBlank() && s.item.exercise == ExerciseKind.CLOZE) Text("뜻: ${s.item.hintKo}")
                     }
                 }

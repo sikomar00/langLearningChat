@@ -40,6 +40,17 @@ class LibraryOrderTest {
         assertEquals(3, p.lapses)
     }
 
+    @Test fun anUnreviewedCardThatIsAlreadyDueMakesTheEntryDueNotLater() {
+        val p = progressOf(listOf(card(1, now + 3 * day), card(1, now - 5, reviewed = null, lang = Lang.ES)), now)
+        assertEquals(EntryState.DUE, p.state)
+    }
+
+    @Test fun laterAlwaysHasAFutureDate() {
+        val p = progressOf(listOf(card(1, now + 3 * day), card(1, now + 9 * day, lang = Lang.ES)), now)
+        assertEquals(EntryState.LATER, p.state)
+        assertEquals(true, p.nextDueAt!! > now)
+    }
+
     @Test fun noCardsMeansNewWithNoDate() {
         val p = progressOf(emptyList(), now)
         assertEquals(EntryState.NEW, p.state)

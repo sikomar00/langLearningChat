@@ -19,7 +19,7 @@ fun progressOf(cards: List<ReviewCardEntity>, now: Long): EntryProgress {
     val lapses = cards.sumOf { it.lapses }
     val state = when {
         cards.none { it.lastReviewedAt != null } -> EntryState.NEW
-        cards.any { it.lastReviewedAt != null && it.dueAt <= now } -> EntryState.DUE
+        cards.any { it.dueAt <= now } -> EntryState.DUE // 아직 안 한 짝 카드가 기한이어도 "복습할 차례"
         else -> EntryState.LATER
     }
     return EntryProgress(state, nextDue, lapses)

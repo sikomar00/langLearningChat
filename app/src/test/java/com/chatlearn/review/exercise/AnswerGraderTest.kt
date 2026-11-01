@@ -54,4 +54,16 @@ class AnswerGraderTest {
 
     @Test fun dictationEmptyInputIsWrong() =
         assertEquals(Verdict.WRONG, AnswerGrader.gradeDictation("see you soon", "  ").verdict)
+
+    @Test fun swappedNeighbouringLettersCountAsOneEdit() {
+        assertEquals(1, AnswerGrader.editDistance("abuot", "about"))
+        assertEquals(Verdict.CLOSE, AnswerGrader.gradeCloze(listOf("just about to"), listOf("just abuot to")))
+    }
+
+    @Test fun longerPhrasesAllowOneEditPerEightLetters() {
+        assertEquals(Verdict.CLOSE, AnswerGrader.gradeCloze(listOf("por un momento"), listOf("por un momemto")))
+        assertEquals(Verdict.WRONG, AnswerGrader.gradeCloze(listOf("por un momento"), listOf("por la momento")))
+        assertEquals(Verdict.CLOSE, AnswerGrader.gradeCloze(listOf("estoy llegando"), listOf("estoy llegnado")))
+        assertEquals(Verdict.WRONG, AnswerGrader.gradeCloze(listOf("la"), listOf("el")))
+    }
 }
