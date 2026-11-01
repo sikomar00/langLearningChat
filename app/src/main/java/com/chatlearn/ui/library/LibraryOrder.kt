@@ -50,3 +50,15 @@ fun filterByStatus(items: List<LibraryItem>, progress: Map<Long, EntryProgress>,
         StatusFilter.UNREVIEWED -> items.filter { (progress[it.entry.id] ?: NEW_PROGRESS).state == EntryState.NEW }
         StatusFilter.STRUGGLING -> items.filter { (progress[it.entry.id]?.lapses ?: 0) >= STRUGGLING_LAPSES }
     }
+
+/** 목록을 "복습할 차례 → 새 카드 → 나중에" 순서로 묶는다. 묶음 안의 순서는 주어진 순서를 그대로 둔다. */
+fun groupByState(items: List<LibraryItem>, progress: Map<Long, EntryProgress>): List<Pair<EntryState, List<LibraryItem>>> {
+    val byState = items.groupBy { (progress[it.entry.id] ?: NEW_PROGRESS).state }
+    return listOf(EntryState.DUE, EntryState.NEW, EntryState.LATER).mapNotNull { st -> byState[st]?.let { st to it } }
+}
+
+fun stateTitle(s: EntryState): String = when (s) {
+    EntryState.DUE -> "복습할 차례"
+    EntryState.NEW -> "새 카드"
+    EntryState.LATER -> "나중에 복습"
+}

@@ -90,4 +90,20 @@ class LibraryOrderTest {
     @Test fun itemsWithoutProgressAreTreatedAsNew() {
         assertEquals(listOf(a), filterByStatus(listOf(a), emptyMap(), StatusFilter.UNREVIEWED))
     }
+
+    @Test fun groupsByStateInFixedOrderKeepingGivenOrderAndSkippingEmpty() {
+        val items = listOf(item(1, 5), item(2, 4), item(3, 3), item(4, 2))
+        val progress = mapOf(
+            1L to EntryProgress(EntryState.LATER, now + day, 0),
+            2L to EntryProgress(EntryState.DUE, now - 1, 0),
+            3L to EntryProgress(EntryState.DUE, now - 2, 0),
+            // 4번은 진행 정보가 없으면 새 카드로 본다
+        )
+        val groups = groupByState(items, progress)
+        assertEquals(listOf(EntryState.DUE, EntryState.NEW, EntryState.LATER), groups.map { it.first })
+        assertEquals(listOf(2L, 3L), groups[0].second.map { it.entry.id })
+        assertEquals(listOf(4L), groups[1].second.map { it.entry.id })
+        assertEquals(listOf(1L), groups[2].second.map { it.entry.id })
+        assertEquals(listOf(EntryState.LATER), groupByState(listOf(items[0]), progress).map { it.first })
+    }
 }

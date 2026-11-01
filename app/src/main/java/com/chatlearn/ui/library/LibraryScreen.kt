@@ -178,24 +178,27 @@ fun LibraryScreen(vm: LibraryViewModel, onGoTranslate: () -> Unit = {}, onStartR
         } else if (picked == null) {
             Text("문장을 길게 누르면 여러 개를 골라 복습할 수 있어요.", style = MaterialTheme.typography.bodySmall)
         }
+        // 많이 틀린 순으로 볼 때는 순서가 의미라서 묶지 않고, 나머지는 상태별로 묶는다.
+        val grouped = sort != LibrarySort.LAPSES
+        val groups = if (grouped) groupByState(items, progress) else listOf(null to items)
+        val now = System.currentTimeMillis()
         LazyColumn(state = listState, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            items(items, key = { it.entry.id }) { item ->
-                val id = item.entry.id
-                Card(Modifier.fillMaxWidth().combinedClickable(
-                    onClick = { if (picked != null) picked = if (id in chosen) chosen - id else chosen + id else selectedId = id },
-                    onLongClick = { if (picked == null) picked = setOf(id) },
-                )) {
-                    Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                        if (picked != null) Checkbox(checked = id in chosen, onCheckedChange = null)
-                        Column(Modifier.weight(1f)) {
-                            Text(item.texts[item.entry.chatLang].orEmpty(), style = MaterialTheme.typography.titleMedium)
-                            Text(item.texts[Lang.KO].orEmpty(), style = MaterialTheme.typography.bodyMedium)
-                        }
-                        progress[id]?.let { p ->
-                            Text(dueBadge(p, System.currentTimeMillis()), style = MaterialTheme.typography.labelSmall,
-                                color = if (p.state == EntryState.DUE) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
-                    }
+            groups.forEach { (state, groupItems) ->
+                if (state != null) stickyHeader(key = "header-$state") {
+                    GroupHeader(stateTitle(state), groupItems.size)
+                }
+                items(groupItems, key = { it.entry.id }) { item ->
+                    val id = item.entry.id
+                    val p = progress[id]
+                    EntryCard(
+                        item = item,
+                        // 묶음 제목에 이미 상태가 있으니, 묶지 않을 때와 "나중에" 묶음(남은 기간)에서만 배지를 보여 준다.
+                        badge = p?.let { if (!grouped || state == EntryState.LATER) dueBadge(it, now) else null },
+                        badgeAccent = p?.state == EntryState.DUE,
+                        selectionMode = picked != null, checked = id in chosen,
+                        onClick = { if (picked != null) picked = if (id in chosen) chosen - id else chosen + id else selectedId = id },
+                        onLongClick = { if (picked == null) picked = setOf(id) },
+                    )
                 }
             }
         }
@@ -373,5 +376,53 @@ private fun SentenceStatsLine(entryId: Long, vm: LibraryViewModel) {
         )
         LabeledText("마지막 복습", at(st.lastReviewedAt))
         LabeledText("다음 복습", at(st.dueAt))
+    }
+}
+
+@Composable
+private fun GroupHeader(title: String, count: Int) {
+    Surface(color = MaterialTheme.colorScheme.background, modifier = Modifier.fillMaxWidth()) {
+        Row(Modifier.padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(title, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
+            Text("$count", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            HorizontalDivider(Modifier.weight(1f), color = MaterialTheme.colorScheme.outlineVariant)
+        }
+    }
+}
+
+@Composable
+private fun Pill(text: String, container: androidx.compose.ui.graphics.Color, content: androidx.compose.ui.graphics.Color) {
+    Surface(color = container, shape = MaterialTheme.shapes.small) {
+        Text(text, Modifier.padding(horizontal = 8.dp, vertical = 2.dp), style = MaterialTheme.typography.labelSmall, color = content, maxLines = 1)
+    }
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun EntryCard(
+    item: LibraryItem, badge: String?, badgeAccent: Boolean,
+    selectionMode: Boolean, checked: Boolean, onClick: () -> Unit, onLongClick: () -> Unit,
+) {
+    Card(Modifier.fillMaxWidth().combinedClickable(onClick = onClick, onLongClick = onLongClick)) {
+        Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+            if (selectionMode) Checkbox(checked = checked, onCheckedChange = null)
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                // 1줄: 언어·태그 칩, 오른쪽에 상태 배지
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Pill(if (item.entry.chatLang == Lang.EN) "EN" else "ES", MaterialTheme.colorScheme.primaryContainer, MaterialTheme.colorScheme.onPrimaryContainer)
+                    item.tags.take(2).forEach { Pill(it, MaterialTheme.colorScheme.secondaryContainer, MaterialTheme.colorScheme.onSecondaryContainer) }
+                    if (item.tags.size > 2) Text("+${item.tags.size - 2}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Spacer(Modifier.weight(1f))
+                    badge?.let {
+                        Text(
+                            it, style = MaterialTheme.typography.labelMedium,
+                            color = if (badgeAccent) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+                Text(item.texts[item.entry.chatLang].orEmpty(), style = MaterialTheme.typography.titleMedium, maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                Text(item.texts[Lang.KO].orEmpty(), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+            }
+        }
     }
 }
