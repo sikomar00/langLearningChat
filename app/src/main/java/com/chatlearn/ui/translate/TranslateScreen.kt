@@ -1,5 +1,6 @@
 package com.chatlearn.ui.translate
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -18,7 +19,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.chatlearn.ai.AiError
 import com.chatlearn.domain.Lang
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun TranslateScreen(vm: TranslateViewModel, onSpeak: (String, Lang) -> Unit = { _, _ -> }) {
     val s by vm.state.collectAsStateWithLifecycle()
@@ -90,7 +91,34 @@ fun TranslateScreen(vm: TranslateViewModel, onSpeak: (String, Lang) -> Unit = { 
         s.received?.let { r ->
             Card(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(s.source, style = MaterialTheme.typography.bodyLarge)
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        textChunks(s.source).forEach { chunk ->
+                            Text(chunk, Modifier.clickable { vm.lookupWord(chunk) }, style = MaterialTheme.typography.bodyLarge)
+                        }
+                    }
+                    Text("단어를 누르면 이 문장에서의 뜻을 볼 수 있어요.", style = MaterialTheme.typography.bodySmall)
+                    s.lookup?.let { l ->
+                        Card(Modifier.fillMaxWidth()) {
+                            Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Text(l.word, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
+                                when (l) {
+                                    is LookupState.Loading -> CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                                    is LookupState.Failed -> Text("뜻을 가져오지 못했어요. 다시 눌러 보세요.", color = MaterialTheme.colorScheme.error)
+                                    is LookupState.Done -> {
+                                        Text(l.info.meaningKo, style = MaterialTheme.typography.bodyLarge)
+                                        if (l.info.baseForm.isNotBlank() && !l.info.baseForm.equals(l.word, ignoreCase = true)) {
+                                            Text("기본형: ${l.info.baseForm}", style = MaterialTheme.typography.bodySmall)
+                                        }
+                                        if (l.info.note.isNotBlank()) Text(l.info.note, style = MaterialTheme.typography.bodySmall)
+                                    }
+                                }
+                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    if (l is LookupState.Done) TextButton(onClick = { vm.useAsKeyPhrase(l.word) }) { Text("핵심 표현으로 지정") }
+                                    TextButton(onClick = { vm.dismissLookup() }) { Text("닫기") }
+                                }
+                            }
+                        }
+                    }
                     r.detectedLang?.let { l -> TextButton(onClick = { onSpeak(s.source, l) }) { Text("원문 듣기") } }
                     Text(r.koTranslation, style = MaterialTheme.typography.titleMedium)
                     Text(r.note, style = MaterialTheme.typography.bodyMedium)

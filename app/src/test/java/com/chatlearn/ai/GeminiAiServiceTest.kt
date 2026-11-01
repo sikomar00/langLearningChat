@@ -285,4 +285,18 @@ class GeminiAiServiceTest {
         assertEquals("", c.usedPhrase)
         assertFalse(server.takeRequest().body.readUtf8().contains("saved these expressions"))
     }
+
+    @Test fun lookupWordParsesMeaningBaseFormAndNote() = runBlocking {
+        server.enqueue(ok("""{"meaningKo":"~할 것 같다","baseForm":"seem","note":"추측을 나타내요"}"""))
+        val w = ai.lookupWord("seems", "It seems fine", Lang.EN).getOrThrow()
+        assertEquals("~할 것 같다", w.meaningKo); assertEquals("seem", w.baseForm); assertEquals("추측을 나타내요", w.note)
+        val prompt = server.takeRequest().body.readUtf8()
+        assertTrue(prompt.contains("seems") && prompt.contains("It seems fine"))
+    }
+
+    @Test fun lookupWordNeedsAMeaning() = runBlocking {
+        server.enqueue(ok("""{"meaningKo":"","baseForm":"x","note":""}"""))
+        server.enqueue(ok("""{"meaningKo":"","baseForm":"x","note":""}"""))
+        assertTrue(ai.lookupWord("x", "x y", Lang.EN).isFailure)
+    }
 }

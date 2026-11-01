@@ -262,4 +262,49 @@ class TranslateViewModelTest {
         off.setInput("곧 보자"); off.translate().join()
         assertTrue(ai.lastKnown.isEmpty())
     }
+
+    private suspend fun received(text: String = "It seems fine") {
+        vm.setInput(text); vm.translate().join()
+    }
+
+    @Test fun tappingAWordLooksItUpInTheSentenceContext() = runBlocking {
+        received()
+        vm.lookupWord("seems,").join()
+        val l = assertIs<LookupState.Done>(vm.state.value.lookup)
+        assertEquals("seems", l.word)
+        assertEquals("뜻:seems", l.info.meaningKo)
+    }
+
+    @Test fun lookupFailureIsReportedPerWord() = runBlocking {
+        received()
+        ai.lookup = { _, _, _ -> Result.failure(AiException(AiError.OFFLINE)) }
+        vm.lookupWord("fine").join()
+        assertEquals(LookupState.Failed("fine", AiError.OFFLINE), vm.state.value.lookup)
+    }
+
+    @Test fun nothingHappensWithoutAReceivedResultOrForNonWords() = runBlocking {
+        vm.lookupWord("fine").join()
+        assertNull(vm.state.value.lookup)
+        received()
+        vm.lookupWord("...").join()
+        assertNull(vm.state.value.lookup)
+        assertEquals(1, ai.calls.count { it == "received" })
+        assertEquals(0, ai.calls.count { it == "lookup" })
+    }
+
+    @Test fun aWordCanBecomeTheKeyPhraseAndANewTranslationClearsTheLookup() = runBlocking {
+        received()
+        vm.lookupWord("fine").join()
+        vm.useAsKeyPhrase("fine")
+        assertEquals("fine", vm.state.value.keyPhrase)
+        vm.setInput("Another one"); vm.translate().join()
+        assertNull(vm.state.value.lookup)
+    }
+
+    @Test fun dismissingTheLookupClearsIt() = runBlocking {
+        received()
+        vm.lookupWord("fine").join()
+        vm.dismissLookup()
+        assertNull(vm.state.value.lookup)
+    }
 }

@@ -26,6 +26,13 @@ sealed interface TranslateError {
     data class Ai(val kind: AiError) : TranslateError
 }
 
+sealed interface LookupState {
+    val word: String
+    data class Loading(override val word: String) : LookupState
+    data class Done(override val word: String, val info: WordInfo) : LookupState
+    data class Failed(override val word: String, val kind: AiError) : LookupState
+}
+
 sealed interface Notice {
     data class Saved(val cards: Int) : Notice
     data object Duplicate : Notice
@@ -43,6 +50,7 @@ data class TranslateUiState(
     val error: TranslateError? = null,
     val notice: Notice? = null,
     val keyPhrase: String = "", // 받은 말의 핵심 표현(저장 전에 고칠 수 있다)
+    val lookup: LookupState? = null, // 눌러 본 단어의 뜻
 )
 
 class TranslateViewModel(
@@ -56,26 +64,46 @@ class TranslateViewModel(
     val state: StateFlow<TranslateUiState> = _state.asStateFlow()
 
     fun setMode(m: TranslateMode) = _state.update {
-        it.copy(mode = m, received = null, candidates = emptyList(), error = null, notice = null)
+        it.copy(mode = m, received = null, lookup = null, candidates = emptyList(), error = null, notice = null)
     }
     fun setInput(s: String) = _state.update { it.copy(input = s) }
 
     /** 입력과 결과, 안내 문구를 모두 비운다. 태그와 모드는 그대로 둔다. */
     fun clearInput() = _state.update {
-        it.copy(input = "", source = "", received = null, candidates = emptyList(), error = null, notice = null)
+        it.copy(input = "", source = "", received = null, lookup = null, candidates = emptyList(), error = null, notice = null)
     }
 
     /** 붙여넣기: 입력을 통째로 바꾸고, 이전 입력의 결과는 지운다. */
     fun replaceInput(text: String) = _state.update {
-        it.copy(input = text.trim(), source = "", received = null, candidates = emptyList(), error = null, notice = null)
+        it.copy(input = text.trim(), source = "", received = null, lookup = null, candidates = emptyList(), error = null, notice = null)
     }
     /** 다른 앱에서 공유한 메시지: 받은 말 모드로 바꾸고 바로 번역한다. */
     fun receiveShared(text: String): Job {
         _state.update {
-            it.copy(mode = TranslateMode.RECEIVED, input = text.trim(), source = "", received = null, candidates = emptyList(), error = null, notice = null)
+            it.copy(mode = TranslateMode.RECEIVED, input = text.trim(), source = "", received = null, lookup = null, candidates = emptyList(), error = null, notice = null)
         }
         return translate()
     }
+    /** 받은 말의 단어를 눌렀을 때: 문장 맥락에서의 뜻을 AI에 묻는다. */
+    fun lookupWord(chunk: String): Job = viewModelScope.launch {
+        val word = cleanWord(chunk) ?: return@launch
+        val s = _state.value
+        val lang = s.received?.detectedLang ?: return@launch
+        if ((s.lookup as? LookupState.Loading)?.word == word) return@launch
+        _state.update { it.copy(lookup = LookupState.Loading(word)) }
+        val result = ai.lookupWord(word, s.source, lang)
+        // 그 사이 다른 번역·저장으로 화면이 바뀌었으면 결과를 버린다.
+        if (_state.value.source != s.source) return@launch
+        _state.update {
+            it.copy(lookup = result.fold(
+                onSuccess = { info -> LookupState.Done(word, info) },
+                onFailure = { e -> LookupState.Failed(word, (e as? AiException)?.kind ?: AiError.SERVER) },
+            ))
+        }
+    }
+
+    fun dismissLookup() = _state.update { it.copy(lookup = null) }
+    fun useAsKeyPhrase(word: String) = _state.update { it.copy(keyPhrase = word) }
     fun setKeyPhrase(s: String) = _state.update { it.copy(keyPhrase = s) }
     fun setTag(s: String) = _state.update { it.copy(tag = s) }
     fun pickTag(tag: String) = _state.update { it.copy(tag = applyTagSuggestion(it.tag, tag)) }
@@ -91,7 +119,7 @@ class TranslateViewModel(
         val s = _state.value
         val text = s.input.trim()
         if (text.isEmpty() || s.loading) return@launch
-        _state.update { it.copy(loading = true, source = text, error = null, notice = null, received = null, candidates = emptyList()) }
+        _state.update { it.copy(loading = true, source = text, error = null, notice = null, received = null, lookup = null, candidates = emptyList()) }
         if (s.mode == TranslateMode.RECEIVED) {
             ai.translateReceived(text).fold(
                 onSuccess = { r ->
@@ -129,7 +157,7 @@ class TranslateViewModel(
         val cards = if (r is SaveResult.Saved) repo.cardCount(r.id) else 0
         _state.update {
             if (r is SaveResult.Saved) {
-                it.copy(input = "", source = "", received = null, candidates = emptyList(), error = null, notice = Notice.Saved(cards), keyPhrase = "")
+                it.copy(input = "", source = "", received = null, lookup = null, candidates = emptyList(), error = null, notice = Notice.Saved(cards), keyPhrase = "")
             } else {
                 it.copy(notice = Notice.Duplicate)
             }

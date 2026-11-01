@@ -15,6 +15,8 @@ class FakeAiService : AiService {
         { items, _, _ -> Result.success(items.map { "[번역] $it" }) }
     var keyPhrases: (List<String>, Lang) -> Result<List<String>> =
         { items, _ -> Result.success(items.map { "" }) }
+    var lookup: (String, String, Lang) -> Result<WordInfo> =
+        { w, _, _ -> Result.success(WordInfo("뜻:$w", w, "설명")) }
     var lastKnown: List<KnownExpression> = emptyList()
     val calls = mutableListOf<String>()
 
@@ -23,6 +25,8 @@ class FakeAiService : AiService {
         sent(koText, target).also { calls += "sent"; lastKnown = known }
     override suspend fun gradeAnswer(req: GradeRequest) = grade(req).also { calls += "grade" }
     override suspend fun translateTo(text: String, from: Lang, to: Lang) = translate(text, from, to).also { calls += "translate" }
+    override suspend fun lookupWord(word: String, sentence: String, lang: Lang) =
+        lookup(word, sentence, lang).also { calls += "lookup" }
     override suspend fun extractKeyPhrases(items: List<String>, lang: Lang) =
         keyPhrases(items, lang).also { calls += "keyphrases" }
     override suspend fun translateBatch(items: List<String>, from: Lang, to: Lang) =
