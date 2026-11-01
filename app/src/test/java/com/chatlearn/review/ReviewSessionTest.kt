@@ -3,6 +3,7 @@ package com.chatlearn.review
 import com.chatlearn.ai.*
 import com.chatlearn.data.*
 import com.chatlearn.domain.*
+import com.chatlearn.review.exercise.ExercisePolicy
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Before
@@ -79,6 +80,74 @@ class ReviewSessionTest {
         val o = s.grade(item, "I'm fine") as GradeOutcome.SelfGrade
         assertEquals("How are you?", o.reference)
         assertEquals(AiError.RATE_LIMIT, o.aiError)
+    }
+
+    private fun sessionWith(kind: ExerciseKind, tts: Tts = FakeTts()) =
+        ReviewSession(repo, ai, { now }, { 10 }, { other }, { 0.0 }, tts, { _, _, _, _ -> kind }, { 0.0 })
+
+    private suspend fun saveSentence(text: String, ko: String = "내일 봐") {
+        repo.saveEntry(EntryDraft(Direction.RECEIVED, Lang.EN, text, ko, "", null, emptyList()), now - 1)
+    }
+
+    @Test fun clozeItemShowsTheBlankedSentenceWithKoreanHintAndNeverCallsAi() = runBlocking {
+        saveSentence("See you tomorrow"); other = true // 다른 언어 즉석 번역이 일어나면 안 된다
+        val s = sessionWith(ExerciseKind.CLOZE)
+        val item = s.prepare(s.loadQueue().single())
+        assertEquals(ExerciseKind.CLOZE, item.exercise)
+        assertEquals(Lang.KO, item.promptLang)
+        assertEquals("See you _____", item.cloze!!.display)
+        assertEquals("내일 봐", item.hintKo)
+        assertEquals(1, item.blankCount)
+        assertTrue(ai.calls.isEmpty())
+    }
+
+    @Test fun clozeGradingIsLocalAndMapsToRatings() = runBlocking {
+        saveSentence("See you tomorrow")
+        val s = sessionWith(ExerciseKind.CLOZE)
+        val item = s.prepare(s.loadQueue().single())
+        assertEquals(Rating.GOOD, (s.grade(item, listOf("Tomorrow")) as GradeOutcome.Local).suggested)
+        assertEquals(Rating.HARD, (s.grade(item, listOf("tomorow")) as GradeOutcome.Local).suggested)
+        assertEquals(Rating.AGAIN, (s.grade(item, listOf("yesterday")) as GradeOutcome.Local).suggested)
+        assertFalse("grade" in ai.calls)
+    }
+
+    @Test fun clozeFallsBackToTranslateForASentenceWithNothingToBlank() = runBlocking {
+        saveOne() // "How are you?"
+        val s = ReviewSession(repo, ai, { now }, { 10 }, { false }, { 0.0 }, FakeTts(), ExercisePolicy::choose, { 0.0 })
+        assertEquals(ExerciseKind.TRANSLATE, s.prepare(s.loadQueue().single()).exercise)
+    }
+
+    @Test fun dictationUsesTtsAndMarksWrongWords() = runBlocking {
+        saveSentence("I like green apples")
+        val tts = FakeTts()
+        val s = sessionWith(ExerciseKind.DICTATION, tts)
+        val item = s.prepare(s.loadQueue().single())
+        assertEquals(ExerciseKind.DICTATION, item.exercise)
+        s.speak(item, slow = true)
+        assertEquals(Triple("I like green apples", Lang.EN, true), tts.spoken.single())
+        val out = s.grade(item, "I like red apples") as GradeOutcome.Local
+        assertEquals(Verdict.WRONG, out.verdict)
+        assertEquals(listOf(true, true, false, true), out.marks.map { it.correct })
+        assertFalse("grade" in ai.calls)
+    }
+
+    @Test fun defaultPolicyAvoidsDictationWithoutTts() = runBlocking {
+        saveSentence("See you tomorrow")
+        val s = ReviewSession(repo, ai, { now }, { 10 }, { false }, { 0.0 }, NoTts, ExercisePolicy::choose, { 0.99 })
+        // 새 카드는 CLOZE; TTS가 없어도 받아쓰기로 가지 않는다
+        assertEquals(ExerciseKind.CLOZE, s.prepare(s.loadQueue().single()).exercise)
+    }
+
+    @Test fun rateRecordsExerciseResponseTimeAndLocalVerdict() = runBlocking {
+        saveSentence("See you tomorrow")
+        val s = sessionWith(ExerciseKind.CLOZE)
+        val item = s.prepare(s.loadQueue().single())
+        val out = s.grade(item, listOf("tomorrow"))
+        s.rate(item, Rating.GOOD, out, "tomorrow", responseMs = 2500)
+        val log = db.dao().allLogs().single()
+        assertEquals(ExerciseKind.CLOZE, log.exercise)
+        assertEquals(2500L, log.responseMs)
+        assertEquals(Verdict.CORRECT, log.aiVerdict)
     }
 
     @Test fun rateUpdatesScheduleAndWritesLog() = runBlocking {

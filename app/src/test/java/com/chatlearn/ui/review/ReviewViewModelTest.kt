@@ -3,6 +3,7 @@ package com.chatlearn.ui.review
 import com.chatlearn.ai.*
 import com.chatlearn.data.*
 import com.chatlearn.domain.*
+import com.chatlearn.review.FakeTts
 import com.chatlearn.review.ReviewSession
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -57,6 +58,38 @@ class ReviewViewModelTest {
         vm.submit().join()
         assertIs<ReviewUi.Prompt>(vm.state.value)
         assertTrue("grade" !in ai.calls)
+    }
+
+    private var clockMs = now
+
+    private fun clozeVm(): ReviewViewModel = ReviewViewModel(
+        ReviewSession(repo, ai, { clockMs }, { 10 }, { false }, { 0.0 }, FakeTts(), { _, _, _, _ -> ExerciseKind.CLOZE }, { 0.0 })
+    )
+
+    @Test fun clozeFlowGradesLocallyAndLogsResponseTime() = runBlocking {
+        repo.saveEntry(EntryDraft(Direction.RECEIVED, Lang.EN, "See you tomorrow", "내일 봐", "", null, emptyList()), now - 1)
+        val v = clozeVm()
+        v.start().join()
+        val p = assertIs<ReviewUi.Prompt>(v.state.value)
+        assertEquals(1, p.answers.size)
+        clockMs += 2_500
+        v.setAnswer("tomorrow"); v.submit().join()
+        val g = assertIs<ReviewUi.Graded>(v.state.value)
+        assertEquals(Rating.GOOD, g.suggested)
+        assertEquals(2_500L, g.responseMs)
+        v.rate(Rating.GOOD).join()
+        assertEquals(2_500L, db.dao().allLogs().single().responseMs)
+        assertEquals(ExerciseKind.CLOZE, db.dao().allLogs().single().exercise)
+    }
+
+    @Test fun clozeWithTwoBlanksNeedsBothAnswers() = runBlocking {
+        repo.saveEntry(EntryDraft(Direction.RECEIVED, Lang.EN, "Yesterday morning everyone arrived early because traffic improved", "한", "", null, emptyList()), now - 1)
+        val v = clozeVm()
+        v.start().join()
+        assertEquals(2, assertIs<ReviewUi.Prompt>(v.state.value).answers.size)
+        v.setAnswer("x", 0); v.submit().join()
+        assertIs<ReviewUi.Prompt>(v.state.value) // 두 번째 빈칸이 비어 있어 제출되지 않는다
+        Unit
     }
 
     @Test fun ensureStartedDoesNotResetAReviewInProgress() = runBlocking {

@@ -9,6 +9,12 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.withStyle
+import com.chatlearn.domain.ExerciseKind
 import com.chatlearn.domain.Lang
 import com.chatlearn.domain.Rating
 import com.chatlearn.review.GradeOutcome
@@ -50,15 +56,40 @@ private fun ReviewPane(vm: ReviewViewModel) {
                 OutlinedButton(onClick = { vm.start() }) { Text("더 있는지 확인") }
             }
             is ReviewUi.Prompt -> {
-                Text("${langLabel(s.item.promptLang)} → ${langLabel(s.item.card.answerLang)}로 써 보세요", style = MaterialTheme.typography.labelLarge)
-                Text(s.item.promptText, style = MaterialTheme.typography.headlineSmall)
-                OutlinedTextField(s.answer, vm::setAnswer, Modifier.fillMaxWidth(), minLines = 2, label = { Text("내 답") })
-                Button(onClick = { vm.submit() }, enabled = s.answer.isNotBlank() && !s.checking, modifier = Modifier.fillMaxWidth()) {
+                when (s.item.exercise) {
+                    ExerciseKind.TRANSLATE -> {
+                        Text("${langLabel(s.item.promptLang)} → ${langLabel(s.item.card.answerLang)}로 써 보세요", style = MaterialTheme.typography.labelLarge)
+                        Text(s.item.promptText, style = MaterialTheme.typography.headlineSmall)
+                        OutlinedTextField(s.answers[0], { vm.setAnswer(it) }, Modifier.fillMaxWidth(), minLines = 2, label = { Text("내 답") })
+                    }
+                    ExerciseKind.CLOZE -> {
+                        Text("빈칸을 채워 보세요 (${langLabel(s.item.card.answerLang)})", style = MaterialTheme.typography.labelLarge)
+                        Text(s.item.cloze!!.display, style = MaterialTheme.typography.headlineSmall)
+                        Text("뜻: ${s.item.hintKo}", style = MaterialTheme.typography.bodyMedium)
+                        s.answers.forEachIndexed { i, a ->
+                            OutlinedTextField(a, { vm.setAnswer(it, i) }, Modifier.fillMaxWidth(), singleLine = true, label = { Text("빈칸 ${i + 1}") })
+                        }
+                    }
+                    ExerciseKind.DICTATION -> {
+                        LaunchedEffect(s.item.card.id, s.shownAt) { vm.speak(false) }
+                        Text("들리는 ${langLabel(s.item.card.answerLang)} 문장을 그대로 써 보세요", style = MaterialTheme.typography.labelLarge)
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OutlinedButton(onClick = { vm.speak(false) }) { Text("다시 듣기") }
+                            OutlinedButton(onClick = { vm.speak(true) }) { Text("느리게 듣기") }
+                        }
+                        OutlinedTextField(s.answers[0], { vm.setAnswer(it) }, Modifier.fillMaxWidth(), minLines = 2, label = { Text("들은 문장") })
+                    }
+                }
+                Button(onClick = { vm.submit() }, enabled = s.answers.none { it.isBlank() } && !s.checking, modifier = Modifier.fillMaxWidth()) {
                     if (s.checking) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp) else Text("제출")
                 }
             }
             is ReviewUi.Graded -> {
-                Text(s.item.promptText, style = MaterialTheme.typography.titleMedium)
+                when (s.item.exercise) {
+                    ExerciseKind.TRANSLATE -> Text(s.item.promptText, style = MaterialTheme.typography.titleMedium)
+                    ExerciseKind.CLOZE -> Text(s.item.cloze!!.display, style = MaterialTheme.typography.titleMedium)
+                    ExerciseKind.DICTATION -> Text("뜻: ${s.item.hintKo}", style = MaterialTheme.typography.titleMedium)
+                }
                 Text("내 답: ${s.answer}")
                 when (val o = s.outcome) {
                     is GradeOutcome.Ai -> {
@@ -69,6 +100,20 @@ private fun ReviewPane(vm: ReviewViewModel) {
                     is GradeOutcome.SelfGrade -> {
                         Text("정답: ${o.reference}", style = MaterialTheme.typography.titleMedium)
                         Text(if (o.aiError == null) "스스로 채점해 주세요." else "AI를 쓸 수 없어서 스스로 채점해 주세요.")
+                    }
+                    is GradeOutcome.Local -> {
+                        Text(verdictLabel(o.verdict.name), style = MaterialTheme.typography.titleMedium)
+                        if (o.marks.isNotEmpty()) {
+                            Text(buildAnnotatedString {
+                                o.marks.forEachIndexed { i, m ->
+                                    if (i > 0) append(" ")
+                                    if (m.correct) append(m.word)
+                                    else withStyle(SpanStyle(color = Color(0xFFB3261E), textDecoration = TextDecoration.Underline)) { append(m.word) }
+                                }
+                            })
+                        }
+                        Text("정답: ${o.reference}")
+                        if (s.item.hintKo.isNotBlank() && s.item.exercise == ExerciseKind.CLOZE) Text("뜻: ${s.item.hintKo}")
                     }
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
