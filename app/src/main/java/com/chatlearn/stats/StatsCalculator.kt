@@ -3,6 +3,7 @@ package com.chatlearn.stats
 import com.chatlearn.data.LibraryItem
 import com.chatlearn.data.ReviewCardEntity
 import com.chatlearn.data.ReviewLogEntity
+import com.chatlearn.domain.ExerciseKind
 import com.chatlearn.domain.Lang
 import com.chatlearn.domain.Rating
 import java.time.Instant
@@ -26,6 +27,8 @@ data class Stats(
     val weakest: List<WeakItem>,
     val byLang: Map<Lang, Retention>,
     val byTag: Map<String, Retention>,
+    val byExercise: Map<ExerciseKind, Retention>,
+    val avgResponseMs: Long?,
 )
 
 data class SentenceStats(
@@ -75,7 +78,11 @@ object StatsCalculator {
         val itemById = items.associateBy { it.entry.id }
         val weakest = cards.filter { it.lapses > 0 }
             .sortedWith(compareByDescending<ReviewCardEntity> { it.lapses }.thenBy { it.entryId })
-            .mapNotNull { c -> itemById[c.entryId]?.let { WeakItem(c.entryId, it.texts[it.entry.chatLang].orEmpty(), c.lapses) } }
+            .mapNotNull { c ->
+                itemById[c.entryId]?.let {
+                    WeakItem(c.entryId, it.texts[c.answerLang] ?: it.texts[it.entry.chatLang].orEmpty(), c.lapses)
+                }
+            }
             .take(WEAK_LIMIT)
 
         val cardById = cards.associateBy { it.id }
@@ -96,6 +103,8 @@ object StatsCalculator {
             weakest = weakest,
             byLang = byLang,
             byTag = byTag.mapValues { retention(it.value) },
+            byExercise = logs.groupBy { it.exercise }.mapValues { retention(it.value) },
+            avgResponseMs = logs.mapNotNull { it.responseMs }.takeIf { it.isNotEmpty() }?.average()?.toLong(),
         )
     }
 

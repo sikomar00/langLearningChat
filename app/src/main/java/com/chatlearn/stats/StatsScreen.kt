@@ -10,6 +10,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.chatlearn.domain.ExerciseKind
 import com.chatlearn.domain.Lang
 import java.util.Locale
 
@@ -40,6 +41,14 @@ fun StatsScreen(vm: StatsViewModel) {
         SectionCard("언어별 정답률") {
             if (s.byLang.isEmpty()) Text("아직 기록이 없어요.")
             s.byLang.forEach { (lang, r) -> Text("${langName(lang)}  ${percent(r)}  (${r.reviews}회)") }
+        }
+        SectionCard("방식별 정답률") {
+            if (s.byExercise.isEmpty()) Text("아직 기록이 없어요.")
+            s.byExercise.forEach { (kind, r) ->
+                val name = when (kind) { ExerciseKind.TRANSLATE -> "쓰기 번역"; ExerciseKind.CLOZE -> "빈칸 채우기"; ExerciseKind.DICTATION -> "듣고 받아쓰기" }
+                Text("$name  ${percent(r)}  (${r.reviews}회)")
+            }
+            s.avgResponseMs?.let { Text("평균 응답 시간 ${String.format(Locale.US, "%.1f", it / 1000.0)}초") }
         }
         SectionCard("태그별 정답률") {
             if (s.byTag.isEmpty()) Text("복습한 태그가 없어요.")

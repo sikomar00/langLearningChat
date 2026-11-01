@@ -31,6 +31,32 @@ class StatsCalculatorTest {
     private fun compute(logs: List<ReviewLogEntity>, cards: List<ReviewCardEntity> = emptyList(), items: List<LibraryItem> = emptyList()) =
         StatsCalculator.compute(logs, cards, items, now, zone)
 
+    private fun logEx(cardId: Long, rating: Rating, ex: ExerciseKind, ms: Long?) =
+        ReviewLogEntity(nextLog++, cardId, now, Lang.KO, "x", null, null, rating, ms, ex)
+
+    @Test fun retentionIsSplitByExerciseKind() {
+        val logs = listOf(
+            logEx(1, Rating.GOOD, ExerciseKind.CLOZE, 1000), logEx(1, Rating.AGAIN, ExerciseKind.CLOZE, 3000),
+            logEx(1, Rating.EASY, ExerciseKind.DICTATION, null),
+        )
+        val s = compute(logs)
+        assertEquals(Retention(2, 1), s.byExercise[ExerciseKind.CLOZE])
+        assertEquals(Retention(1, 1), s.byExercise[ExerciseKind.DICTATION])
+        assertNull(s.byExercise[ExerciseKind.TRANSLATE])
+    }
+
+    @Test fun averageResponseTimeIgnoresLogsWithoutIt() {
+        assertEquals(2000L, compute(listOf(logEx(1, Rating.GOOD, ExerciseKind.CLOZE, 1000), logEx(1, Rating.GOOD, ExerciseKind.CLOZE, 3000), logEx(1, Rating.GOOD, ExerciseKind.TRANSLATE, null))).avgResponseMs)
+        assertNull(compute(listOf(logEx(1, Rating.GOOD, ExerciseKind.TRANSLATE, null))).avgResponseMs)
+    }
+
+    @Test fun weakestShowsTheSentenceInTheCardsAnswerLanguage() {
+        val enEntry = LibraryItem(EntryEntity(1, 0, Direction.RECEIVED, Lang.EN, "", null),
+            mapOf(Lang.EN to "How are you?", Lang.ES to "¿Cómo estás?", Lang.KO to "한"), emptyList())
+        val weak = compute(emptyList(), listOf(card(1, 1, Lang.ES, lapses = 2)), listOf(enEntry)).weakest
+        assertEquals("¿Cómo estás?", weak.single().text)
+    }
+
     @Test fun emptyDataGivesZerosAndNullRate() {
         val s = compute(emptyList())
         assertEquals(0, s.today.reviews)
