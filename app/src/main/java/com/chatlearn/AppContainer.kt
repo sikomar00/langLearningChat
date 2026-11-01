@@ -48,6 +48,13 @@ class AppContainer(context: Context) {
     val expansion = ExpansionService(repo, ai, System::currentTimeMillis)
     val keyPhrases = com.chatlearn.expansion.KeyPhraseService(repo, ai)
 
+    private val appContext: Context = context.applicationContext
+
+    /** 홈 화면 위젯을 다시 그린다(앱을 나갈 때, 알림 시각에). */
+    fun refreshWidget() {
+        appScope.launch { com.chatlearn.widget.refreshReviewWidget(appContext) }
+    }
+
     fun reviewSession() = ReviewSession(
         repo, ai, System::currentTimeMillis, { settings.settings.first().newPerDay }, tts = tts,
         dailyGoal = { settings.settings.first().dailyGoal },

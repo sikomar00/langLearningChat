@@ -19,6 +19,22 @@ class LaunchRequestTest {
         assertEquals(LaunchRequest.Compose(TranslateMode.CORRECT), launchRequestOf(open("correct")))
     }
 
+    /** 바로가기(res/xml/shortcuts.xml)의 동작·target이 모두 실제 화면으로 이어지는지. */
+    @Test fun everyLauncherShortcutOpensAScreen() {
+        val xml = javax.xml.parsers.DocumentBuilderFactory.newInstance().apply { isNamespaceAware = true }
+            .newDocumentBuilder().parse(java.io.File("src/main/res/xml/shortcuts.xml"))
+        val ns = "http://schemas.android.com/apk/res/android"
+        val intents = xml.getElementsByTagName("intent")
+        assertEquals(4, intents.length)
+        for (i in 0 until intents.length) {
+            val e = intents.item(i) as org.w3c.dom.Element
+            val extra = e.getElementsByTagName("extra").item(0) as org.w3c.dom.Element
+            assertEquals(EXTRA_TARGET, extra.getAttributeNS(ns, "name"))
+            val intent = Intent(e.getAttributeNS(ns, "action")).putExtra(EXTRA_TARGET, extra.getAttributeNS(ns, "value"))
+            kotlin.test.assertNotNull(launchRequestOf(intent), "바로가기 ${extra.getAttributeNS(ns, "value")}")
+        }
+    }
+
     @Test fun sharedTextWins() {
         val i = Intent(Intent.ACTION_SEND).putExtra(Intent.EXTRA_TEXT, " ¿Qué tal? ")
         assertEquals(LaunchRequest.Shared("¿Qué tal?"), launchRequestOf(i))

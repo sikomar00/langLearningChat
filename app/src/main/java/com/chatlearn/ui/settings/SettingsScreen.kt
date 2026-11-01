@@ -164,6 +164,17 @@ fun SettingsScreen(vm: SettingsViewModel) {
             Text("이 기기(Android 12 미만)에서는 시스템 색을 쓸 수 없어요.", style = MaterialTheme.typography.bodyMedium)
         }
         Text("밝은/어두운 모드는 휴대폰 설정을 따라가요.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+
+        Text("홈 화면 위젯", style = MaterialTheme.typography.titleMedium)
+        Text("오늘 복습할 카드 수와 목표, 연속 학습일을 홈 화면에서 보고, 눌러서 바로 복습하거나 복사한 메시지를 번역해요.", style = MaterialTheme.typography.bodySmall)
+        val canPin = remember { com.chatlearn.widget.canPinReviewWidget(ctx) }
+        if (canPin) {
+            OutlinedButton(onClick = {
+                if (!com.chatlearn.widget.requestPinReviewWidget(ctx)) message = "위젯을 추가하지 못했어요. 홈 화면을 길게 눌러 위젯 목록에서 추가해 주세요."
+            }) { Text("홈 화면에 위젯 추가") }
+        } else {
+            Text("홈 화면을 길게 누르고 위젯 > ChatLearn > 오늘의 복습을 골라 추가하세요.", style = MaterialTheme.typography.bodyMedium)
+        }
     }
     if (tab == 4) {
         Text("오늘 AI 호출: ${s.aiCallsToday}회")

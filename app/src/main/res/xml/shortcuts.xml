@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 앱 아이콘을 길게 누르면 나오는 바로가기. target 값은 LaunchRequest.kt와 맞춘다. -->
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:shortcutId="paste"
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_paste"
+        android:shortcutShortLabel="@string/shortcut_paste_short"
+        android:shortcutLongLabel="@string/shortcut_paste_long">
+        <intent
+            android:action="com.chatlearn.action.OPEN"
+            android:targetPackage="com.chatlearn"
+            android:targetClass="com.chatlearn.MainActivity">
+            <extra android:name="target" android:value="paste" />
+        </intent>
+    </shortcut>
+    <shortcut
+        android:shortcutId="review"
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_review"
+        android:shortcutShortLabel="@string/shortcut_review_short"
+        android:shortcutLongLabel="@string/shortcut_review_long">
+        <intent
+            android:action="com.chatlearn.action.OPEN"
+            android:targetPackage="com.chatlearn"
+            android:targetClass="com.chatlearn.MainActivity">
+            <extra android:name="target" android:value="review" />
+        </intent>
+    </shortcut>
+    <shortcut
+        android:shortcutId="sent"
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_sent"
+        android:shortcutShortLabel="@string/shortcut_sent_short"
+        android:shortcutLongLabel="@string/shortcut_sent_long">
+        <intent
+            android:action="com.chatlearn.action.OPEN"
+            android:targetPackage="com.chatlearn"
+            android:targetClass="com.chatlearn.MainActivity">
+            <extra android:name="target" android:value="sent" />
+        </intent>
+    </shortcut>
+    <shortcut
+        android:shortcutId="correct"
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_correct"
+        android:shortcutShortLabel="@string/shortcut_correct_short"
+        android:shortcutLongLabel="@string/shortcut_correct_long">
+        <intent
+            android:action="com.chatlearn.action.OPEN"
+            android:targetPackage="com.chatlearn"
+            android:targetClass="com.chatlearn.MainActivity">
+            <extra android:name="target" android:value="correct" />
+        </intent>
+    </shortcut>
+</shortcuts>

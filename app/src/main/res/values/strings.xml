@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">ChatLearn</string>
+    <string name="shortcut_paste_short">붙여넣고 번역</string>
+    <string name="shortcut_paste_long">복사한 메시지 바로 번역</string>
+    <string name="shortcut_review_short">복습하기</string>
+    <string name="shortcut_review_long">오늘 복습 시작</string>
+    <string name="shortcut_sent_short">보낼 말 만들기</string>
+    <string name="shortcut_sent_long">한국어로 쓰고 보낼 말 만들기</string>
+    <string name="shortcut_correct_short">첨삭받기</string>
+    <string name="shortcut_correct_long">내가 쓴 문장 첨삭받기</string>
+    <string name="widget_name">오늘의 복습</string>
+    <string name="widget_description">오늘 복습할 카드 수와 목표, 연속 학습일을 보여 줘요.</string>
+</resources>

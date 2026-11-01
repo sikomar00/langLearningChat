@@ -38,6 +38,7 @@ class ReminderReceiver : BroadcastReceiver() {
                     }
                 }
                 ReminderScheduler(context).apply(true, s.reminderHour)
+                com.chatlearn.widget.refreshReviewWidget(context)
             } finally {
                 pending.finish()
             }
@@ -60,7 +61,8 @@ class ReminderReceiver : BroadcastReceiver() {
         nm.notify(
             1,
             Notification.Builder(context, CHANNEL_ID)
-                .setSmallIcon(android.R.drawable.ic_popup_reminder)
+                .setSmallIcon(com.chatlearn.R.drawable.ic_stat_chatlearn)
+                .setColor(context.getColor(com.chatlearn.R.color.ic_launcher_background))
                 .setContentTitle("ChatLearn")
                 .setContentText(text)
                 .setContentIntent(open)

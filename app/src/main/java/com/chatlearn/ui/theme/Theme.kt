@@ -10,7 +10,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 
-private val LightScheme = lightColorScheme(
+internal val LightScheme = lightColorScheme(
     primary = Purple40, onPrimary = Color.White,
     primaryContainer = Purple90, onPrimaryContainer = Purple10,
     secondary = Slate40, onSecondary = Color.White,
@@ -23,7 +23,7 @@ private val LightScheme = lightColorScheme(
     errorContainer = ErrorContainerLight, onErrorContainer = Color(0xFF410002),
 )
 
-private val DarkScheme = darkColorScheme(
+internal val DarkScheme = darkColorScheme(
     primary = Purple80, onPrimary = Purple20,
     primaryContainer = Purple30, onPrimaryContainer = Purple90,
     secondary = Slate80, onSecondary = Slate30,

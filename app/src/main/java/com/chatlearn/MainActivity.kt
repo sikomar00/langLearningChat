@@ -46,6 +46,12 @@ class MainActivity : ComponentActivity() {
         pendingLaunch = launchRequestOf(intent)
     }
 
+    // 앱을 나갈 때 홈 화면 위젯의 복습 수·목표를 방금 한 복습과 저장에 맞춘다.
+    override fun onStop() {
+        super.onStop()
+        (application as ChatLearnApp).container.refreshWidget()
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
