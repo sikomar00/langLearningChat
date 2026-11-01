@@ -19,8 +19,8 @@ class EntryRepositoryTest {
     @Before fun setUp() { db = inMemoryDb(); repo = EntryRepository(db) }
     @After fun tearDown() { db.close() }
 
-    private fun draft(text: String = "How are you?", ko: String = "어떻게 지내?", tags: List<String> = emptyList()) =
-        EntryDraft(Direction.RECEIVED, Lang.EN, text, ko, "안부 인사", null, tags)
+    private fun draft(text: String = "How are you?", ko: String = "어떻게 지내?", tags: List<String> = emptyList(), alt: String? = null) =
+        EntryDraft(Direction.RECEIVED, Lang.EN, text, ko, "안부 인사", null, tags, alt)
 
     @Test fun saveCreatesEntryTextsAndDueCard() = runBlocking {
         val r = repo.saveEntry(draft(tags = listOf("Alex")), now)
@@ -147,6 +147,53 @@ class EntryRepositoryTest {
         repo.saveEntry(draft(text = "b", tags = listOf("알렉스")), 1)
         repo.renameTag("Alex", "알렉스")
         assertEquals(5L, db.dao().allTags().single().lastUsedAt)
+    }
+
+    @Test fun savingWithAltTextCreatesTheOtherLanguageTextAndCard() = runBlocking {
+        val id = (repo.saveEntry(draft(alt = "¿Cómo estás?"), now) as SaveResult.Saved).id
+        val cards = db.dao().allCards().filter { it.entryId == id }
+        assertEquals(setOf(Lang.EN, Lang.ES), cards.map { it.answerLang }.toSet())
+        val item = repo.observeLibrary().first().single()
+        assertEquals("¿Cómo estás?", item.texts[Lang.ES])
+        assertEquals(TextOrigin.AI, item.origins[Lang.ES])
+        assertEquals(2, repo.queue(now, 0, 10).size)
+    }
+
+    @Test fun expansionOffOrBlankAltTextCreatesOnlyTheOriginalCard() = runBlocking {
+        repo.saveEntry(draft(text = "a", alt = "x"), now, expand = false)
+        repo.saveEntry(draft(text = "b", alt = "   "), now)
+        repo.saveEntry(draft(text = "c", alt = null), now)
+        assertEquals(3, db.dao().allCards().size)
+        assertTrue(db.dao().allTexts().none { it.lang == Lang.ES })
+    }
+
+    @Test fun expansionTargetsListOnlyEntriesWithoutTheOtherCard() = runBlocking {
+        repo.saveEntry(draft(text = "a", alt = "x"), now)
+        val b = (repo.saveEntry(draft(text = "b"), now) as SaveResult.Saved).id
+        assertEquals(listOf(b), repo.expansionTargets().map { it.entryId })
+        assertEquals("b", repo.expansionTargets().single().chatText)
+    }
+
+    @Test fun addExpansionCreatesTextAndCardOnlyOnce() = runBlocking {
+        val id = (repo.saveEntry(draft(), now) as SaveResult.Saved).id
+        assertTrue(repo.addExpansion(id, "¿Cómo estás?", now))
+        assertFalse(repo.addExpansion(id, "otra", now)) // 이미 있음: 중복 카드 없음
+        assertEquals(2, db.dao().allCards().size)
+        assertEquals("¿Cómo estás?", repo.observeLibrary().first().single().texts[Lang.ES])
+    }
+
+    @Test fun addExpansionWithBlankTextDoesNothing() = runBlocking {
+        val id = (repo.saveEntry(draft(), now) as SaveResult.Saved).id
+        assertFalse(repo.addExpansion(id, "  ", now))
+        assertFalse(repo.addExpansion(id, null, now))
+        assertEquals(1, db.dao().allCards().size)
+    }
+
+    @Test fun addExpansionReusesAnAlreadyStoredOtherLanguageText() = runBlocking {
+        val id = (repo.saveEntry(draft(), now) as SaveResult.Saved).id
+        repo.putText(id, Lang.ES, "ya existe", TextOrigin.USER)
+        assertTrue(repo.addExpansion(id, null, now))
+        assertEquals("ya existe", repo.observeLibrary().first().single().texts[Lang.ES])
     }
 
     @Test fun noTagsMeansNoSuggestions() = runBlocking {

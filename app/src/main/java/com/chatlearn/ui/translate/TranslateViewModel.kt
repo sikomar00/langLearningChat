@@ -47,6 +47,7 @@ class TranslateViewModel(
     private val ai: AiService,
     private val repo: EntryRepository,
     private val clock: () -> Long,
+    private val autoExpand: suspend () -> Boolean = { true },
 ) : ViewModel() {
     private val _state = MutableStateFlow(TranslateUiState())
     val state: StateFlow<TranslateUiState> = _state.asStateFlow()
@@ -100,14 +101,14 @@ class TranslateViewModel(
         val s = _state.value
         val r = s.received ?: return@launch
         val lang = r.detectedLang ?: return@launch
-        val draft = EntryDraft(Direction.RECEIVED, lang, s.source, r.koTranslation, r.note, null, parseTags(s.tag))
-        report(repo.saveEntry(draft, clock()))
+        val draft = EntryDraft(Direction.RECEIVED, lang, s.source, r.koTranslation, r.note, null, parseTags(s.tag), r.altText)
+        report(repo.saveEntry(draft, clock(), autoExpand()))
     }
 
     fun onCandidateCopied(c: SentCandidate): Job = viewModelScope.launch {
         val s = _state.value
-        val draft = EntryDraft(Direction.SENT, s.targetLang, c.text, s.source, c.toneNote, null, parseTags(s.tag))
-        report(repo.saveEntry(draft, clock()))
+        val draft = EntryDraft(Direction.SENT, s.targetLang, c.text, s.source, c.toneNote, null, parseTags(s.tag), c.altText)
+        report(repo.saveEntry(draft, clock(), autoExpand()))
     }
 
     // 저장에 성공하면 다음 표현을 바로 입력할 수 있게 입력과 결과를 비운다. 중복이면 그대로 둔다.

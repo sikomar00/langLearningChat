@@ -28,7 +28,7 @@ class TranslateViewModelTest {
     @Before fun setUp() {
         Dispatchers.setMain(UnconfinedTestDispatcher())
         db = inMemoryDb(); repo = EntryRepository(db)
-        vm = TranslateViewModel(ai, repo) { 1_000L }
+        vm = TranslateViewModel(ai, repo, { 1_000L })
     }
     @After fun tearDown() { Dispatchers.resetMain(); db.close() }
 
@@ -169,6 +169,27 @@ class TranslateViewModelTest {
         vm.setTag("Alex, s")
         vm.pickTag("Sofía")
         assertEquals("Alex, Sofía, ", vm.state.value.tag)
+    }
+
+    @Test fun savingReceivedMessageCreatesExpansionCardWhenAutoExpandIsOn() = runBlocking {
+        vm.setInput("How are you?"); vm.translate().join(); vm.saveReceived().join()
+        assertEquals(2, db.dao().allCards().size)
+        assertEquals("texto alterno", repo.observeLibrary().first().single().texts[Lang.ES])
+    }
+
+    @Test fun autoExpandOffSavesOnlyTheOriginalCard() = runBlocking {
+        val off = TranslateViewModel(ai, repo, { 1_000L }, autoExpand = { false })
+        off.setInput("How are you?"); off.translate().join(); off.saveReceived().join()
+        assertEquals(1, db.dao().allCards().size)
+    }
+
+    @Test fun copiedCandidateAlsoExpands() = runBlocking {
+        vm.setMode(TranslateMode.SENT); vm.setInput("곧 보자"); vm.translate().join()
+        vm.onCandidateCopied(vm.state.value.candidates.single()).join()
+        val item = repo.observeLibrary().first().single()
+        assertEquals(Lang.EN, item.entry.chatLang)          // 기본 대상 언어는 영어
+        assertEquals("¡Hola!", item.texts[Lang.ES])         // 후보의 반대 언어(스페인어) 버전
+        assertEquals(2, db.dao().allCards().size)
     }
 
     @Test fun switchingModeClearsResults() = runBlocking {

@@ -13,6 +13,7 @@ data class EntryDraft(
     val note: String,
     val tone: String?,
     val tags: List<String>,
+    val altText: String? = null,
 )
 
 sealed interface SaveResult {
@@ -25,7 +26,12 @@ enum class RenameResult { Renamed, Merged, Unchanged }
 data class StatsInput(val logs: List<ReviewLogEntity>, val cards: List<ReviewCardEntity>, val items: List<LibraryItem>)
 
 data class DueCard(val card: ReviewCardEntity, val texts: Map<Lang, String>)
-data class LibraryItem(val entry: EntryEntity, val texts: Map<Lang, String>, val tags: List<String>)
+data class LibraryItem(
+    val entry: EntryEntity,
+    val texts: Map<Lang, String>,
+    val tags: List<String>,
+    val origins: Map<Lang, TextOrigin> = emptyMap(),
+)
 
 internal fun <T> interleave(a: List<T>, b: List<T>): List<T> {
     if (b.isEmpty()) return a
@@ -50,7 +56,15 @@ class EntryRepository(internal val db: AppDatabase) {
         return dao.insertTag(TagEntity(name = name, lastUsedAt = now))
     }
 
-    suspend fun saveEntry(d: EntryDraft, now: Long): SaveResult = db.withTransaction {
+    private fun newCard(entryId: Long, lang: Lang, now: Long): ReviewCardEntity {
+        val s = Scheduler.initial(now)
+        return ReviewCardEntity(
+            entryId = entryId, answerLang = lang, dueAt = s.dueAt, intervalDays = s.intervalDays,
+            ease = s.ease, reps = s.reps, lapses = s.lapses, lastReviewedAt = s.lastReviewedAt,
+        )
+    }
+
+    suspend fun saveEntry(d: EntryDraft, now: Long, expand: Boolean = true): SaveResult = db.withTransaction {
         val text = d.chatText.trim()
         dao.findEntryIdByChatText(d.chatLang, text)?.let { return@withTransaction SaveResult.Duplicate(it) }
         val id = dao.insertEntry(EntryEntity(createdAt = now, direction = d.direction, chatLang = d.chatLang, note = d.note, tone = d.tone))
@@ -62,13 +76,13 @@ class EntryRepository(internal val db: AppDatabase) {
         d.tags.map { it.trim() }.filter { it.isNotEmpty() }.distinct().forEach { name ->
             dao.insertEntryTag(EntryTagEntity(id, tagIdFor(name, now)))
         }
-        val s = Scheduler.initial(now)
-        dao.insertCard(
-            ReviewCardEntity(
-                entryId = id, answerLang = d.chatLang, dueAt = s.dueAt, intervalDays = s.intervalDays,
-                ease = s.ease, reps = s.reps, lapses = s.lapses, lastReviewedAt = s.lastReviewedAt,
-            )
-        )
+        dao.insertCard(newCard(id, d.chatLang, now))
+        val alt = d.altText?.trim().orEmpty()
+        if (expand && alt.isNotEmpty()) {
+            val altLang = d.chatLang.otherForeign()
+            dao.upsertText(EntryTextEntity(id, altLang, alt, TextOrigin.AI))
+            dao.insertCard(newCard(id, altLang, now))
+        }
         SaveResult.Saved(id)
     }
 
@@ -77,9 +91,25 @@ class EntryRepository(internal val db: AppDatabase) {
             val textsBy = texts.groupBy { it.entryId }
             val tagsBy = links.groupBy({ it.entryId }, { it.name })
             entries.map { e ->
-                LibraryItem(e, textsBy[e.id].orEmpty().associate { it.lang to it.text }, tagsBy[e.id].orEmpty().sorted())
+                val mine = textsBy[e.id].orEmpty()
+                LibraryItem(e, mine.associate { it.lang to it.text }, tagsBy[e.id].orEmpty().sorted(), mine.associate { it.lang to it.origin })
             }
         }
+
+    suspend fun expansionTargets(): List<ExpansionTarget> = dao.expansionTargets()
+
+    /** 반대 언어 카드를 만든다. 이미 있으면 false. 텍스트가 없고 [aiText]도 비었으면 false. */
+    suspend fun addExpansion(entryId: Long, aiText: String?, now: Long): Boolean = db.withTransaction {
+        val entry = dao.getEntry(entryId) ?: return@withTransaction false
+        if (entry.chatLang == Lang.KO) return@withTransaction false
+        val altLang = entry.chatLang.otherForeign()
+        if (dao.textsFor(entryId).none { it.lang == altLang }) {
+            val t = aiText?.trim().orEmpty()
+            if (t.isEmpty()) return@withTransaction false
+            dao.upsertText(EntryTextEntity(entryId, altLang, t, TextOrigin.AI))
+        }
+        dao.insertCardIfAbsent(newCard(entryId, altLang, now)) != -1L
+    }
 
     /** 통계 계산에 필요한 복습 기록, 카드, 라이브러리를 한 번에 관찰한다. */
     fun observeStatsInput(): Flow<StatsInput> =

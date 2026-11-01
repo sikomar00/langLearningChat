@@ -10,7 +10,13 @@ import kotlinx.coroutines.runBlocking
 import java.time.Instant
 import java.time.ZoneId
 
-data class AppSettings(val apiKey: String, val model: String, val newPerDay: Int, val aiCallsToday: Int)
+data class AppSettings(
+    val apiKey: String,
+    val model: String,
+    val newPerDay: Int,
+    val aiCallsToday: Int,
+    val autoExpand: Boolean = true,
+)
 
 interface SecretStore {
     fun get(): String
@@ -35,6 +41,7 @@ interface SettingsRepository {
     suspend fun setApiKey(k: String)
     suspend fun setModel(m: String)
     suspend fun setNewPerDay(n: Int)
+    suspend fun setAutoExpand(on: Boolean)
     suspend fun recordAiCall()
 }
 
@@ -49,12 +56,13 @@ class DataStoreSettingsRepository(
     private val NEW_PER_DAY = intPreferencesKey("new_per_day")
     private val CALL_DAY = stringPreferencesKey("call_day")
     private val CALL_COUNT = intPreferencesKey("call_count")
+    private val AUTO_EXPAND = booleanPreferencesKey("auto_expand")
 
     private fun today() = Instant.ofEpochMilli(clock()).atZone(ZoneId.systemDefault()).toLocalDate().toString()
 
     override val settings: Flow<AppSettings> = combine(store.data, keyFlow) { p, key ->
         val sameDay = p[CALL_DAY] == today()
-        AppSettings(key, p[MODEL] ?: DEFAULT_MODEL, p[NEW_PER_DAY] ?: 10, if (sameDay) p[CALL_COUNT] ?: 0 else 0)
+        AppSettings(key, p[MODEL] ?: DEFAULT_MODEL, p[NEW_PER_DAY] ?: 10, if (sameDay) p[CALL_COUNT] ?: 0 else 0, p[AUTO_EXPAND] ?: true)
     }
 
     override fun currentApiKey() = secret.get()
@@ -68,6 +76,8 @@ class DataStoreSettingsRepository(
     }
     override suspend fun setModel(m: String) { store.edit { it[MODEL] = m.trim().ifEmpty { DEFAULT_MODEL } } }
     override suspend fun setNewPerDay(n: Int) { store.edit { it[NEW_PER_DAY] = n.coerceAtLeast(0) } }
+
+    override suspend fun setAutoExpand(on: Boolean) { store.edit { it[AUTO_EXPAND] = on } }
 
     override suspend fun recordAiCall() {
         store.edit {

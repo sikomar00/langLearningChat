@@ -8,6 +8,8 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertTrue
 
 class SettingsRepositoryTest {
     @get:Rule val tmp = TemporaryFolder()
@@ -31,6 +33,7 @@ class SettingsRepositoryTest {
         assertEquals("gemini-flash-latest", s.model)
         assertEquals(10, s.newPerDay)
         assertEquals(0, s.aiCallsToday)
+        assertTrue(s.autoExpand)
     }
 
     @Test fun savesApiKeyModelAndLimit() = runBlocking {
@@ -53,6 +56,13 @@ class SettingsRepositoryTest {
         repo.setApiKey("  AIza​sy Key\n9 ")
         assertEquals("AIzasyKey9", repo.currentApiKey())
         assertEquals("AIzasyKey9", repo.settings.first().apiKey)
+    }
+
+    @Test fun autoExpandCanBeTurnedOffAndOnAgain() = runBlocking {
+        repo.setAutoExpand(false)
+        assertFalse(repo.settings.first().autoExpand)
+        repo.setAutoExpand(true)
+        assertTrue(repo.settings.first().autoExpand)
     }
 
     @Test fun newPerDayRejectsNegative() = runBlocking {

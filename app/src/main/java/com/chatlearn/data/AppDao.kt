@@ -5,12 +5,22 @@ import com.chatlearn.domain.Lang
 import kotlinx.coroutines.flow.Flow
 
 data class TagLink(val entryId: Long, val name: String)
+data class ExpansionTarget(val entryId: Long, val chatLang: Lang, val chatText: String)
 
 @Dao
 interface AppDao {
     @Insert suspend fun insertEntry(e: EntryEntity): Long
     @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun upsertText(t: EntryTextEntity)
     @Insert suspend fun insertCard(c: ReviewCardEntity): Long
+    @Insert(onConflict = OnConflictStrategy.IGNORE) suspend fun insertCardIfAbsent(c: ReviewCardEntity): Long
+    @Query("SELECT * FROM entry WHERE id = :id") suspend fun getEntry(id: Long): EntryEntity?
+    @Query(
+        "SELECT e.id AS entryId, e.chatLang AS chatLang, t.text AS chatText FROM entry e " +
+            "JOIN entry_text t ON t.entryId = e.id AND t.lang = e.chatLang " +
+            "WHERE NOT EXISTS (SELECT 1 FROM review_card c WHERE c.entryId = e.id AND c.answerLang <> e.chatLang) " +
+            "ORDER BY e.id"
+    )
+    suspend fun expansionTargets(): List<ExpansionTarget>
     @Update suspend fun updateCard(c: ReviewCardEntity)
     @Insert suspend fun insertLog(l: ReviewLogEntity): Long
     @Insert suspend fun insertTag(t: TagEntity): Long
