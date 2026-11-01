@@ -6,9 +6,11 @@ import com.chatlearn.data.ReviewLogEntity
 import com.chatlearn.domain.ExerciseKind
 import com.chatlearn.domain.Lang
 import com.chatlearn.domain.Rating
+import java.time.DayOfWeek
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
+import java.time.temporal.TemporalAdjusters
 
 /** 복습한 횟수와 그중 "기억함"(다시가 아닌 평가)의 수. */
 data class Retention(val reviews: Int, val remembered: Int) {
@@ -29,6 +31,8 @@ data class Stats(
     val byTag: Map<String, Retention>,
     val byExercise: Map<ExerciseKind, Retention>,
     val avgResponseMs: Long?,
+    /** 최근 [StatsCalculator.HEATMAP_WEEKS]주(월요일부터 오늘까지) 날마다 복습한 횟수. */
+    val heatmap: List<DayCount> = emptyList(),
 )
 
 data class SentenceStats(
@@ -42,6 +46,7 @@ data class SentenceStats(
 object StatsCalculator {
     /** 간격이 이 일수 이상이면 "익숙함"으로 본다. */
     const val MATURE_DAYS = 21.0
+    const val HEATMAP_WEEKS = 12
     private const val WEAK_LIMIT = 5
 
     private fun remembered(l: ReviewLogEntity) = l.rating != Rating.AGAIN
@@ -63,6 +68,10 @@ object StatsCalculator {
             val d = today.minusDays(back.toLong())
             DayCount(d, perDay[d]?.size ?: 0)
         }
+
+        val heatStart = today.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY)).minusWeeks(HEATMAP_WEEKS - 1L)
+        val heatmap = generateSequence(heatStart) { it.plusDays(1) }.takeWhile { !it.isAfter(today) }
+            .map { DayCount(it, perDay[it]?.size ?: 0) }.toList()
 
         // 오늘 아직 복습하지 않았어도 어제까지의 연속 기록은 유지한다.
         var cursor = if (today in perDay) today else today.minusDays(1)
@@ -105,6 +114,7 @@ object StatsCalculator {
             byTag = byTag.mapValues { retention(it.value) },
             byExercise = logs.groupBy { it.exercise }.mapValues { retention(it.value) },
             avgResponseMs = median(logs.mapNotNull { it.responseMs }),
+            heatmap = heatmap,
         )
     }
 
@@ -120,6 +130,15 @@ object StatsCalculator {
             dueAt = mine.minOfOrNull { it.dueAt },
         )
     }
+}
+
+/** 기록 칸의 진하기(0~4): 안 함, 1~4번, 5~9번, 10~19번, 20번 이상. */
+fun heatLevel(reviews: Int): Int = when {
+    reviews <= 0 -> 0
+    reviews < 5 -> 1
+    reviews < 10 -> 2
+    reviews < 20 -> 3
+    else -> 4
 }
 
 /** 중앙값. 문제를 열어 둔 채 자리를 비운 긴 시간 같은 이상치에 평균처럼 끌려가지 않는다. */

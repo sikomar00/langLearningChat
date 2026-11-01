@@ -167,4 +167,30 @@ class StatsCalculatorTest {
         val logs = listOf(1000L, 2000L, 3000L, 1_800_000L).map { logEx(1, Rating.GOOD, ExerciseKind.CLOZE, it) }
         assertEquals(2500L, compute(logs).avgResponseMs)
     }
+
+    @Test fun heatmapCoversTwelveWeeksFromAMondayToToday() {
+        // 2026-11-01은 일요일: 이번 주가 꽉 차서 12주 × 7일
+        val s = compute(listOf(
+            log(1, ms(today, 9), Rating.GOOD),
+            log(1, ms(today.minusDays(3), 9), Rating.GOOD), log(1, ms(today.minusDays(3), 10), Rating.AGAIN),
+            log(1, ms(today.minusDays(200), 9), Rating.GOOD), // 12주보다 오래된 기록은 빠진다
+        ))
+        assertEquals(java.time.DayOfWeek.MONDAY, s.heatmap.first().date.dayOfWeek)
+        assertEquals(today, s.heatmap.last().date)
+        assertEquals(12 * 7, s.heatmap.size)
+        assertEquals(1, s.heatmap.last().reviews)
+        assertEquals(2, s.heatmap.single { it.date == today.minusDays(3) }.reviews)
+        assertEquals(3, s.heatmap.sumOf { it.reviews })
+    }
+
+    @Test fun heatmapStopsAtTodayInTheMiddleOfAWeek() {
+        val wednesday = LocalDate.of(2026, 11, 4)
+        val s = StatsCalculator.compute(emptyList(), emptyList(), emptyList(), ms(wednesday, 12), zone)
+        assertEquals(11 * 7 + 3, s.heatmap.size)
+        assertEquals(wednesday, s.heatmap.last().date)
+    }
+
+    @Test fun heatLevelGrowsWithTheNumberOfReviews() {
+        assertEquals(listOf(0, 1, 1, 2, 3, 4), listOf(0, 1, 4, 5, 10, 20).map(::heatLevel))
+    }
 }

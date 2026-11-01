@@ -8,6 +8,10 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.chatlearn.domain.ExerciseKind
@@ -33,6 +37,7 @@ fun StatsScreen(vm: StatsViewModel) {
             Text("연속 학습 ${s.streak}일")
         }
         SectionCard("최근 7일") { WeekBars(s.last7) }
+        if (s.heatmap.isNotEmpty()) SectionCard("${StatsCalculator.HEATMAP_WEEKS}주 학습 기록") { Heatmap(s.heatmap) }
         SectionCard("카드 상태") {
             Text("새 카드 ${s.cards.new}개 · 학습 중 ${s.cards.learning}개 · 익숙함 ${s.cards.mature}개")
             Text("익숙함은 복습 간격이 21일 이상인 카드예요.", style = MaterialTheme.typography.bodySmall)
@@ -58,6 +63,65 @@ fun StatsScreen(vm: StatsViewModel) {
             val tags = s.byTag.entries.sortedByDescending { it.value.reviews }
             tags.forEachIndexed { i, (tag, r) -> StatRow(tag, "${percent(r)}  ·  ${r.reviews}회", showDivider = i < tags.lastIndex) }
         }
+    }
+}
+
+/** 최근 12주 달력: 세로 7칸이 월~일, 가로 한 줄이 한 주. 진할수록 많이 복습한 날. */
+@Composable
+private fun Heatmap(days: List<DayCount>) {
+    val active = days.count { it.reviews > 0 }
+    val best = days.maxOf { it.reviews }
+    val primary = MaterialTheme.colorScheme.primary
+    val emptyCell = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f)
+    val alphas = listOf(0f, 0.3f, 0.55f, 0.8f, 1f)
+    fun cellColor(level: Int) = if (level == 0) emptyCell else primary.copy(alpha = alphas[level])
+    val weeks = days.chunked(7)
+    Text(
+        if (active == 0) "아직 복습한 날이 없어요" else "최근 ${StatsCalculator.HEATMAP_WEEKS}주 중 ${active}일 복습했어요",
+        style = MaterialTheme.typography.bodyMedium,
+    )
+    BoxWithConstraints(
+        Modifier.fillMaxWidth().clearAndSetSemantics {
+            contentDescription = "최근 ${StatsCalculator.HEATMAP_WEEKS}주 중 ${active}일 복습, 가장 많이 한 날 ${best}번"
+        },
+    ) {
+        val gap = 3.dp
+        val labelWidth = 18.dp
+        val cell = (maxWidth - labelWidth - gap * weeks.size) / weeks.size
+        Column(verticalArrangement = Arrangement.spacedBy(gap)) {
+            // 달이 바뀌는 주 위에 달 이름
+            Row(horizontalArrangement = Arrangement.spacedBy(gap)) {
+                Spacer(Modifier.width(labelWidth))
+                weeks.forEachIndexed { i, w ->
+                    val first = w.firstOrNull { it.date.dayOfMonth == 1 }?.date ?: w.first().date.takeIf { i == 0 }
+                    Box(Modifier.width(cell)) {
+                        if (first != null) Text(
+                            "${first.monthValue}월", style = MaterialTheme.typography.labelSmall, softWrap = false,
+                            modifier = Modifier.wrapContentWidth(Alignment.Start, unbounded = true),
+                        )
+                    }
+                }
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(gap)) {
+                Column(Modifier.width(labelWidth), verticalArrangement = Arrangement.spacedBy(gap)) {
+                    listOf("월", "", "수", "", "금", "", "").forEach { d ->
+                        Box(Modifier.height(cell), contentAlignment = Alignment.CenterStart) { Text(d, style = MaterialTheme.typography.labelSmall) }
+                    }
+                }
+                weeks.forEach { w ->
+                    Column(verticalArrangement = Arrangement.spacedBy(gap)) {
+                        w.forEach { d ->
+                            Box(Modifier.size(cell).clip(RoundedCornerShape(3.dp)).background(cellColor(heatLevel(d.reviews))))
+                        }
+                    }
+                }
+            }
+        }
+    }
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text("적음", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        (0..4).forEach { Box(Modifier.size(10.dp).clip(RoundedCornerShape(2.dp)).background(cellColor(it))) }
+        Text("많음", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 
