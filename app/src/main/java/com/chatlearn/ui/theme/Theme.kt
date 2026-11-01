@@ -44,6 +44,7 @@ private val LocalStatusColors = staticCompositionLocalOf { StatusColors(SuccessL
 val MaterialTheme.statusColors: StatusColors
     @Composable get() = LocalStatusColors.current
 
+@OptIn(androidx.compose.material3.ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun AppTheme(darkTheme: Boolean = isSystemInDarkTheme(), dynamicColor: Boolean = false, content: @Composable () -> Unit) {
     val ctx = androidx.compose.ui.platform.LocalContext.current
@@ -57,6 +58,10 @@ fun AppTheme(darkTheme: Boolean = isSystemInDarkTheme(), dynamicColor: Boolean =
     }
     val status = StatusColors(success = if (darkTheme) SuccessDark else SuccessLight)
     CompositionLocalProvider(LocalStatusColors provides status) {
-        MaterialTheme(colorScheme = scheme, typography = AppTypography, shapes = AppShapes, content = content)
+        // Expressive 모션 스킴: 버튼·칩·내비게이션 등 컴포넌트의 상태 전환이 스프링 물리로 움직인다.
+        androidx.compose.material3.MaterialExpressiveTheme(
+            colorScheme = scheme, motionScheme = androidx.compose.material3.MotionScheme.expressive(),
+            typography = AppTypography, shapes = AppShapes, content = content,
+        )
     }
 }

@@ -14,9 +14,11 @@ import com.chatlearn.domain.Lang
 import com.chatlearn.ui.theme.statusColors
 
 /** 화면 가운데에 놓는 로딩 표시. */
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun LoadingBox(modifier: Modifier = Modifier) {
-    Box(modifier.fillMaxWidth().padding(vertical = 32.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
+    // Expressive 로딩 인디케이터: 모양이 변하며 도는 형태라 기다리는 동안 덜 지루하다.
+    Box(modifier.fillMaxWidth().padding(vertical = 32.dp), contentAlignment = Alignment.Center) { LoadingIndicator() }
 }
 
 /** 버튼 안에 넣는 작은 스피너. */
