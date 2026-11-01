@@ -10,6 +10,10 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.ui.Alignment
 import com.chatlearn.data.RenameResult
+import com.chatlearn.stats.StatsCalculator
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 import com.chatlearn.ui.translate.parseTags
 import com.chatlearn.ui.translate.suggestTags
 import kotlinx.coroutines.launch
@@ -79,6 +83,7 @@ private fun DetailDialog(item: LibraryItem, recentTags: List<String>, vm: Librar
         title = { Text(item.texts[item.entry.chatLang].orEmpty()) },
         text = {
             Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                SentenceStatsLine(item.entry.id, vm)
                 OutlinedTextField(ko, { ko = it }, label = { Text("한국어") }, modifier = Modifier.fillMaxWidth())
                 OutlinedTextField(note, { note = it }, label = { Text("설명") }, modifier = Modifier.fillMaxWidth())
                 Text("태그", style = MaterialTheme.typography.labelLarge)
@@ -172,5 +177,23 @@ private fun TagManagerDialog(tags: List<String>, vm: LibraryViewModel, onClose: 
             },
             dismissButton = { TextButton(onClick = { editing = null }) { Text("취소") } },
         )
+    }
+}
+
+@Composable
+private fun SentenceStatsLine(entryId: Long, vm: LibraryViewModel) {
+    val input by vm.statsInput.collectAsStateWithLifecycle()
+    val st = input?.let { StatsCalculator.sentenceStats(entryId, it.logs, it.cards) } ?: return
+    val fmt = remember { DateTimeFormatter.ofPattern("M월 d일 HH:mm") }
+    fun at(ms: Long?) = ms?.let { fmt.format(Instant.ofEpochMilli(it).atZone(ZoneId.systemDefault())) } ?: "-"
+    Card(Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(
+                if (st.reviews == 0) "아직 복습하지 않았어요."
+                else "복습 ${st.reviews}회 · 기억 ${st.remembered}회 · 틀림 ${st.lapses}회",
+                style = MaterialTheme.typography.bodyMedium,
+            )
+            Text("마지막 복습 ${at(st.lastReviewedAt)}  ·  다음 복습 ${at(st.dueAt)}", style = MaterialTheme.typography.bodySmall)
+        }
     }
 }

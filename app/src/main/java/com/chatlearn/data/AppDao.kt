@@ -43,6 +43,9 @@ interface AppDao {
     )
     fun observeTagsByRecency(): Flow<List<String>>
 
+    @Query("SELECT * FROM review_log") fun observeLogs(): Flow<List<ReviewLogEntity>>
+    @Query("SELECT * FROM review_card") fun observeCards(): Flow<List<ReviewCardEntity>>
+
     @Query("SELECT * FROM entry_text WHERE entryId = :id") suspend fun textsFor(id: Long): List<EntryTextEntity>
     @Query("SELECT * FROM review_card WHERE lastReviewedAt IS NOT NULL AND dueAt <= :now ORDER BY dueAt LIMIT :limit")
     suspend fun dueReviewed(now: Long, limit: Int): List<ReviewCardEntity>

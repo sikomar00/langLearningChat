@@ -5,19 +5,40 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.chatlearn.domain.Lang
 import com.chatlearn.domain.Rating
 import com.chatlearn.review.GradeOutcome
+import com.chatlearn.stats.StatsScreen
+import com.chatlearn.stats.StatsViewModel
+
+/** 복습 탭: 위의 전환 버튼으로 "복습"과 "통계"를 오간다. */
+@Composable
+fun ReviewScreen(vm: ReviewViewModel, statsVm: StatsViewModel) {
+    var showStats by rememberSaveable { mutableStateOf(false) }
+    Column(Modifier.fillMaxSize().padding(horizontal = 16.dp, vertical = 8.dp)) {
+        SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
+            listOf("복습", "통계").forEachIndexed { i, label ->
+                SegmentedButton(
+                    selected = showStats == (i == 1), onClick = { showStats = i == 1 },
+                    shape = SegmentedButtonDefaults.itemShape(i, 2),
+                ) { Text(label) }
+            }
+        }
+        Spacer(Modifier.height(12.dp))
+        if (showStats) StatsScreen(statsVm) else ReviewPane(vm)
+    }
+}
 
 @Composable
-fun ReviewScreen(vm: ReviewViewModel) {
+private fun ReviewPane(vm: ReviewViewModel) {
     val state by vm.state.collectAsStateWithLifecycle()
     LaunchedEffect(Unit) { vm.ensureStarted() }
 
-    Column(Modifier.fillMaxSize().padding(16.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         when (val s = state) {
             ReviewUi.Loading -> CircularProgressIndicator()
             ReviewUi.Empty -> {

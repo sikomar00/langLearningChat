@@ -22,6 +22,8 @@ sealed interface SaveResult {
 
 enum class RenameResult { Renamed, Merged, Unchanged }
 
+data class StatsInput(val logs: List<ReviewLogEntity>, val cards: List<ReviewCardEntity>, val items: List<LibraryItem>)
+
 data class DueCard(val card: ReviewCardEntity, val texts: Map<Lang, String>)
 data class LibraryItem(val entry: EntryEntity, val texts: Map<Lang, String>, val tags: List<String>)
 
@@ -72,6 +74,10 @@ class EntryRepository(internal val db: AppDatabase) {
                 LibraryItem(e, textsBy[e.id].orEmpty().associate { it.lang to it.text }, tagsBy[e.id].orEmpty().sorted())
             }
         }
+
+    /** 통계 계산에 필요한 복습 기록, 카드, 라이브러리를 한 번에 관찰한다. */
+    fun observeStatsInput(): Flow<StatsInput> =
+        combine(dao.observeLogs(), dao.observeCards(), observeLibrary()) { logs, cards, items -> StatsInput(logs, cards, items) }
 
     /** 문장의 태그를 [tags] 목록으로 통째로 바꾼다. 어떤 문장에도 안 붙은 태그는 삭제한다. */
     suspend fun setTags(entryId: Long, tags: List<String>) = db.withTransaction {

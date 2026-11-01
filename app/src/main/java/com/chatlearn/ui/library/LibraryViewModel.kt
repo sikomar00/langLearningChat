@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.chatlearn.data.EntryRepository
 import com.chatlearn.data.LibraryItem
 import com.chatlearn.data.RenameResult
+import com.chatlearn.data.StatsInput
 import kotlinx.coroutines.async
 import com.chatlearn.domain.Lang
 import com.chatlearn.domain.TextOrigin
@@ -32,6 +33,10 @@ class LibraryViewModel(private val repo: EntryRepository) : ViewModel() {
     val allTags: StateFlow<List<String>> =
         all.map { list -> list.flatMap { it.tags }.distinct().sorted() }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    /** 문장별 통계(복습 횟수, 기억 비율 등)를 계산할 재료. 상세 창에서 쓴다. */
+    val statsInput: StateFlow<StatsInput?> =
+        repo.observeStatsInput().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
     /** 태그 자동완성 후보(최근 사용 순). */
     val recentTags: StateFlow<List<String>> =

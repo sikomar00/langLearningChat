@@ -13,6 +13,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.chatlearn.stats.StatsViewModel
 import com.chatlearn.ui.library.LibraryScreen
 import com.chatlearn.ui.library.LibraryViewModel
 import com.chatlearn.ui.review.ReviewScreen
@@ -35,6 +36,7 @@ class MainActivity : ComponentActivity() {
                 LibraryViewModel::class.java -> LibraryViewModel(c.repo)
                 ReviewViewModel::class.java -> ReviewViewModel(c.reviewSession())
                 SettingsViewModel::class.java -> SettingsViewModel(c.settings, c.repo)
+                StatsViewModel::class.java -> StatsViewModel(c.repo)
                 else -> error("unknown ViewModel")
             } as T
         }
@@ -69,7 +71,7 @@ class MainActivity : ComponentActivity() {
                         when (current) {
                             Tab.TRANSLATE -> TranslateScreen(viewModel(factory = factory))
                             Tab.LIBRARY -> LibraryScreen(viewModel(factory = factory))
-                            Tab.REVIEW -> ReviewScreen(viewModel(factory = factory))
+                            Tab.REVIEW -> ReviewScreen(viewModel(factory = factory), viewModel(factory = factory))
                             Tab.SETTINGS -> SettingsScreen(viewModel(factory = factory))
                         }
                     }
