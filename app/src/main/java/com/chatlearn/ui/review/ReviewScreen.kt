@@ -35,7 +35,11 @@ import com.chatlearn.review.specialChars
 import com.chatlearn.review.isLeech
 import com.chatlearn.stats.StatsScreen
 import com.chatlearn.ui.components.ButtonSpinner
+import com.chatlearn.ui.components.LabeledText
 import com.chatlearn.ui.components.LoadingBox
+import com.chatlearn.ui.components.SectionCard
+import androidx.compose.material.icons.filled.Cancel
+import androidx.compose.material.icons.filled.Info
 import com.chatlearn.ui.components.langLabel
 import com.chatlearn.stats.StatsViewModel
 
@@ -192,45 +196,56 @@ private fun ReviewPane(vm: ReviewViewModel) {
                 }
             }
             is ReviewUi.Graded -> {
-                when (s.item.exercise) {
-                    ExerciseKind.TRANSLATE -> Text(s.item.promptText, style = MaterialTheme.typography.titleMedium)
-                    ExerciseKind.CLOZE -> Text(s.item.reference, style = MaterialTheme.typography.titleMedium)
-                    ExerciseKind.DICTATION -> Text("뜻: ${s.item.hintKo}", style = MaterialTheme.typography.titleMedium)
-                }
-                Text("내 답: ${s.answer}")
-                if (s.item.note.isNotBlank()) Text("설명: ${s.item.note}", style = MaterialTheme.typography.bodyMedium)
-                s.item.keyPhrase?.let { Text("핵심 표현: $it", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary) }
-                when (val o = s.outcome) {
-                    is GradeOutcome.Ai -> {
-                        Text(verdictLabel(o.result.verdict.name), style = MaterialTheme.typography.titleMedium)
-                        Text("더 자연스러운 표현: ${o.result.corrected}")
-                        Text(o.result.explanationKo)
-                    }
-                    is GradeOutcome.SelfGrade -> {
-                        Text("정답: ${o.reference}", style = MaterialTheme.typography.titleMedium)
-                        Text(if (o.aiError == null) "스스로 채점해 주세요." else "AI를 쓸 수 없어서 스스로 채점해 주세요.")
-                    }
-                    is GradeOutcome.Local -> {
-                        Text(verdictLabel(o.verdict.name), style = MaterialTheme.typography.titleMedium)
-                        if (o.marks.isNotEmpty()) {
-                            val wrongColor = MaterialTheme.colorScheme.error
-                            Text(buildAnnotatedString {
-                                o.marks.forEachIndexed { i, m ->
-                                    if (i > 0) append(" ")
-                                    if (m.correct) append(m.word)
-                                    else withStyle(SpanStyle(color = wrongColor, textDecoration = TextDecoration.Underline)) { append(m.word) }
-                                }
-                            })
-                        }
-                        if (s.item.exercise != ExerciseKind.CLOZE) Text("정답: ${o.reference}")
-                        if (s.item.hintKo.isNotBlank() && s.item.exercise == ExerciseKind.CLOZE) Text("뜻: ${s.item.hintKo}")
-                    }
-                }
                 val verdict = when (val o = s.outcome) {
                     is GradeOutcome.Ai -> o.result.verdict
                     is GradeOutcome.Local -> o.verdict
                     is GradeOutcome.SelfGrade -> null
                 }
+                verdict?.let { VerdictBanner(it.name) }
+                SectionCard(when (s.item.exercise) { ExerciseKind.TRANSLATE -> "문제"; ExerciseKind.CLOZE -> "완성된 문장"; ExerciseKind.DICTATION -> "뜻" }) {
+                    Text(
+                        when (s.item.exercise) { ExerciseKind.TRANSLATE -> s.item.promptText; ExerciseKind.CLOZE -> s.item.reference; ExerciseKind.DICTATION -> s.item.hintKo },
+                        style = MaterialTheme.typography.titleMedium,
+                    )
+                }
+                SectionCard("채점") {
+                    val wrongColor = MaterialTheme.colorScheme.error
+                    val local = s.outcome as? GradeOutcome.Local
+                    if (local != null && local.marks.isNotEmpty()) {
+                        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            Text("내 답 (틀린 단어에 밑줄)", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(buildAnnotatedString {
+                                local.marks.forEachIndexed { i, m ->
+                                    if (i > 0) append(" ")
+                                    if (m.correct) append(m.word)
+                                    else withStyle(SpanStyle(color = wrongColor, textDecoration = TextDecoration.Underline)) { append(m.word) }
+                                }
+                            }, style = MaterialTheme.typography.bodyLarge)
+                        }
+                    } else LabeledText("내 답", s.answer)
+                    when (val o = s.outcome) {
+                        is GradeOutcome.Ai -> {
+                            LabeledText("더 자연스러운 표현", o.result.corrected, valueColor = MaterialTheme.statusColors.success)
+                            LabeledText("해설", o.result.explanationKo, valueStyle = MaterialTheme.typography.bodyMedium)
+                        }
+                        is GradeOutcome.SelfGrade -> {
+                            LabeledText("정답", o.reference, valueColor = MaterialTheme.statusColors.success, valueStyle = MaterialTheme.typography.titleMedium)
+                            Text(if (o.aiError == null) "스스로 채점해 주세요." else "AI를 쓸 수 없어서 스스로 채점해 주세요.", style = MaterialTheme.typography.bodyMedium)
+                        }
+                        is GradeOutcome.Local -> if (s.item.exercise != ExerciseKind.CLOZE) {
+                            LabeledText("정답", o.reference, valueColor = MaterialTheme.statusColors.success, valueStyle = MaterialTheme.typography.titleMedium)
+                        }
+                    }
+                }
+                val showHint = s.item.exercise == ExerciseKind.CLOZE && s.item.hintKo.isNotBlank()
+                if (showHint || s.item.note.isNotBlank() || s.item.keyPhrase != null) {
+                    SectionCard("참고") {
+                        if (showHint) LabeledText("뜻", s.item.hintKo)
+                        s.item.keyPhrase?.let { LabeledText("핵심 표현", it, valueColor = MaterialTheme.colorScheme.primary) }
+                        if (s.item.note.isNotBlank()) LabeledText("설명", s.item.note, valueStyle = MaterialTheme.typography.bodyMedium)
+                    }
+                }
+                HorizontalDivider()
                 val choices = ratingChoices(verdict)
                 Text("얼마나 기억났나요?", style = MaterialTheme.typography.labelLarge)
                 val previews = remember(s.item.card) { ratingPreviews(s.item.card.toState(), System.currentTimeMillis()) }
@@ -278,6 +293,21 @@ private fun ReviewPane(vm: ReviewViewModel) {
             confirmButton = { TextButton(onClick = { confirmDelete = false; vm.deleteCurrent() }) { Text("삭제") } },
             dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text("취소") } },
         )
+    }
+}
+
+@Composable
+private fun VerdictBanner(verdictName: String) {
+    val (color, bg, icon) = when (verdictName) {
+        "CORRECT" -> Triple(MaterialTheme.statusColors.success, MaterialTheme.statusColors.success.copy(alpha = 0.12f), Icons.Default.CheckCircle)
+        "CLOSE" -> Triple(MaterialTheme.colorScheme.tertiary, MaterialTheme.colorScheme.tertiary.copy(alpha = 0.12f), Icons.Default.Info)
+        else -> Triple(MaterialTheme.colorScheme.error, MaterialTheme.colorScheme.error.copy(alpha = 0.12f), Icons.Default.Cancel)
+    }
+    Surface(color = bg, shape = MaterialTheme.shapes.medium, modifier = Modifier.fillMaxWidth()) {
+        Row(Modifier.padding(16.dp), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Icon(icon, contentDescription = null, tint = color, modifier = Modifier.size(28.dp))
+            Text(verdictLabel(verdictName), style = MaterialTheme.typography.titleLarge, color = color)
+        }
     }
 }
 

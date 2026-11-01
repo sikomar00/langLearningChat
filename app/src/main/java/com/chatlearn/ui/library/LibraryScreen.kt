@@ -12,6 +12,8 @@ import androidx.compose.material.icons.filled.Book
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.SearchOff
 import com.chatlearn.ui.components.EmptyState
+import com.chatlearn.ui.components.LabeledText
+import com.chatlearn.ui.components.SectionCard
 import com.chatlearn.ui.components.LoadingBox
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.MoreVert
@@ -235,60 +237,68 @@ private fun DetailDialog(item: LibraryItem, hasAltCard: Boolean, recentTags: Lis
                     }) { Text("저장") }
                 }
                 HorizontalDivider()
-                Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 SentenceStatsLine(item.entry.id, vm)
-                if (hasAltCard && altText != null) {
-                    OutlinedTextField(
-                        alt, { alt = it }, modifier = Modifier.fillMaxWidth(),
-                        label = { Text(if (altLang == Lang.ES) "스페인어 확장" else "영어 확장") },
-                        supportingText = { if (item.origins[altLang] == TextOrigin.AI) Text("AI 번역 · 고치면 내 문장으로 저장돼요") },
-                    )
-                } else if (!hasAltCard) {
-                    var making by remember { mutableStateOf(false) }
-                    var failed by remember { mutableStateOf(false) }
-                    val scope2 = rememberCoroutineScope()
-                    OutlinedButton(enabled = !making, onClick = {
-                        making = true; failed = false
-                        scope2.launch { failed = !vm.expandOne(item.entry.id).await(); making = false }
-                    }) { Text(if (making) "만드는 중…" else "다른 언어 카드 만들기") }
-                    if (failed) Text("만들지 못했어요. 잠시 후 다시 시도해 주세요.", color = MaterialTheme.colorScheme.error)
-                }
-                OutlinedTextField(
-                    chatKey, { chatKey = it }, modifier = Modifier.fillMaxWidth(), singleLine = true,
-                    label = { Text("핵심 표현 (${if (item.entry.chatLang == Lang.EN) "영어" else "스페인어"})") },
-                    supportingText = { Text("빈칸 채우기에서 이 표현이 빈칸이 돼요. 문장 안에 있는 그대로 적어야 해요.") },
-                )
-                if (hasAltCard && altText != null) {
-                    OutlinedTextField(
-                        altKey, { altKey = it }, modifier = Modifier.fillMaxWidth(), singleLine = true,
-                        label = { Text("핵심 표현 (${if (altLang == Lang.ES) "스페인어" else "영어"})") },
-                    )
-                }
-                OutlinedTextField(ko, { ko = it }, label = { Text("한국어") }, modifier = Modifier.fillMaxWidth())
-                OutlinedTextField(note, { note = it }, label = { Text("설명") }, modifier = Modifier.fillMaxWidth())
-                Text("태그", style = MaterialTheme.typography.labelLarge)
-                if (editedTags.isNotEmpty()) {
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        items(editedTags.toList()) { tag ->
-                            InputChip(
-                                selected = false, onClick = { editedTags.remove(tag) }, label = { Text(tag) },
-                                trailingIcon = { Icon(Icons.Default.Close, contentDescription = "$tag 제거", modifier = Modifier.size(18.dp)) },
-                            )
-                        }
+                SectionCard("문장") {
+                    LabeledText(if (item.entry.chatLang == Lang.EN) "영어 원문" else "스페인어 원문", item.texts[item.entry.chatLang].orEmpty(), valueStyle = MaterialTheme.typography.titleMedium)
+                    OutlinedTextField(ko, { ko = it }, label = { Text("한국어 뜻") }, modifier = Modifier.fillMaxWidth())
+                    if (hasAltCard && altText != null) {
+                        OutlinedTextField(
+                            alt, { alt = it }, modifier = Modifier.fillMaxWidth(),
+                            label = { Text(if (altLang == Lang.ES) "스페인어 확장" else "영어 확장") },
+                            supportingText = { if (item.origins[altLang] == TextOrigin.AI) Text("AI 번역 · 고치면 내 문장으로 저장돼요") },
+                        )
+                    } else if (!hasAltCard) {
+                        var making by remember { mutableStateOf(false) }
+                        var failed by remember { mutableStateOf(false) }
+                        val scope2 = rememberCoroutineScope()
+                        OutlinedButton(enabled = !making, onClick = {
+                            making = true; failed = false
+                            scope2.launch { failed = !vm.expandOne(item.entry.id).await(); making = false }
+                        }) { Text(if (making) "만드는 중…" else "다른 언어 카드 만들기") }
+                        if (failed) Text("만들지 못했어요. 잠시 후 다시 시도해 주세요.", color = MaterialTheme.colorScheme.error)
                     }
                 }
-                OutlinedTextField(
-                    value = tagInput, onValueChange = { tagInput = it }, singleLine = true,
-                    label = { Text("태그 추가(쉼표로 여러 개)") }, modifier = Modifier.fillMaxWidth(),
-                    trailingIcon = {
-                        TextButton(onClick = { addTags(parseTags(tagInput)); tagInput = "" }, enabled = tagInput.isNotBlank()) { Text("추가") }
-                    },
-                )
-                val suggestions = suggestTags(recentTags.filter { it !in editedTags }, tagInput)
-                if (suggestions.isNotEmpty()) {
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        items(suggestions) { tag ->
-                            SuggestionChip(onClick = { addTags(listOf(tag)); tagInput = "" }, label = { Text(tag) })
+                SectionCard("핵심 표현") {
+                    Text("빈칸 채우기에서 이 표현이 빈칸이 돼요. 문장 안에 있는 그대로 적어야 해요.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    OutlinedTextField(
+                        chatKey, { chatKey = it }, modifier = Modifier.fillMaxWidth(), singleLine = true,
+                        label = { Text(if (item.entry.chatLang == Lang.EN) "영어" else "스페인어") },
+                    )
+                    if (hasAltCard && altText != null) {
+                        OutlinedTextField(
+                            altKey, { altKey = it }, modifier = Modifier.fillMaxWidth(), singleLine = true,
+                            label = { Text(if (altLang == Lang.ES) "스페인어" else "영어") },
+                        )
+                    }
+                }
+                SectionCard("설명 · 메모") {
+                    OutlinedTextField(note, { note = it }, label = { Text("설명") }, modifier = Modifier.fillMaxWidth())
+                }
+                SectionCard("태그") {
+                    if (editedTags.isNotEmpty()) {
+                        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            items(editedTags.toList()) { tag ->
+                                InputChip(
+                                    selected = false, onClick = { editedTags.remove(tag) }, label = { Text(tag) },
+                                    trailingIcon = { Icon(Icons.Default.Close, contentDescription = "$tag 제거", modifier = Modifier.size(18.dp)) },
+                                )
+                            }
+                        }
+                    }
+                    OutlinedTextField(
+                        value = tagInput, onValueChange = { tagInput = it }, singleLine = true,
+                        label = { Text("태그 추가(쉼표로 여러 개)") }, modifier = Modifier.fillMaxWidth(),
+                        trailingIcon = {
+                            TextButton(onClick = { addTags(parseTags(tagInput)); tagInput = "" }, enabled = tagInput.isNotBlank()) { Text("추가") }
+                        },
+                    )
+                    val suggestions = suggestTags(recentTags.filter { it !in editedTags }, tagInput)
+                    if (suggestions.isNotEmpty()) {
+                        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            items(suggestions) { tag ->
+                                SuggestionChip(onClick = { addTags(listOf(tag)); tagInput = "" }, label = { Text(tag) })
+                            }
                         }
                     }
                 }
@@ -355,14 +365,13 @@ private fun SentenceStatsLine(entryId: Long, vm: LibraryViewModel) {
     val st = input?.let { StatsCalculator.sentenceStats(entryId, it.logs, it.cards) } ?: return
     val fmt = remember { DateTimeFormatter.ofPattern("M월 d일 HH:mm") }
     fun at(ms: Long?) = ms?.let { fmt.format(Instant.ofEpochMilli(it).atZone(ZoneId.systemDefault())) } ?: "-"
-    Card(Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(
-                if (st.reviews == 0) "아직 복습하지 않았어요."
-                else "복습 ${st.reviews}회 · 기억 ${st.remembered}회 · 틀림 ${st.lapses}회",
-                style = MaterialTheme.typography.bodyMedium,
-            )
-            Text("마지막 복습 ${at(st.lastReviewedAt)}  ·  다음 복습 ${at(st.dueAt)}", style = MaterialTheme.typography.bodySmall)
-        }
+    SectionCard("학습 기록") {
+        Text(
+            if (st.reviews == 0) "아직 복습하지 않았어요."
+            else "복습 ${st.reviews}회 · 기억 ${st.remembered}회 · 틀림 ${st.lapses}회",
+            style = MaterialTheme.typography.bodyLarge,
+        )
+        LabeledText("마지막 복습", at(st.lastReviewedAt))
+        LabeledText("다음 복습", at(st.dueAt))
     }
 }

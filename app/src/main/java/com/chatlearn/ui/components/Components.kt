@@ -76,11 +76,25 @@ fun SwitchRow(title: String, description: String?, checked: Boolean, onCheckedCh
 @Composable
 fun SectionCard(title: String, modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
     Card(modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text(title, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Text(title, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
             content()
         }
     }
 }
 
 fun langLabel(l: Lang): String = when (l) { Lang.KO -> "한국어"; Lang.EN -> "영어"; Lang.ES -> "스페인어" }
+
+/** 작은 라벨 + 값. 구역 안에서 항목끼리 구분이 되게 한다. */
+@Composable
+fun LabeledText(
+    label: String, text: String, modifier: Modifier = Modifier,
+    valueStyle: androidx.compose.ui.text.TextStyle = MaterialTheme.typography.bodyLarge,
+    valueColor: androidx.compose.ui.graphics.Color = androidx.compose.ui.graphics.Color.Unspecified,
+) {
+    Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(text, style = valueStyle, color = valueColor)
+    }
+}
