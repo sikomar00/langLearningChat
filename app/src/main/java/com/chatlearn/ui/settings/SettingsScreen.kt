@@ -29,8 +29,10 @@ import kotlinx.coroutines.withContext
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun SettingsScreen(vm: SettingsViewModel) {
+fun SettingsScreen(vm: SettingsViewModel, onPreviewVoice: (com.chatlearn.domain.Lang) -> Unit = {}) {
     val s by vm.state.collectAsStateWithLifecycle()
+    val entryCount by vm.entryCount.collectAsStateWithLifecycle()
+    val backupDue = com.chatlearn.settings.backupOverdue(s.lastBackupAt, vm.now(), entryCount)
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
     var key by remember(s.apiKey) { mutableStateOf(s.apiKey) }
@@ -42,9 +44,12 @@ fun SettingsScreen(vm: SettingsViewModel) {
 
     val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
         if (uri != null) scope.launch {
-            val text = vm.exportJson()
-            withContext(Dispatchers.IO) { ctx.contentResolver.openOutputStream(uri)?.use { it.write(text.toByteArray()) } }
-            message = "내보냈어요."
+            val r = vm.export { text ->
+                withContext(Dispatchers.IO) {
+                    ctx.contentResolver.openOutputStream(uri)?.use { it.write(text.toByteArray()) } ?: error("파일을 열 수 없어요")
+                }
+            }
+            message = if (r.isSuccess) "내보냈어요. 이 파일을 클라우드나 다른 기기에 보관해 두세요." else "내보내지 못했어요. 다른 위치를 골라 다시 해 보세요."
         }
     }
     val importLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
@@ -65,12 +70,20 @@ fun SettingsScreen(vm: SettingsViewModel) {
     val tabs = listOf("AI", "복습", "문장", "화면", "백업")
     Column(Modifier.fillMaxSize()) {
     TabRow(selectedTabIndex = tab) {
-        tabs.forEachIndexed { i, t -> Tab(selected = tab == i, onClick = { tab = i }, text = { Text(t) }) }
+        tabs.forEachIndexed { i, t ->
+            Tab(selected = tab == i, onClick = { tab = i }, text = {
+                if (i == 4 && backupDue) BadgedBox(badge = { Badge() }) { Text(t) } else Text(t)
+            })
+        }
     }
     Column(Modifier.fillMaxSize().padding(16.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
     if (tab == 0) {
         Text("Gemini API 키", style = MaterialTheme.typography.titleMedium)
         Text("Google AI Studio에서 무료 키를 발급받아 붙여넣으세요.", style = MaterialTheme.typography.bodySmall)
+        val uriHandler = androidx.compose.ui.platform.LocalUriHandler.current
+        TextButton(onClick = { runCatching { uriHandler.openUri("https://aistudio.google.com/apikey") } }, contentPadding = PaddingValues(horizontal = 4.dp)) {
+            Text("키 발급 페이지 열기")
+        }
         var showKey by remember { mutableStateOf(false) }
         OutlinedTextField(
             key, { key = it }, Modifier.fillMaxWidth(), singleLine = true, label = { Text("API 키") },
@@ -156,14 +169,45 @@ fun SettingsScreen(vm: SettingsViewModel) {
     if (tab == 2) {
         SwitchRow("저장할 때 다른 언어도 만들기", "영어 문장이면 스페인어 카드도, 스페인어 문장이면 영어 카드도 함께 만들어요.", s.autoExpand, { vm.saveAutoExpand(it) })
         SwitchRow("보낼 말에 내 표현 쓰기", "보낼 말 후보를 만들 때 내가 저장한 핵심 표현을 자연스러울 때만 넣어 줘요.", s.useSavedExpressions, { vm.saveUseSaved(it) })
+
+        Text("발음", style = MaterialTheme.typography.titleMedium)
+        Text("듣기와 말로 답하기에 쓸 억양이에요. 친구가 쓰는 억양에 맞추면 좋아요.", style = MaterialTheme.typography.bodySmall)
+        Text("영어", style = MaterialTheme.typography.labelLarge)
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp), itemVerticalAlignment = Alignment.CenterVertically) {
+            com.chatlearn.settings.EnAccent.entries.forEach { a ->
+                FilterChip(selected = s.enAccent == a.name, onClick = { vm.saveEnAccent(a.name) }, label = { Text(a.label) })
+            }
+            TextButton(onClick = { onPreviewVoice(com.chatlearn.domain.Lang.EN) }) { Text("들어보기") }
+        }
+        Text("스페인어", style = MaterialTheme.typography.labelLarge)
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp), itemVerticalAlignment = Alignment.CenterVertically) {
+            com.chatlearn.settings.EsAccent.entries.forEach { a ->
+                FilterChip(selected = s.esAccent == a.name, onClick = { vm.saveEsAccent(a.name) }, label = { Text(a.label) })
+            }
+            TextButton(onClick = { onPreviewVoice(com.chatlearn.domain.Lang.ES) }) { Text("들어보기") }
+        }
+        Text("말 빠르기", style = MaterialTheme.typography.labelLarge)
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            listOf(0.8f to "천천히", 1f to "보통", 1.2f to "빠르게").forEach { (rate, label) ->
+                FilterChip(selected = kotlin.math.abs(s.speechRate - rate) < 0.01f, onClick = { vm.saveSpeechRate(rate) }, label = { Text(label) })
+            }
+        }
+        Text("느리게 듣기는 고른 빠르기보다 더 천천히 들려줘요.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
     if (tab == 3) {
+        Text("밝기", style = MaterialTheme.typography.titleMedium)
+        val mode = com.chatlearn.settings.ThemeMode.fromName(s.themeMode)
+        SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
+            val modes = com.chatlearn.settings.ThemeMode.entries
+            modes.forEachIndexed { i, m ->
+                SegmentedButton(selected = mode == m, onClick = { vm.saveThemeMode(m.name) }, shape = SegmentedButtonDefaults.itemShape(i, modes.size)) { Text(m.label) }
+            }
+        }
         if (android.os.Build.VERSION.SDK_INT >= 31) {
             SwitchRow("시스템 색 따르기", "배경화면에서 뽑은 색으로 앱 색을 바꿔요. 끄면 기본 보라색을 써요.", s.dynamicColor, { vm.saveDynamicColor(it) })
         } else {
             Text("이 기기(Android 12 미만)에서는 시스템 색을 쓸 수 없어요.", style = MaterialTheme.typography.bodyMedium)
         }
-        Text("밝은/어두운 모드는 휴대폰 설정을 따라가요.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
 
         Text("홈 화면 위젯", style = MaterialTheme.typography.titleMedium)
         Text("오늘 복습할 카드 수와 목표, 연속 학습일을 홈 화면에서 보고, 눌러서 바로 복습하거나 복사한 메시지를 번역해요.", style = MaterialTheme.typography.bodySmall)
@@ -180,6 +224,8 @@ fun SettingsScreen(vm: SettingsViewModel) {
         Text("오늘 AI 호출: ${s.aiCallsToday}회")
 
         Text("백업", style = MaterialTheme.typography.titleMedium)
+        Text(com.chatlearn.settings.backupStatus(s.lastBackupAt, vm.now(), java.time.ZoneId.systemDefault()), style = MaterialTheme.typography.bodyMedium)
+        if (backupDue) InfoMessage("앱 데이터는 휴대폰 백업에 들어가지 않아요. 폰을 바꾸거나 앱을 지우면 문장 ${entryCount}개가 사라지니 내보내기로 파일을 보관해 두세요.", MessageKind.ERROR)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             OutlinedButton(onClick = { exportLauncher.launch("chatlearn-backup.json") }) { Text("내보내기") }
             OutlinedButton(onClick = { importLauncher.launch(arrayOf("application/json", "*/*")) }) { Text("가져오기") }

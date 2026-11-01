@@ -97,4 +97,31 @@ class SettingsRepositoryTest {
         repo.setUseSavedExpressions(false)
         assertFalse(repo.settings.first().useSavedExpressions)
     }
+
+    @Test fun themeModeDefaultsToSystemAndIsSaved() = runBlocking {
+        assertEquals("SYSTEM", repo.settings.first().themeMode)
+        repo.setThemeMode("DARK")
+        assertEquals("DARK", repo.settings.first().themeMode)
+    }
+
+    @Test fun voiceDefaultsToUsEnglishSpainSpanishAtNormalSpeed() = runBlocking {
+        val s = repo.settings.first()
+        assertEquals("US", s.enAccent); assertEquals("ES", s.esAccent); assertEquals(1.0f, s.speechRate)
+        repo.setEnAccent("UK"); repo.setEsAccent("LATAM"); repo.setSpeechRate(3f)
+        val t = repo.settings.first()
+        assertEquals("UK", t.enAccent); assertEquals("LATAM", t.esAccent)
+        assertEquals(1.5f, t.speechRate) // 너무 빠르거나 느리면 알아듣기 어려워 범위를 둔다
+    }
+
+    @Test fun lastBackupTimeIsRemembered() = runBlocking {
+        assertEquals(0L, repo.settings.first().lastBackupAt)
+        repo.setLastBackupAt(123L)
+        assertEquals(123L, repo.settings.first().lastBackupAt)
+    }
+
+    @Test fun libraryGestureHintCanBeDismissed() = runBlocking {
+        assertFalse(repo.settings.first().libraryHintDismissed)
+        repo.dismissLibraryHint()
+        assertTrue(repo.settings.first().libraryHintDismissed)
+    }
 }

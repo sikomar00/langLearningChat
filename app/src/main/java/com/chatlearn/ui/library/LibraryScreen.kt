@@ -52,7 +52,10 @@ private const val AI_FAILED_HINT = "AI에 연결하지 못했어요. 설정 탭�
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun LibraryScreen(vm: LibraryViewModel, onGoTranslate: () -> Unit = {}, onStartReview: (Set<Long>, Lang?) -> Unit = { _, _ -> }) {
+fun LibraryScreen(
+    vm: LibraryViewModel, onGoTranslate: () -> Unit = {}, showGestureHint: Boolean = true, onDismissGestureHint: () -> Unit = {},
+    onStartReview: (Set<Long>, Lang?) -> Unit = { _, _ -> },
+) {
     val items by vm.items.collectAsStateWithLifecycle()
     val query by vm.query.collectAsStateWithLifecycle()
     val lang by vm.langFilter.collectAsStateWithLifecycle()
@@ -292,8 +295,12 @@ fun LibraryScreen(vm: LibraryViewModel, onGoTranslate: () -> Unit = {}, onStartR
             } else if (statusFilter != StatusFilter.ALL || query.isNotBlank() || lang != null || tag != null) {
                 EmptyState("조건에 맞는 문장이 없어요.", icon = Icons.Default.SearchOff)
             } else EmptyState("저장된 문장이 없어요.\n번역 탭에서 문장을 저장해 보세요.", icon = Icons.Default.Book, actionLabel = "번역하러 가기", onAction = onGoTranslate)
-        } else if (picked == null) {
-            Text("길게 누르면 여러 개 선택 · 오른쪽으로 밀면 폴더 이동 · 왼쪽으로 밀면 삭제", style = MaterialTheme.typography.bodySmall)
+        } else if (picked == null && showGestureHint) {
+            // 한 번 익히면 필요 없는 안내라 닫을 수 있게 한다(닫으면 다시 나오지 않는다).
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("길게 누르면 여러 개 선택 · 오른쪽으로 밀면 폴더 이동 · 왼쪽으로 밀면 삭제", Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
+                IconButton(onClick = onDismissGestureHint) { Icon(Icons.Default.Close, contentDescription = "안내 닫기") }
+            }
         }
         // 많이 틀린 순으로 볼 때는 순서 자체가 의미라서 묶지 않는다.
         val effective = if (sort == LibrarySort.LAPSES) GroupBy.NONE else groupBy

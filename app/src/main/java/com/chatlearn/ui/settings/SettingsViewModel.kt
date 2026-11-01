@@ -11,11 +11,13 @@ import com.chatlearn.settings.AppSettings
 import com.chatlearn.settings.SettingsRepository
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 class SettingsViewModel(private val settings: SettingsRepository, private val repo: EntryRepository, private val ai: AiService,
     private val onReminderChanged: (Boolean, Int) -> Unit = { _, _ -> },
+    private val clock: () -> Long = System::currentTimeMillis,
 ) : ViewModel() {
     val state: StateFlow<AppSettings> =
         settings.settings.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), AppSettings("", "", 10, 0))
@@ -33,10 +35,23 @@ class SettingsViewModel(private val settings: SettingsRepository, private val re
     fun saveReminderTone(name: String) = viewModelScope.launch { settings.setReminderTone(name) }
     fun saveDynamicColor(on: Boolean) = viewModelScope.launch { settings.setDynamicColor(on) }
     fun saveAutoExpand(on: Boolean) = viewModelScope.launch { settings.setAutoExpand(on) }
+    fun saveThemeMode(name: String) = viewModelScope.launch { settings.setThemeMode(name) }
+    fun saveEnAccent(name: String) = viewModelScope.launch { settings.setEnAccent(name) }
+    fun saveEsAccent(name: String) = viewModelScope.launch { settings.setEsAccent(name) }
+    fun saveSpeechRate(rate: Float) = viewModelScope.launch { settings.setSpeechRate(rate) }
+
+    /** 저장한 문장 수: 백업을 권할지 정할 때 쓴다. */
+    val entryCount: StateFlow<Int> = repo.observeLibrary().map { it.size }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
 
     /** 저장된 키와 모델로 연결을 확인한다. 문제가 없으면 null. */
     suspend fun checkConnection(): AiError? = checkConnection(ai)
 
-    suspend fun exportJson(): String = Backup.encode(repo.exportAll())
+    /** 백업 파일을 [write]로 쓰고, 끝까지 쓴 뒤에만 백업 시각을 남긴다. */
+    suspend fun export(write: suspend (String) -> Unit): Result<Unit> = runCatching {
+        write(Backup.encode(repo.exportAll()))
+        settings.setLastBackupAt(clock())
+    }
+
+    fun now(): Long = clock()
     suspend fun importJson(s: String): Result<Unit> = runCatching { repo.importAll(Backup.decode(s)) }
 }

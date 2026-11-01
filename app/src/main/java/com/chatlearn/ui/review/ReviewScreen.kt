@@ -54,6 +54,7 @@ import com.chatlearn.review.shadowingResult
 import com.chatlearn.review.specialChars
 import com.chatlearn.review.speechLanguageTag
 import com.chatlearn.review.spokenText
+import com.chatlearn.settings.VoicePrefs
 import com.chatlearn.stats.StatsScreen
 import com.chatlearn.stats.StatsViewModel
 import com.chatlearn.ui.components.ButtonSpinner
@@ -66,7 +67,7 @@ import com.chatlearn.ui.theme.statusColors
 
 /** 복습 탭: 위의 전환 버튼으로 "복습"과 "통계"를 오간다. */
 @Composable
-fun ReviewScreen(vm: ReviewViewModel, statsVm: StatsViewModel) {
+fun ReviewScreen(vm: ReviewViewModel, statsVm: StatsViewModel, voice: VoicePrefs = VoicePrefs()) {
     var showStats by rememberSaveable { mutableStateOf(false) }
     Column(Modifier.fillMaxSize().padding(horizontal = 16.dp, vertical = 8.dp)) {
         SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
@@ -78,7 +79,7 @@ fun ReviewScreen(vm: ReviewViewModel, statsVm: StatsViewModel) {
             }
         }
         Spacer(Modifier.height(12.dp))
-        if (showStats) StatsScreen(statsVm) else ReviewPane(vm, statsVm)
+        if (showStats) StatsScreen(statsVm) else ReviewPane(vm, statsVm, voice)
     }
 }
 
@@ -88,10 +89,10 @@ private sealed interface SpeechTarget {
     data class Shadow(val cardId: Long) : SpeechTarget
 }
 
-private fun speechIntent(lang: Lang): Intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
+private fun speechIntent(lang: Lang, voice: VoicePrefs): Intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
     .putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-    .putExtra(RecognizerIntent.EXTRA_LANGUAGE, speechLanguageTag(lang))
-    .putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, speechLanguageTag(lang))
+    .putExtra(RecognizerIntent.EXTRA_LANGUAGE, speechLanguageTag(lang, voice))
+    .putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, speechLanguageTag(lang, voice))
     .putExtra(RecognizerIntent.EXTRA_PROMPT, "${langLabel(lang)}로 말해 보세요")
     .putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 3)
 
@@ -100,17 +101,17 @@ private fun speechAvailable(ctx: Context): Boolean =
     ctx.packageManager.queryIntentActivities(Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH), 0).isNotEmpty()
 
 /** 답 입력칸 키보드: 철자를 보는 빈칸·받아쓰기는 자동 수정을 끄고, 정답 언어 키보드를 권한다. */
-private fun answerKeyboard(kind: ExerciseKind, lang: Lang, ime: ImeAction) = KeyboardOptions(
+private fun answerKeyboard(kind: ExerciseKind, lang: Lang, ime: ImeAction, voice: VoicePrefs) = KeyboardOptions(
     capitalization = if (kind == ExerciseKind.CLOZE) KeyboardCapitalization.None else KeyboardCapitalization.Sentences,
     autoCorrectEnabled = kind == ExerciseKind.TRANSLATE,
     keyboardType = KeyboardType.Text,
     imeAction = ime,
-    hintLocales = LocaleList(speechLanguageTag(lang)),
+    hintLocales = LocaleList(speechLanguageTag(lang, voice)),
 )
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun ReviewPane(vm: ReviewViewModel, statsVm: StatsViewModel) {
+private fun ReviewPane(vm: ReviewViewModel, statsVm: StatsViewModel, voice: VoicePrefs) {
     val stats by statsVm.stats.collectAsStateWithLifecycle()
     val streak = stats?.streak ?: 0
     val state by vm.state.collectAsStateWithLifecycle()
@@ -139,7 +140,7 @@ private fun ReviewPane(vm: ReviewViewModel, statsVm: StatsViewModel) {
     }
     fun listen(lang: Lang, target: SpeechTarget) {
         speechTarget = target
-        runCatching { speechLauncher.launch(speechIntent(lang)) }.onFailure {
+        runCatching { speechLauncher.launch(speechIntent(lang, voice)) }.onFailure {
             speechTarget = null
             android.widget.Toast.makeText(ctx, "음성 인식을 열 수 없어요", android.widget.Toast.LENGTH_SHORT).show()
         }
@@ -236,7 +237,7 @@ private fun ReviewPane(vm: ReviewViewModel, statsVm: StatsViewModel) {
                     if (custom == null) LearnMore(moreNew) { vm.learnMore(LEARN_MORE) }
                 }
                 is ReviewUi.Prompt -> PromptBody(
-                    s, vm, canListen,
+                    s, vm, canListen, voice,
                     onFocusBlank = { focusedBlank = it },
                     onMic = { listen(s.item.card.answerLang, SpeechTarget.Answer) },
                 )
@@ -348,7 +349,7 @@ private fun verdictOf(o: GradeOutcome): Verdict? = when (o) {
 }
 
 @Composable
-private fun PromptBody(s: ReviewUi.Prompt, vm: ReviewViewModel, canListen: Boolean, onFocusBlank: (Int) -> Unit, onMic: () -> Unit) {
+private fun PromptBody(s: ReviewUi.Prompt, vm: ReviewViewModel, canListen: Boolean, voice: VoicePrefs, onFocusBlank: (Int) -> Unit, onMic: () -> Unit) {
     val lang = s.item.card.answerLang
     val firstField = remember { FocusRequester() }
     val keyboard = LocalSoftwareKeyboardController.current
@@ -374,7 +375,7 @@ private fun PromptBody(s: ReviewUi.Prompt, vm: ReviewViewModel, canListen: Boole
                 Modifier.fillMaxWidth().focusRequester(firstField).onFocusChanged { if (it.isFocused) onFocusBlank(0) },
                 minLines = 2, label = { Text("내 답") },
                 trailingIcon = if (canListen) ({ IconButton(onClick = onMic) { Icon(Icons.Default.Mic, contentDescription = "말로 답하기") } }) else null,
-                keyboardOptions = answerKeyboard(ExerciseKind.TRANSLATE, lang, ImeAction.Done), keyboardActions = KeyboardActions(onDone = { vm.submit() }),
+                keyboardOptions = answerKeyboard(ExerciseKind.TRANSLATE, lang, ImeAction.Done, voice), keyboardActions = KeyboardActions(onDone = { vm.submit() }),
             )
             if (canListen) Text("마이크를 누르면 말로 답할 수 있어요.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
@@ -388,7 +389,7 @@ private fun PromptBody(s: ReviewUi.Prompt, vm: ReviewViewModel, canListen: Boole
                     a, { vm.setAnswer(it, i) },
                     Modifier.fillMaxWidth().then(if (i == 0) Modifier.focusRequester(firstField) else Modifier).onFocusChanged { if (it.isFocused) onFocusBlank(i) },
                     singleLine = true, label = { Text("빈칸 ${i + 1}") },
-                    keyboardOptions = answerKeyboard(ExerciseKind.CLOZE, lang, if (last) ImeAction.Done else ImeAction.Next),
+                    keyboardOptions = answerKeyboard(ExerciseKind.CLOZE, lang, if (last) ImeAction.Done else ImeAction.Next, voice),
                     keyboardActions = KeyboardActions(onDone = { vm.submit() }),
                 )
             }
@@ -404,7 +405,7 @@ private fun PromptBody(s: ReviewUi.Prompt, vm: ReviewViewModel, canListen: Boole
                 s.answers[0], { vm.setAnswer(it) },
                 Modifier.fillMaxWidth().focusRequester(firstField).onFocusChanged { if (it.isFocused) onFocusBlank(0) },
                 minLines = 2, label = { Text("들은 문장") },
-                keyboardOptions = answerKeyboard(ExerciseKind.DICTATION, lang, ImeAction.Done), keyboardActions = KeyboardActions(onDone = { vm.submit() }),
+                keyboardOptions = answerKeyboard(ExerciseKind.DICTATION, lang, ImeAction.Done, voice), keyboardActions = KeyboardActions(onDone = { vm.submit() }),
             )
         }
     }

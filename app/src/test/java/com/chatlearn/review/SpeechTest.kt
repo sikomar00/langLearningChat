@@ -12,6 +12,12 @@ class SpeechTest {
         assertEquals("es-ES", speechLanguageTag(Lang.ES))
     }
 
+    @Test fun recognizerFollowsTheChosenAccent() {
+        val v = com.chatlearn.settings.VoicePrefs(com.chatlearn.settings.EnAccent.UK, com.chatlearn.settings.EsAccent.LATAM)
+        assertEquals("en-GB", speechLanguageTag(Lang.EN, v))
+        assertEquals("es-US", speechLanguageTag(Lang.ES, v))
+    }
+
     @Test fun firstNonBlankResultIsUsed() {
         assertEquals("see you tomorrow", spokenText(listOf("  ", " see you tomorrow ")))
         assertNull(spokenText(emptyList()))

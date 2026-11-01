@@ -3,13 +3,10 @@ package com.chatlearn.review
 import com.chatlearn.domain.Lang
 import com.chatlearn.review.exercise.AnswerGrader
 import com.chatlearn.review.exercise.DictationResult
+import com.chatlearn.settings.VoicePrefs
 
-/** 음성 인식에 넘길 언어 태그. */
-fun speechLanguageTag(lang: Lang): String = when (lang) {
-    Lang.EN -> "en-US"
-    Lang.ES -> "es-ES"
-    Lang.KO -> "ko-KR"
-}
+/** 음성 인식과 답 입력 키보드에 넘길 언어 태그. 설정한 억양을 따른다. */
+fun speechLanguageTag(lang: Lang, voice: VoicePrefs = VoicePrefs()): String = voice.tag(lang)
 
 /** 음성 인식 결과 후보 중 첫 번째로 비어 있지 않은 것. */
 fun spokenText(results: List<String>?): String? = results?.firstOrNull { it.isNotBlank() }?.trim()

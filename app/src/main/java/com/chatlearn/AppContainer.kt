@@ -16,6 +16,7 @@ import com.chatlearn.review.Tts
 import com.chatlearn.settings.DataStoreSettingsRepository
 import com.chatlearn.settings.EncryptedSecretStore
 import com.chatlearn.settings.SettingsRepository
+import com.chatlearn.settings.voice
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -43,12 +44,18 @@ class AppContainer(context: Context) {
         onHttpError = { code, body -> android.util.Log.w("GeminiAi", "HTTP $code: $body") },
     )
 
-    val tts: Tts = AndroidTts(context)
+    // 설정한 억양·빠르기를 TTS가 매번 읽어 간다.
+    @Volatile private var voicePrefs = com.chatlearn.settings.VoicePrefs()
+    val tts: Tts = AndroidTts(context) { voicePrefs }
     val reminders = com.chatlearn.reminder.ReminderScheduler(context)
     val expansion = ExpansionService(repo, ai, System::currentTimeMillis)
     val keyPhrases = com.chatlearn.expansion.KeyPhraseService(repo, ai)
 
     private val appContext: Context = context.applicationContext
+
+    init {
+        appScope.launch { settings.settings.collect { voicePrefs = it.voice() } }
+    }
 
     /** 홈 화면 위젯을 다시 그린다(앱을 나갈 때, 알림 시각에). */
     fun refreshWidget() {

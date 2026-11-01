@@ -23,6 +23,12 @@ data class AppSettings(
     val dynamicColor: Boolean = false,
     val reminderDays: Int = 0b1111111,
     val reminderTone: String = "PLAIN",
+    val themeMode: String = "SYSTEM",
+    val enAccent: String = "US",
+    val esAccent: String = "ES",
+    val speechRate: Float = 1f,
+    val lastBackupAt: Long = 0L,
+    val libraryHintDismissed: Boolean = false,
 )
 
 interface SecretStore {
@@ -55,6 +61,12 @@ interface SettingsRepository {
     suspend fun setDynamicColor(on: Boolean) {}
     suspend fun setReminderDays(mask: Int) {}
     suspend fun setReminderTone(name: String) {}
+    suspend fun setThemeMode(name: String) {}
+    suspend fun setEnAccent(name: String) {}
+    suspend fun setEsAccent(name: String) {}
+    suspend fun setSpeechRate(rate: Float) {}
+    suspend fun setLastBackupAt(at: Long) {}
+    suspend fun dismissLibraryHint() {}
     suspend fun recordAiCall()
 }
 
@@ -77,12 +89,23 @@ class DataStoreSettingsRepository(
     private val DYNAMIC_COLOR = booleanPreferencesKey("dynamic_color")
     private val REMINDER_DAYS = intPreferencesKey("reminder_days")
     private val REMINDER_TONE = stringPreferencesKey("reminder_tone")
+    private val THEME_MODE = stringPreferencesKey("theme_mode")
+    private val EN_ACCENT = stringPreferencesKey("en_accent")
+    private val ES_ACCENT = stringPreferencesKey("es_accent")
+    private val SPEECH_RATE = floatPreferencesKey("speech_rate")
+    private val LAST_BACKUP_AT = longPreferencesKey("last_backup_at")
+    private val LIBRARY_HINT_DISMISSED = booleanPreferencesKey("library_hint_dismissed")
 
     private fun today() = Instant.ofEpochMilli(clock()).atZone(ZoneId.systemDefault()).toLocalDate().toString()
 
     override val settings: Flow<AppSettings> = combine(store.data, keyFlow) { p, key ->
         val sameDay = p[CALL_DAY] == today()
-        AppSettings(key, p[MODEL] ?: DEFAULT_MODEL, p[NEW_PER_DAY] ?: 10, if (sameDay) p[CALL_COUNT] ?: 0 else 0, p[AUTO_EXPAND] ?: true, p[REMINDER_ON] ?: false, p[REMINDER_HOUR] ?: 20, p[DAILY_GOAL] ?: 10, p[USE_SAVED] ?: true, p[DYNAMIC_COLOR] ?: false, p[REMINDER_DAYS] ?: 0b1111111, p[REMINDER_TONE] ?: "PLAIN")
+        AppSettings(
+            key, p[MODEL] ?: DEFAULT_MODEL, p[NEW_PER_DAY] ?: 10, if (sameDay) p[CALL_COUNT] ?: 0 else 0, p[AUTO_EXPAND] ?: true, p[REMINDER_ON] ?: false, p[REMINDER_HOUR] ?: 20, p[DAILY_GOAL] ?: 10, p[USE_SAVED] ?: true, p[DYNAMIC_COLOR] ?: false, p[REMINDER_DAYS] ?: 0b1111111, p[REMINDER_TONE] ?: "PLAIN",
+            themeMode = p[THEME_MODE] ?: "SYSTEM", enAccent = p[EN_ACCENT] ?: "US", esAccent = p[ES_ACCENT] ?: "ES",
+            speechRate = p[SPEECH_RATE] ?: 1f, lastBackupAt = p[LAST_BACKUP_AT] ?: 0L,
+            libraryHintDismissed = p[LIBRARY_HINT_DISMISSED] ?: false,
+        )
     }
 
     override fun currentApiKey() = secret.get()
@@ -111,6 +134,13 @@ class DataStoreSettingsRepository(
     override suspend fun setReminderTone(name: String) { store.edit { it[REMINDER_TONE] = name } }
 
     override suspend fun setDynamicColor(on: Boolean) { store.edit { it[DYNAMIC_COLOR] = on } }
+
+    override suspend fun setThemeMode(name: String) { store.edit { it[THEME_MODE] = name } }
+    override suspend fun setEnAccent(name: String) { store.edit { it[EN_ACCENT] = name } }
+    override suspend fun setEsAccent(name: String) { store.edit { it[ES_ACCENT] = name } }
+    override suspend fun setSpeechRate(rate: Float) { store.edit { it[SPEECH_RATE] = rate.coerceIn(MIN_SPEECH_RATE, MAX_SPEECH_RATE) } }
+    override suspend fun setLastBackupAt(at: Long) { store.edit { it[LAST_BACKUP_AT] = at } }
+    override suspend fun dismissLibraryHint() { store.edit { it[LIBRARY_HINT_DISMISSED] = true } }
 
     override suspend fun recordAiCall() {
         store.edit {

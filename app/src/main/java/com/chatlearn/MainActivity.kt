@@ -5,6 +5,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
+import androidx.activity.SystemBarStyle
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.tween
@@ -24,6 +25,10 @@ import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.launch
 import androidx.lifecycle.viewmodel.compose.viewModel
 import kotlinx.coroutines.flow.first
+import com.chatlearn.settings.ThemeMode
+import com.chatlearn.settings.VoicePrefs
+import com.chatlearn.settings.voice
+import com.chatlearn.settings.voiceSample
 import com.chatlearn.stats.StatsViewModel
 import com.chatlearn.ui.library.LibraryScreen
 import com.chatlearn.ui.library.LibraryViewModel
@@ -33,6 +38,10 @@ import com.chatlearn.ui.settings.SettingsScreen
 import com.chatlearn.ui.settings.SettingsViewModel
 import com.chatlearn.ui.translate.TranslateScreen
 import com.chatlearn.ui.translate.TranslateViewModel
+
+// androidx.activity의 enableEdgeToEdge 기본 내비게이션 바 스크림과 같은 값.
+private val LIGHT_NAV_SCRIM = android.graphics.Color.argb(0xe6, 0xFF, 0xFF, 0xFF)
+private val DARK_NAV_SCRIM = android.graphics.Color.argb(0x80, 0x1b, 0x1b, 0x1b)
 
 private enum class Tab(val label: String) { TRANSLATE("번역"), LIBRARY("라이브러리"), REVIEW("복습"), SETTINGS("설정") }
 
@@ -52,6 +61,22 @@ class MainActivity : ComponentActivity() {
         (application as ChatLearnApp).container.refreshWidget()
     }
 
+    /**
+     * Android 12 이상: 앱 밝기를 시스템에 알려 둔다. 다음에 앱을 열 때 시작 화면과 창 배경도 같은 밝기로 뜬다.
+     * 값이 그대로면 아무 일도 일어나지 않고, 바뀌면 화면이 한 번 다시 만들어진다(보던 탭은 유지된다).
+     */
+    private fun applyNightMode(mode: ThemeMode) {
+        if (android.os.Build.VERSION.SDK_INT < 31) return
+        val ui = getSystemService(android.app.UiModeManager::class.java) ?: return
+        ui.setApplicationNightMode(
+            when (mode) {
+                ThemeMode.SYSTEM -> android.app.UiModeManager.MODE_NIGHT_AUTO
+                ThemeMode.LIGHT -> android.app.UiModeManager.MODE_NIGHT_NO
+                ThemeMode.DARK -> android.app.UiModeManager.MODE_NIGHT_YES
+            },
+        )
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
@@ -69,14 +94,25 @@ class MainActivity : ComponentActivity() {
                     }
                 LibraryViewModel::class.java -> LibraryViewModel(c.repo, c.expansion, keyPhraseService = c.keyPhrases)
                 ReviewViewModel::class.java -> ReviewViewModel(c.reviewSession())
-                SettingsViewModel::class.java -> SettingsViewModel(c.settings, c.repo, c.ai) { on, hour -> c.reminders.apply(on, hour) }
+                SettingsViewModel::class.java -> SettingsViewModel(c.settings, c.repo, c.ai, onReminderChanged = { on, hour -> c.reminders.apply(on, hour) })
                 StatsViewModel::class.java -> StatsViewModel(c.repo)
                 else -> error("unknown ViewModel")
             } as T
         }
         setContent {
             val settings by c.settings.settings.collectAsStateWithLifecycle(initialValue = null)
-            AppTheme(dynamicColor = settings?.dynamicColor ?: false) {
+            val themeMode = settings?.let { ThemeMode.fromName(it.themeMode) }
+            val dark = (themeMode ?: ThemeMode.SYSTEM).isDark(androidx.compose.foundation.isSystemInDarkTheme())
+            // 상태 표시줄·내비게이션 바 아이콘 색도 앱 밝기를 따른다(휴대폰과 다르게 고정했을 때).
+            DisposableEffect(dark) {
+                enableEdgeToEdge(
+                    statusBarStyle = SystemBarStyle.auto(android.graphics.Color.TRANSPARENT, android.graphics.Color.TRANSPARENT) { dark },
+                    navigationBarStyle = SystemBarStyle.auto(LIGHT_NAV_SCRIM, DARK_NAV_SCRIM) { dark },
+                )
+                onDispose {}
+            }
+            LaunchedEffect(themeMode) { themeMode?.let(::applyNightMode) }
+            AppTheme(darkTheme = dark, dynamicColor = settings?.dynamicColor ?: false) {
                 // 회전·프로세스 재생성 뒤에도 보던 탭을 유지한다.
                 var tab by rememberSaveable { mutableStateOf<Tab?>(null) }
                 // 키가 없으면 첫 화면을 설정으로 안내한다
@@ -127,12 +163,16 @@ class MainActivity : ComponentActivity() {
                         Crossfade(targetState = current, animationSpec = tween(200), label = "tab") { shown ->
                             when (shown) {
                                 Tab.TRANSLATE -> TranslateScreen(translateVm, onSpeak = { text, lang -> c.tts.speak(text, lang, false) }, onOpenSettings = { tab = Tab.SETTINGS })
-                                Tab.LIBRARY -> LibraryScreen(viewModel(factory = factory), onGoTranslate = { tab = Tab.TRANSLATE }) { ids, lang ->
+                                Tab.LIBRARY -> LibraryScreen(
+                                    viewModel(factory = factory), onGoTranslate = { tab = Tab.TRANSLATE },
+                                    showGestureHint = settings?.libraryHintDismissed == false,
+                                    onDismissGestureHint = { lifecycleScope.launch { c.settings.dismissLibraryHint() } },
+                                ) { ids, lang ->
                                     reviewVm.startWith(ids, lang)
                                     tab = Tab.REVIEW
                                 }
-                                Tab.REVIEW -> ReviewScreen(reviewVm, viewModel(factory = factory))
-                                Tab.SETTINGS -> SettingsScreen(viewModel(factory = factory))
+                                Tab.REVIEW -> ReviewScreen(reviewVm, viewModel(factory = factory), settings?.voice() ?: VoicePrefs())
+                                Tab.SETTINGS -> SettingsScreen(viewModel(factory = factory), onPreviewVoice = { lang -> c.tts.speak(voiceSample(lang), lang, false) })
                             }
                         }
                     }
