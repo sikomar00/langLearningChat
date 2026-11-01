@@ -59,8 +59,16 @@ class LibraryOrderTest {
         assertNull(p.nextDueAt)
     }
 
+    // 라이브러리는 문장을 센다. 한 문장에 영어·스페인어 카드가 둘 있을 수 있어 "새 카드"라고 하면 복습 탭의 카드 수와 어긋난다.
+    @Test fun groupTitlesNameSentencesNotCards() {
+        assertEquals(
+            listOf("복습할 차례", "새 문장", "나중에 복습"),
+            listOf(EntryState.DUE, EntryState.NEW, EntryState.LATER).map(::stateTitle),
+        )
+    }
+
     @Test fun badgeText() {
-        assertEquals("새 카드", dueBadge(EntryProgress(EntryState.NEW, now, 0), now))
+        assertEquals("새 문장", dueBadge(EntryProgress(EntryState.NEW, now, 0), now))
         assertEquals("복습할 차례", dueBadge(EntryProgress(EntryState.DUE, now - 1, 0), now))
         assertEquals("3일 후", dueBadge(EntryProgress(EntryState.LATER, now + 3 * day, 0), now))
     }

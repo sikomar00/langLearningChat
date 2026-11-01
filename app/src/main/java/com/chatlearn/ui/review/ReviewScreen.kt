@@ -201,7 +201,7 @@ private fun ReviewPane(vm: ReviewViewModel, statsVm: StatsViewModel, voice: Voic
                 ReviewUi.Loading -> LoadingBox()
                 ReviewUi.Empty -> {
                     EmptyState(
-                        message = if (custom != null) "고른 문장에 복습할 카드가 없어요." else "오늘 복습할 카드를 모두 끝냈어요.\n새 문장을 저장하면 내일부터 복습에 나와요.",
+                        message = emptyReviewMessage(custom != null, moreNew),
                         icon = Icons.Default.CheckCircle,
                         actionLabel = if (custom != null) "평소 복습으로" else "다시 확인",
                         onAction = { vm.start(preview = true) },

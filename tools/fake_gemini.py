@@ -92,7 +92,8 @@ def answer(prompt, props):
         return {"results": [received(x) for x in items]}
     if "candidates" in keys:
         ko = between(prompt)
-        target = "es" if "in Spanish" in prompt else "en"
+        # 영어 요청에도 altText 설명에 "in Spanish"가 들어가므로 후보 언어 문구로 가린다.
+        target = "es" if "natural Spanish options" in prompt else "en"
         base = "Nos vemos mañana" if target == "es" else "See you tomorrow"
         return {"candidates": [
             {"text": f"{base}!", "toneNote": f"편한 말투예요. (요청: {ko})", "altText": "See you tomorrow!" if target == "es" else "¡Nos vemos mañana!",

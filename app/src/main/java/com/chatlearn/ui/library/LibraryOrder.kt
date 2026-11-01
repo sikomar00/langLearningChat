@@ -31,7 +31,7 @@ fun progressOf(cards: List<ReviewCardEntity>, now: Long): EntryProgress {
 }
 
 fun dueBadge(p: EntryProgress, now: Long): String = when (p.state) {
-    EntryState.NEW -> "새 카드"
+    EntryState.NEW -> "새 문장"
     EntryState.DUE -> "복습할 차례"
     EntryState.LATER -> "${intervalLabel((p.nextDueAt ?: now) - now)} 후"
 }
@@ -56,7 +56,7 @@ fun filterByStatus(items: List<LibraryItem>, progress: Map<Long, EntryProgress>,
         StatusFilter.STRUGGLING -> items.filter { (progress[it.entry.id]?.lapses ?: 0) >= STRUGGLING_LAPSES }
     }
 
-/** 목록을 "복습할 차례 → 새 카드 → 나중에" 순서로 묶는다. 묶음 안의 순서는 주어진 순서를 그대로 둔다. */
+/** 목록을 "복습할 차례 → 새 문장 → 나중에" 순서로 묶는다. 묶음 안의 순서는 주어진 순서를 그대로 둔다. */
 fun groupByState(items: List<LibraryItem>, progress: Map<Long, EntryProgress>): List<Pair<EntryState, List<LibraryItem>>> {
     val byState = items.groupBy { (progress[it.entry.id] ?: NEW_PROGRESS).state }
     return listOf(EntryState.DUE, EntryState.NEW, EntryState.LATER).mapNotNull { st -> byState[st]?.let { st to it } }
@@ -64,7 +64,8 @@ fun groupByState(items: List<LibraryItem>, progress: Map<Long, EntryProgress>): 
 
 fun stateTitle(s: EntryState): String = when (s) {
     EntryState.DUE -> "복습할 차례"
-    EntryState.NEW -> "새 카드"
+    // 문장 수를 세므로 "카드"가 아니라 "문장": 한 문장에 카드가 둘일 수 있어 복습 탭의 카드 수와 다르다.
+    EntryState.NEW -> "새 문장"
     EntryState.LATER -> "나중에 복습"
 }
 

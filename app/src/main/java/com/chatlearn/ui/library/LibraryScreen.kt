@@ -48,7 +48,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.chatlearn.data.LibraryItem
 import com.chatlearn.domain.Lang
 
-private const val AI_FAILED_HINT = "AI에 연결하지 못했어요. 설정 탭의 '연결 확인'으로 키와 모델, 인터넷을 확인해 주세요."
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -118,7 +117,7 @@ fun LibraryScreen(
         val missingKeys by vm.missingKeyPhrases.collectAsStateWithLifecycle()
         val expanding by vm.expanding.collectAsStateWithLifecycle()
         val fillingKeys by vm.fillingKeyPhrases.collectAsStateWithLifecycle()
-        var message by remember { mutableStateOf<String?>(null) }
+        var notice by remember { mutableStateOf<LibraryNotice?>(null) }
         val scope = rememberCoroutineScope()
         var showFilters by rememberSaveable { mutableStateOf(false) }
         // 보기·묶기 선택은 화면 취향이라 앱을 껐다 켜도 유지되게 따로 저장한다.
@@ -142,9 +141,7 @@ fun LibraryScreen(
                                 menuOpen = false
                                 scope.launch {
                                     val r = vm.expandAll().await()
-                                    message = if (r.created == 0 && r.failedBatches > 0) AI_FAILED_HINT
-                                    else "다른 언어 카드 ${r.created}개를 만들었어요." +
-                                        if (r.failedBatches > 0) " (실패한 묶음 ${r.failedBatches}개는 다시 눌러 보세요)" else ""
+                                    notice = expandNotice(r.created, r.failedBatches)
                                 }
                             },
                         )
@@ -154,9 +151,7 @@ fun LibraryScreen(
                                 menuOpen = false
                                 scope.launch {
                                     val r = vm.fillKeyPhrases().await()
-                                    message = if (r.filled == 0 && r.none == 0 && r.failedBatches > 0) AI_FAILED_HINT
-                                    else "핵심 표현 ${r.filled}개를 찾았어요." +
-                                        if (r.failedBatches > 0) " (실패한 묶음 ${r.failedBatches}개는 다시 눌러 보세요)" else ""
+                                    notice = keyPhraseNotice(r.filled, r.none, r.failedBatches)
                                 }
                             },
                         )
@@ -233,14 +228,22 @@ fun LibraryScreen(
             ).joinToString(" · ")
             Text(summary, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
         }
-        message?.let { Text(it, color = MaterialTheme.colorScheme.primary, modifier = Modifier.clickable { message = null }) }
+        // 결과 안내는 잠시 보여 주고 저절로 지운다. 다시 해 볼 일이 남은 안내는 누를 때까지 둔다.
+        val a11y = androidx.compose.ui.platform.LocalAccessibilityManager.current
+        LaunchedEffect(notice) {
+            val n = notice ?: return@LaunchedEffect
+            if (n.sticky) return@LaunchedEffect
+            kotlinx.coroutines.delay(a11y?.calculateRecommendedTimeoutMillis(LIBRARY_NOTICE_MS, containsText = true) ?: LIBRARY_NOTICE_MS)
+            notice = null
+        }
+        notice?.let { Text(it.text, color = MaterialTheme.colorScheme.primary, modifier = Modifier.clickable(onClickLabel = "안내 닫기") { notice = null }) }
         moveTargets?.let { ids ->
             val anyInFolder = items.any { it.entry.id in ids && it.entry.folderId != null }
             FolderPickerDialog(
                 folders = folders, counts = folderCounts, canRemove = anyInFolder,
                 onPick = { fid ->
                     vm.moveToFolder(ids, fid)
-                    message = if (fid == null) "${ids.size}개를 폴더에서 꺼냈어요." else "${ids.size}개를 '${folderNames[fid]}' 폴더로 옮겼어요."
+                    notice = folderMoveNotice(ids.size, fid?.let { folderNames[it].orEmpty() })
                     moveTargets = null; picked = null
                 },
                 onCreate = { name ->
@@ -248,7 +251,7 @@ fun LibraryScreen(
                         val fid = vm.createFolder(name).await()
                         if (fid != null) {
                             vm.moveToFolder(ids, fid).join()
-                            message = "${ids.size}개를 '${name.trim()}' 폴더로 옮겼어요."
+                            notice = folderMoveNotice(ids.size, name.trim())
                             moveTargets = null; picked = null
                         }
                     }
@@ -558,7 +561,7 @@ private fun EntryCard(
     selectionMode: Boolean, checked: Boolean, onClick: () -> Unit, onLongClick: () -> Unit,
 ) {
     Card(Modifier.fillMaxWidth().combinedClickable(onClick = onClick, onLongClick = onLongClick)) {
-        // 왼쪽 색 막대: 복습할 차례=보라, 새 카드=회색, 나중에 복습(이미 복습함)=초록
+        // 왼쪽 색 막대: 복습할 차례=보라, 새 문장=회색, 나중에 복습(이미 복습함)=초록
         val barColor = when (state) {
             EntryState.DUE -> MaterialTheme.colorScheme.primary
             EntryState.NEW -> MaterialTheme.colorScheme.outline
