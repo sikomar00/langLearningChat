@@ -8,6 +8,7 @@ import com.chatlearn.ai.GeminiAiService
 import com.chatlearn.ai.geminiHttpClient
 import com.chatlearn.data.AppDatabase
 import com.chatlearn.data.EntryRepository
+import com.chatlearn.data.Migrations
 import com.chatlearn.review.ReviewSession
 import com.chatlearn.settings.DataStoreSettingsRepository
 import com.chatlearn.settings.EncryptedSecretStore
@@ -24,7 +25,9 @@ private val Context.settingsStore by preferencesDataStore("settings")
 
 class AppContainer(context: Context) {
     private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
-    val db: AppDatabase = Room.databaseBuilder(context, AppDatabase::class.java, "chatlearn.db").build()
+    val db: AppDatabase = Room.databaseBuilder(context, AppDatabase::class.java, "chatlearn.db")
+        .addMigrations(Migrations.MIGRATION_1_2)
+        .build()
     val repo = EntryRepository(db)
     val settings: SettingsRepository = DataStoreSettingsRepository(context.settingsStore, EncryptedSecretStore(context))
     val ai: AiService = GeminiAiService(

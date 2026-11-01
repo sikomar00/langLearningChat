@@ -1,5 +1,6 @@
 package com.chatlearn.data
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.Index
@@ -30,7 +31,7 @@ data class EntryTextEntity(val entryId: Long, val lang: Lang, val text: String, 
 @Entity(
     tableName = "review_card",
     foreignKeys = [ForeignKey(EntryEntity::class, ["id"], ["entryId"], onDelete = ForeignKey.CASCADE)],
-    indices = [Index("entryId", unique = true), Index("dueAt")],
+    indices = [Index(value = ["entryId", "answerLang"], unique = true), Index("dueAt")],
 )
 data class ReviewCardEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
@@ -65,11 +66,17 @@ data class ReviewLogEntity(
     val aiVerdict: Verdict?,
     val aiFeedback: String?,
     val rating: Rating,
+    val responseMs: Long? = null,
+    @ColumnInfo(defaultValue = "'TRANSLATE'") val exercise: ExerciseKind = ExerciseKind.TRANSLATE,
 )
 
 @Serializable
 @Entity(tableName = "tag", indices = [Index("name", unique = true)])
-data class TagEntity(@PrimaryKey(autoGenerate = true) val id: Long = 0, val name: String)
+data class TagEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val name: String,
+    @ColumnInfo(defaultValue = "0") val lastUsedAt: Long = 0,
+)
 
 @Serializable
 @Entity(

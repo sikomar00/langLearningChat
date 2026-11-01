@@ -15,3 +15,12 @@ enum class Lang(val code: String) {
 @Serializable enum class TextOrigin { ORIGINAL, AI, USER }
 @Serializable enum class Verdict { CORRECT, CLOSE, WRONG }
 @Serializable enum class Rating { AGAIN, HARD, GOOD, EASY }
+
+@Serializable enum class ExerciseKind { TRANSLATE, CLOZE, DICTATION }
+
+/** 영어↔스페인어. 한국어는 "다른 외국어"가 없다. */
+fun Lang.otherForeign(): Lang = when (this) {
+    Lang.EN -> Lang.ES
+    Lang.ES -> Lang.EN
+    Lang.KO -> throw IllegalArgumentException("Korean has no counterpart foreign language")
+}
