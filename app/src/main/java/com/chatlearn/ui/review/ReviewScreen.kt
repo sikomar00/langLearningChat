@@ -20,6 +20,8 @@ import androidx.compose.ui.text.withStyle
 import com.chatlearn.domain.ExerciseKind
 import com.chatlearn.domain.Lang
 import com.chatlearn.domain.Rating
+import com.chatlearn.domain.ratingChoices
+import com.chatlearn.domain.ratingLabel
 import com.chatlearn.domain.ratingPreviews
 import com.chatlearn.review.GradeOutcome
 import com.chatlearn.stats.StatsScreen
@@ -144,9 +146,17 @@ private fun ReviewPane(vm: ReviewViewModel) {
                         if (s.item.hintKo.isNotBlank() && s.item.exercise == ExerciseKind.CLOZE) Text("뜻: ${s.item.hintKo}")
                     }
                 }
+                val verdict = when (val o = s.outcome) {
+                    is GradeOutcome.Ai -> o.result.verdict
+                    is GradeOutcome.Local -> o.verdict
+                    is GradeOutcome.SelfGrade -> null
+                }
+                val choices = ratingChoices(verdict)
+                Text("얼마나 기억났나요?", style = MaterialTheme.typography.labelLarge)
                 val previews = remember(s.item.card) { ratingPreviews(s.item.card.toState(), System.currentTimeMillis()) }
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    listOf(Rating.AGAIN to "다시", Rating.HARD to "어려움", Rating.GOOD to "좋음", Rating.EASY to "쉬움").forEach { (r, label) ->
+                    choices.forEach { r ->
+                        val label = ratingLabel(r)
                         Column(Modifier.weight(1f), horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally) {
                             if (r == s.suggested) Button(onClick = { vm.rate(r) }, Modifier.fillMaxWidth(), contentPadding = PaddingValues(horizontal = 4.dp)) { Text(label, maxLines = 1) }
                             else OutlinedButton(onClick = { vm.rate(r) }, Modifier.fillMaxWidth(), contentPadding = PaddingValues(horizontal = 4.dp)) { Text(label, maxLines = 1) }
