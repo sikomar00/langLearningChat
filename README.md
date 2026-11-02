@@ -12,6 +12,13 @@
 - **통계**: 12주 학습 기록(히트맵).
 - **그 밖에**: 홈 화면 위젯, 런처 바로가기 4개, 복습 알림, 밝기·억양 설정, 백업 내보내기·가져오기.
 
+## 화면
+실기기(Galaxy S25+, 어두운 테마)에서 찍은 화면입니다. 저장한 문장이 보이는 화면은 개인 대화가 들어 있어 싣지 않았습니다.
+
+| 복습 | 통계 | 설정: 발음 | 설정: 화면 |
+|---|---|---|---|
+| <img src="docs/screenshots/review-summary.png" width="200"> | <img src="docs/screenshots/stats.png" width="200"> | <img src="docs/screenshots/settings-sentence.png" width="200"> | <img src="docs/screenshots/settings-display.png" width="200"> |
+
 ## 시작하기
 1. [Google AI Studio](https://aistudio.google.com/apikey)에서 무료 Gemini API 키를 발급받습니다.
 2. 앱을 설치하고 설정 > AI에 키를 붙여넣습니다. 키는 기기의 암호화 저장소에만 저장되며 저장소에는 들어 있지 않습니다.
