@@ -151,9 +151,10 @@ class EntryRepository(internal val db: AppDatabase) {
     /** 최근에 쓴 태그 순서. 자동완성 후보로 쓴다. */
     fun observeRecentTags(): Flow<List<String>> = dao.observeTagsByRecency()
 
-    suspend fun queue(now: Long, dayStart: Long, newPerDay: Int, maxReviews: Int = 50): List<DueCard> {
+    suspend fun queue(now: Long, dayStart: Long, newPerDay: Int, maxReviews: Int = 50, extraNew: Int = 0): List<DueCard> {
         val reviews = dao.dueReviewed(now, maxReviews)
-        val newLeft = (newPerDay - dao.introducedToday(dayStart)).coerceAtLeast(0)
+        // 더 배우기는 한도를 이미 넘겼어도 남은 한도 위에 더한다.
+        val newLeft = (newPerDay - dao.introducedToday(dayStart)).coerceAtLeast(0) + extraNew
         val fresh = if (newLeft > 0) dao.dueNew(now, newLeft) else emptyList()
         return interleave(reviews, fresh).map { c ->
             dueCardOf(c)

@@ -51,6 +51,17 @@ class EntryRepositoryTest {
         assertEquals(1, repo.queue(now, dayStart = 0, newPerDay = 2).size)
     }
 
+    // 오늘 이미 한도보다 많이 소개했어도(한도를 낮췄거나 이미 더 배웠을 때) "더 배우기"는 요청한 장 수만큼 낸다.
+    @Test fun extraNewCardsAreAddedOnTopOfWhatIsLeftEvenWhenTheLimitWasExceeded() = runBlocking {
+        repeat(5) { repo.saveEntry(draft(text = "msg $it"), now) }
+        repeat(3) {
+            val c = repo.queue(now, 0, 10).first()
+            repo.applyReview(c.card, Scheduler.next(c.card.toState(), Rating.GOOD, now), logFor(c.card, now))
+        }
+        assertEquals(0, repo.queue(now, 0, 1).size)
+        assertEquals(2, repo.queue(now, 0, 1, extraNew = 5).size)
+    }
+
     @Test fun applyReviewUpdatesCardAndWritesLog() = runBlocking {
         repo.saveEntry(draft(), now)
         val due = repo.queue(now, 0, 10).single()

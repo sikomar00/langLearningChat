@@ -62,7 +62,7 @@ class ReviewSession(
         val now = clock()
         val dayStart = Instant.ofEpochMilli(now).atZone(ZoneId.systemDefault()).toLocalDate()
             .atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
-        return spreadSiblings(repo.queue(now, dayStart, newPerDay() + extraNew))
+        return spreadSiblings(repo.queue(now, dayStart, newPerDay(), extraNew = extraNew))
     }
 
     /** 오늘 한도 때문에 아직 못 낸 새 카드 수. */
