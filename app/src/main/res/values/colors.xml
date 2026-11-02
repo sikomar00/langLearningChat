@@ -6,4 +6,6 @@
     <color name="shortcut_background">#EDE4FF</color>
     <color name="shortcut_foreground">#6D28D9</color>
     <color name="widget_background">#F3EDFF</color>
+    <color name="widget_preview_main">#6D28D9</color>
+    <color name="widget_preview_sub">#4A4458</color>
 </resources>
