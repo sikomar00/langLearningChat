@@ -342,6 +342,68 @@ class ReviewViewModelTest {
         assertNotEquals(gone, assertIs<ReviewUi.Prompt>(vm.state.value).item.card.entryId)
     }
 
+    // 복습하던 문장이 라이브러리에서 지워지는 경우(다른 탭에서 삭제, 일괄 삭제 등). 예전에는 평가를 저장하다 앱이 꺼졌다.
+
+    @Test fun ratingACardDeletedMidReviewSkipsItInsteadOfCrashing() = runBlocking {
+        two()
+        vm.start().join()
+        val gone = assertIs<ReviewUi.Prompt>(vm.state.value).item.card.entryId
+        vm.setAnswer("x"); vm.submit().join()
+        assertIs<ReviewUi.Graded>(vm.state.value)
+        repo.deleteEntry(gone)
+        vm.rate(Rating.GOOD).join()
+        val next = assertIs<ReviewUi.Prompt>(vm.state.value)
+        assertNotEquals(gone, next.item.card.entryId)
+        assertTrue(db.dao().allLogs().isEmpty())
+        assertEquals(ReviewProgress(0, 1), vm.progress.value)
+        assertFalse(vm.canUndo.value)
+        assertEquals(DELETED_MID_REVIEW_NOTICE, vm.notice.value)
+        vm.noticeShown()
+        assertNull(vm.notice.value)
+    }
+
+    @Test fun aCardDeletedWhileWaitingInTheQueueIsNeverShown() = runBlocking {
+        two()
+        vm.start().join()
+        val shown = assertIs<ReviewUi.Prompt>(vm.state.value).item.card.entryId
+        repo.deleteEntry(db.dao().allEntries().map { it.id }.single { it != shown })
+        vm.setAnswer("x"); vm.submit().join(); vm.rate(Rating.GOOD).join()
+        assertEquals(ReviewUi.Done(1), vm.state.value)
+        assertEquals(DELETED_MID_REVIEW_NOTICE, vm.notice.value)
+    }
+
+    @Test fun returningToTheTabDropsTheOnScreenCardThatWasDeletedElsewhere() = runBlocking {
+        two()
+        vm.start().join()
+        val gone = assertIs<ReviewUi.Prompt>(vm.state.value).item.card.entryId
+        repo.deleteEntry(gone)
+        vm.refresh(force = false).join()
+        assertNotEquals(gone, assertIs<ReviewUi.Prompt>(vm.state.value).item.card.entryId)
+        assertEquals(DELETED_MID_REVIEW_NOTICE, vm.notice.value)
+    }
+
+    @Test fun editingACardDeletedElsewhereSkipsItInsteadOfCrashing() = runBlocking {
+        repo.saveEntry(EntryDraft(Direction.RECEIVED, Lang.EN, "Hi", "안녕", "", null, emptyList()), now - 1)
+        vm.start().join()
+        repo.deleteEntry(assertIs<ReviewUi.Prompt>(vm.state.value).item.card.entryId)
+        vm.editCurrent("Hi!", "안녕!").join()
+        assertEquals(ReviewUi.Done(0), vm.state.value)
+        assertTrue(db.dao().allTexts().isEmpty())
+        assertEquals(DELETED_MID_REVIEW_NOTICE, vm.notice.value)
+    }
+
+    @Test fun undoAfterTheRatedSentenceWasDeletedHidesTheButtonAndExplains() = runBlocking {
+        val id = (repo.saveEntry(EntryDraft(Direction.RECEIVED, Lang.EN, "Hi", "안녕", "", null, emptyList()), now - 1) as SaveResult.Saved).id
+        vm.start().join()
+        vm.setAnswer("Hi"); vm.submit().join(); vm.rate(Rating.GOOD).join()
+        assertTrue(vm.canUndo.value)
+        repo.deleteEntry(id)
+        vm.undo().join()
+        assertFalse(vm.canUndo.value)
+        assertEquals(ReviewUi.Done(1), vm.state.value)
+        assertEquals(DELETED_NO_UNDO_NOTICE, vm.notice.value)
+    }
+
     @Test fun editCurrentChangesTheShownSentence() = runBlocking {
         two()
         vm.start().join()

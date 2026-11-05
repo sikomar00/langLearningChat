@@ -71,13 +71,16 @@ class ReviewSession(
     private data class Undo(val before: ReviewCardEntity, val logId: Long)
     private var lastUndo: Undo? = null
 
-    /** 마지막 평가를 취소한다. 취소할 게 없으면 false. */
+    /** 마지막 평가를 취소한다. 취소할 게 없거나, 그 카드의 문장이 그사이 지워졌으면 false. */
     suspend fun undoLast(): Boolean {
         val u = lastUndo ?: return false
-        repo.undoReview(u.before, u.logId)
+        val restored = repo.undoReview(u.before, u.logId)
         lastUndo = null
-        return true
+        return restored
     }
+
+    /** 카드가 아직 라이브러리에 있는가. 복습 도중 다른 곳에서 문장을 지웠을 수 있다. */
+    suspend fun exists(card: ReviewCardEntity): Boolean = repo.cardExists(card.id)
 
     /** 오늘은 건너뛴다: 평가 기록 없이 다음 날 0시로 미룬다. */
     suspend fun skipToday(card: ReviewCardEntity) {
@@ -97,11 +100,12 @@ class ReviewSession(
 
     suspend fun deleteEntry(entryId: Long) = repo.deleteEntry(entryId)
 
-    /** 정답 문장과 한국어 뜻을 고치고, 새 텍스트가 반영된 카드를 돌려준다. */
-    suspend fun edit(card: ReviewCardEntity, answerText: String, ko: String, note: String? = null): DueCard {
+    /** 정답 문장과 한국어 뜻을 고치고, 새 텍스트가 반영된 카드를 돌려준다. 문장이 그사이 지워졌으면 null. */
+    suspend fun edit(card: ReviewCardEntity, answerText: String, ko: String, note: String? = null): DueCard? {
+        if (!repo.cardExists(card.id)) return null
         if (note != null) repo.updateNote(card.entryId, note.trim())
-        if (answerText.isNotBlank()) repo.putText(card.entryId, card.answerLang, answerText, TextOrigin.USER)
-        if (ko.isNotBlank()) repo.putText(card.entryId, Lang.KO, ko, TextOrigin.USER)
+        if (answerText.isNotBlank() && !repo.putText(card.entryId, card.answerLang, answerText, TextOrigin.USER)) return null
+        if (ko.isNotBlank() && !repo.putText(card.entryId, Lang.KO, ko, TextOrigin.USER)) return null
         return repo.dueCardOf(card)
     }
 
@@ -153,10 +157,13 @@ class ReviewSession(
         }
     }
 
-    /** 평가를 저장하고, 갱신된 카드를 돌려준다(다시 평가를 같은 세션에 재출제할 때 쓴다). */
+    /**
+     * 평가를 저장하고, 갱신된 카드를 돌려준다(다시 평가를 같은 세션에 재출제할 때 쓴다).
+     * 복습 도중 문장이 라이브러리에서 지워져 카드가 없으면 아무것도 저장하지 않고 null.
+     */
     suspend fun rate(
         item: ReviewItem, rating: Rating, outcome: GradeOutcome, answer: String, responseMs: Long? = null,
-    ): ReviewCardEntity {
+    ): ReviewCardEntity? {
         val now = clock()
         val next = Scheduler.next(item.card.toState(), rating, now, jitter())
         val (verdict, feedback) = when (outcome) {
@@ -171,7 +178,7 @@ class ReviewSession(
                 aiVerdict = verdict, aiFeedback = feedback, rating = rating,
                 responseMs = responseMs, exercise = item.exercise,
             ),
-        )
+        ) ?: return null
         lastUndo = Undo(item.card, logId)
         return item.card.withState(next)
     }

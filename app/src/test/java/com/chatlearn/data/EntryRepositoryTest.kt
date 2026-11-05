@@ -293,6 +293,23 @@ class EntryRepositoryTest {
         assertEquals(listOf(Lang.ES), repo.keyPhraseTargets().map { it.lang })
     }
 
+    @Test fun reviewWritesAreSkippedWhenTheSentenceWasDeleted() = runBlocking {
+        val id = (repo.saveEntry(draft(), 1_000) as SaveResult.Saved).id
+        val due = repo.queue(1_000, 0, 10).first { it.card.entryId == id }
+        assertTrue(repo.cardExists(due.card.id))
+        assertTrue(repo.putText(id, Lang.ES, "ya existe", TextOrigin.AI))
+        repo.deleteEntry(id) // 복습 도중 라이브러리에서 삭제
+        val log = ReviewLogEntity(cardId = due.card.id, reviewedAt = 5_000, promptLang = Lang.KO, userAnswer = "x",
+            aiVerdict = null, aiFeedback = null, rating = Rating.GOOD)
+        // 아래 셋은 예전에 외래 키 오류(SQLiteConstraintException)를 던져 앱을 죽이던 쓰기들이다
+        assertNull(repo.applyReview(due.card, Scheduler.next(due.card.toState(), Rating.GOOD, 5_000), log))
+        assertFalse(repo.putText(id, Lang.ES, "otra vez", TextOrigin.AI))
+        assertFalse(repo.undoReview(due.card, 1L))
+        assertFalse(repo.cardExists(due.card.id))
+        assertTrue(db.dao().allLogs().isEmpty())
+        assertTrue(db.dao().allTexts().isEmpty())
+    }
+
     @Test fun cardsReviewedSinceCountsDistinctCards() = runBlocking {
         val id = (repo.saveEntry(draft(), 1_000) as SaveResult.Saved).id
         val due = repo.queue(1_000, 0, 10).first { it.card.entryId == id }

@@ -156,11 +156,52 @@ class ReviewSessionTest {
         val item = s.prepare(s.loadQueue().single())
         val outcome = s.grade(item, "I'm fine")
         val updated = s.rate(item, Rating.GOOD, outcome, "I'm fine")
-        assertEquals(now + 86_400_000L, updated.dueAt)
+        assertEquals(now + 86_400_000L, assertNotNull(updated).dueAt)
         assertTrue(s.loadQueue().isEmpty())
         val log = db.dao().allLogs().single()
         assertEquals("I'm fine", log.userAnswer)
         assertEquals(Verdict.CORRECT, log.aiVerdict)
         assertEquals(now + 86_400_000L, db.dao().allCards().single().dueAt)
+    }
+
+    // 복습 도중 라이브러리에서 문장을 지우면 카드도 함께 사라진다(CASCADE). 아래는 예전에 외래 키 오류로 앱이 죽던 경로들이다.
+
+    @Test fun rateWritesNothingWhenTheSentenceWasDeletedMidReview() = runBlocking {
+        saveOne()
+        val s = session()
+        val item = s.prepare(s.loadQueue().single())
+        val outcome = s.grade(item, "I'm fine")
+        repo.deleteEntry(item.card.entryId)
+        assertNull(s.rate(item, Rating.GOOD, outcome, "I'm fine"))
+        assertTrue(db.dao().allLogs().isEmpty())
+        assertFalse(s.undoLast()) // 저장된 평가가 없으니 취소할 것도 없다
+    }
+
+    @Test fun undoIsRefusedWhenTheRatedSentenceWasDeleted() = runBlocking {
+        saveOne()
+        val s = session()
+        val item = s.prepare(s.loadQueue().single())
+        assertNotNull(s.rate(item, Rating.GOOD, s.grade(item, "I'm fine"), "I'm fine"))
+        repo.deleteEntry(item.card.entryId)
+        assertFalse(s.undoLast())
+        assertTrue(db.dao().allCards().isEmpty()) // 되돌리기가 지워진 카드를 되살리지 않는다
+    }
+
+    @Test fun editReturnsNullWhenTheSentenceWasDeleted() = runBlocking {
+        saveOne()
+        val s = session()
+        val card = s.loadQueue().single().card
+        repo.deleteEntry(card.entryId)
+        assertNull(s.edit(card, "How do you do?", "안녕하세요"))
+        assertTrue(db.dao().allTexts().isEmpty())
+    }
+
+    @Test fun preparingACardDeletedWhileQueuedDoesNotCrashOnSavingTheTranslation() = runBlocking {
+        saveOne(); other = true
+        val s = session()
+        val due = s.loadQueue().single()
+        repo.deleteEntry(due.card.entryId)
+        s.prepare(due)
+        assertTrue(db.dao().allTexts().isEmpty())
     }
 }

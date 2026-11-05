@@ -120,6 +120,7 @@ private fun ReviewPane(vm: ReviewViewModel, statsVm: StatsViewModel, voice: Voic
     val canUndo by vm.canUndo.collectAsStateWithLifecycle()
     val goal by vm.goal.collectAsStateWithLifecycle()
     val moreNew by vm.moreNew.collectAsStateWithLifecycle()
+    val notice by vm.notice.collectAsStateWithLifecycle()
     var focusedBlank by remember { mutableIntStateOf(0) }
     var menuOpen by remember { mutableStateOf(false) }
     var editing by remember { mutableStateOf(false) }
@@ -146,7 +147,14 @@ private fun ReviewPane(vm: ReviewViewModel, statsVm: StatsViewModel, voice: Voic
         }
     }
     // 탭에 들어올 때마다: 처음이면 시작하고, 비었거나 요약 화면이면 그사이 기한이 된 카드를 다시 읽는다.
+    // 푸는 중인 카드의 문장이 다른 탭에서 지워졌으면 그 카드는 내리고 다음으로 넘어간다.
     LaunchedEffect(Unit) { vm.refresh(force = false) }
+    LaunchedEffect(notice) {
+        notice?.let {
+            android.widget.Toast.makeText(ctx, it, android.widget.Toast.LENGTH_LONG).show()
+            vm.noticeShown()
+        }
+    }
 
     val inSession = state is ReviewUi.Prompt || state is ReviewUi.Graded
     Column(Modifier.fillMaxSize().imePadding()) {

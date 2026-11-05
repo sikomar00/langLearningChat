@@ -177,12 +177,17 @@ class EntryRepository(internal val db: AppDatabase) {
             dao.getEntry(card.entryId)?.note.orEmpty())
     }
 
-    /** 텍스트를 바꾼다. 핵심 표현은 새 문장에도 들어 있을 때만 남긴다. */
-    suspend fun putText(entryId: Long, lang: Lang, text: String, origin: TextOrigin) = db.withTransaction {
+    /**
+     * 텍스트를 바꾼다. 핵심 표현은 새 문장에도 들어 있을 때만 남긴다.
+     * 문장이 그사이 지워졌으면(복습 중 라이브러리에서 삭제 등) 아무것도 쓰지 않고 false. 쓰면 외래 키 오류로 앱이 죽는다.
+     */
+    suspend fun putText(entryId: Long, lang: Lang, text: String, origin: TextOrigin): Boolean = db.withTransaction {
+        if (dao.getEntry(entryId) == null) return@withTransaction false
         val clean = text.trim()
         val old = dao.textsFor(entryId).firstOrNull { it.lang == lang }?.keyPhrase
         val kept = if (old == null) null else normalizeKeyPhrase(clean, old)
         dao.upsertText(EntryTextEntity(entryId, lang, clean, origin, kept))
+        true
     }
 
     /** 핵심 표현을 고친다. 문장에 있으면 저장하고 true, 없거나 비었으면 "없음"("")으로 두고 false. */
@@ -201,18 +206,27 @@ class EntryRepository(internal val db: AppDatabase) {
         dao.textsWithoutKeyPhrase().map { KeyPhrasePending(it.entryId, it.lang, it.text) }
     fun observeMissingKeyPhrases(): Flow<Int> = dao.observeMissingKeyPhrases()
 
-    /** 평가를 저장하고 새 기록의 id를 돌려준다(되돌리기에 쓴다). */
-    suspend fun applyReview(card: ReviewCardEntity, newState: CardState, log: ReviewLogEntity): Long =
+    /**
+     * 평가를 저장하고 새 기록의 id를 돌려준다(되돌리기에 쓴다).
+     * 복습 도중 문장이 지워져 카드가 사라졌으면 아무것도 쓰지 않고 null. 기록을 쓰면 외래 키 오류로 앱이 죽는다.
+     */
+    suspend fun applyReview(card: ReviewCardEntity, newState: CardState, log: ReviewLogEntity): Long? =
         db.withTransaction {
+            if (!dao.cardExists(card.id)) return@withTransaction null
             dao.updateCard(card.withState(newState))
             dao.insertLog(log)
         }
 
-    /** [applyReview]를 취소한다: 카드를 평가 전 상태로 되돌리고 그 기록을 지운다. */
-    suspend fun undoReview(before: ReviewCardEntity, logId: Long) = db.withTransaction {
+    /** [applyReview]를 취소한다: 카드를 평가 전 상태로 되돌리고 그 기록을 지운다. 카드가 이미 지워졌으면 false. */
+    suspend fun undoReview(before: ReviewCardEntity, logId: Long): Boolean = db.withTransaction {
+        if (!dao.cardExists(before.id)) return@withTransaction false
         dao.updateCard(before)
         dao.deleteLog(logId)
+        true
     }
+
+    /** 카드가 아직 있는가. 복습 도중 라이브러리에서 문장이 지워졌을 수 있다. */
+    suspend fun cardExists(cardId: Long): Boolean = dao.cardExists(cardId)
 
     suspend fun postponeCard(cardId: Long, dueAt: Long) = dao.setDue(cardId, dueAt)
     suspend fun cardCount(entryId: Long): Int = dao.cardCount(entryId)

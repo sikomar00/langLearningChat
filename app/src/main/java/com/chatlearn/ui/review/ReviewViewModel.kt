@@ -3,6 +3,7 @@ package com.chatlearn.ui.review
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.chatlearn.data.DueCard
+import com.chatlearn.data.ReviewCardEntity
 import com.chatlearn.domain.Lang
 import com.chatlearn.domain.Rating
 import com.chatlearn.review.*
@@ -39,6 +40,9 @@ sealed interface ReviewUi {
 /** [done]개를 끝냈고 이번 세션에서 낼 카드가 [total]장(다시 평가한 카드 포함). */
 data class ReviewProgress(val done: Int, val total: Int)
 
+const val DELETED_MID_REVIEW_NOTICE = "복습하던 문장이 라이브러리에서 지워져 건너뛰었어요."
+const val DELETED_NO_UNDO_NOTICE = "그 문장이 라이브러리에서 지워져 평가를 취소할 수 없어요."
+
 class ReviewViewModel(private val session: ReviewSession) : ViewModel() {
     private val _state = MutableStateFlow<ReviewUi>(ReviewUi.Loading)
     val state: StateFlow<ReviewUi> = _state.asStateFlow()
@@ -59,6 +63,11 @@ class ReviewViewModel(private val session: ReviewSession) : ViewModel() {
     /** 오늘 복습한 카드 수와 하루 목표. */
     val goal: StateFlow<GoalProgress> = _goal.asStateFlow()
     private suspend fun refreshGoal() { _goal.value = session.todayProgress() }
+
+    private val _notice = MutableStateFlow<String?>(null)
+    /** 한 번 알릴 안내(복습 도중 문장이 지워진 경우 등). 화면이 보여 준 뒤 [noticeShown]으로 비운다. */
+    val notice: StateFlow<String?> = _notice.asStateFlow()
+    fun noticeShown() { _notice.value = null }
 
     private val _moreNew = MutableStateFlow(0)
     /** 다 끝냈거나 비었을 때, 오늘 한도 밖에서 더 배울 수 있는 새 카드 수. */
@@ -85,8 +94,35 @@ class ReviewViewModel(private val session: ReviewSession) : ViewModel() {
     fun refresh(force: Boolean): Job {
         val s = _state.value
         val idle = s is ReviewUi.Empty || s is ReviewUi.Ready || (force && s is ReviewUi.Done)
-        if (!started || !idle || rating) return if (!started) start(preview = true) else Job().apply { complete() }
+        if (!started || !idle || rating) return if (!started) start(preview = true) else dropCurrentIfDeleted()
         return start(preview = true)
+    }
+
+    /** 지금 화면의 카드. 채점 중이거나 평가를 저장하는 중이면 바꾸면 안 되므로 null. */
+    private fun replaceableCard(): ReviewCardEntity? = if (rating) null else when (val s = _state.value) {
+        is ReviewUi.Prompt -> s.item.card.takeUnless { s.checking }
+        is ReviewUi.Graded -> s.item.card
+        else -> null
+    }
+
+    /** 다른 탭에서 지금 카드의 문장이 지워졌으면, 문제·채점 화면에 그대로 두지 않고 다음 카드로 넘어간다. */
+    private fun dropCurrentIfDeleted(): Job = viewModelScope.launch {
+        val card = replaceableCard() ?: return@launch
+        if (session.exists(card)) return@launch
+        if (replaceableCard()?.id != card.id) return@launch // 확인하는 사이 화면이 바뀌었다
+        rating = true // 넘어가는 동안 평가 탭이 겹치지 않게 한다
+        try {
+            dropDeleted(card.entryId)
+            showNext()
+        } finally {
+            rating = false
+        }
+    }
+
+    /** 복습 도중 문장이 라이브러리에서 지워졌다: 같은 문장의 다른 언어 카드도 큐에서 빼고 안내한다. */
+    private fun dropDeleted(entryId: Long) {
+        queue.removeAll { it.card.entryId == entryId }
+        _notice.value = DELETED_MID_REVIEW_NOTICE
     }
 
     /** 오늘 새 카드 한도를 다 쓴 뒤 [n]장을 더 배운다. 요약 없이 바로 시작한다. */
@@ -142,7 +178,12 @@ class ReviewViewModel(private val session: ReviewSession) : ViewModel() {
     }
 
     private suspend fun showNext() {
-        val next = queue.removeFirstOrNull()
+        var next = queue.removeFirstOrNull()
+        // 큐에서 기다리는 사이 라이브러리에서 지워진 카드는 내지 않는다.
+        while (next != null && !session.exists(next.card)) {
+            dropDeleted(next.card.entryId)
+            next = queue.removeFirstOrNull()
+        }
         _progress.value = ReviewProgress(reviewed, reviewed + queue.size + if (next == null) 0 else 1)
         if (next == null) refreshMoreNew()
         _state.value = if (next == null) ReviewUi.Done(reviewed, ratedCards.distinct().size) else {
@@ -163,7 +204,12 @@ class ReviewViewModel(private val session: ReviewSession) : ViewModel() {
         val g = lastGraded ?: return@launch
         val cur = _state.value
         if (rating || (cur !is ReviewUi.Prompt && cur !is ReviewUi.Done)) return@launch
-        if (!session.undoLast()) return@launch
+        if (!session.undoLast()) {
+            // 평가했던 카드의 문장이 그사이 지워졌다: 되돌릴 수 없으니 버튼을 거둔다.
+            clearUndo()
+            _notice.value = DELETED_NO_UNDO_NOTICE
+            return@launch
+        }
         // 평가 뒤 새로 나온 카드는 큐 맨 앞으로 돌려놓고, "다시"로 뒤에 붙었던 같은 카드는 뺀다.
         if (cur is ReviewUi.Prompt && cur.item.card.id != g.item.card.id) queue.addFirst(DueCard(cur.item.card, cur.item.texts, cur.item.keyPhrases, cur.item.note))
         queue.removeAll { it.card.id == g.item.card.id }
@@ -205,7 +251,8 @@ class ReviewViewModel(private val session: ReviewSession) : ViewModel() {
     fun editCurrent(answerText: String, ko: String, note: String? = null): Job = viewModelScope.launch {
         val p = _state.value as? ReviewUi.Prompt ?: return@launch
         if (p.checking) return@launch
-        queue.addFirst(session.edit(p.item.card, answerText, ko, note))
+        val edited = session.edit(p.item.card, answerText, ko, note)
+        if (edited == null) dropDeleted(p.item.card.entryId) else queue.addFirst(edited)
         showNext()
     }
 
@@ -275,6 +322,12 @@ class ReviewViewModel(private val session: ReviewSession) : ViewModel() {
         return viewModelScope.launch {
             try {
                 val updated = session.rate(g.item, r, g.outcome, g.answer, g.responseMs)
+                if (updated == null) {
+                    // 평가하는 사이 문장이 라이브러리에서 지워졌다: 기록 없이 다음 카드로 넘어간다.
+                    dropDeleted(g.item.card.entryId)
+                    showNext()
+                    return@launch
+                }
                 reviewed++
                 ratedCards += g.item.card.id
                 lastGraded = g

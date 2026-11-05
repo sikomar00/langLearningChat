@@ -39,6 +39,7 @@ interface AppDao {
     @Query("SELECT COUNT(DISTINCT cardId) FROM review_log WHERE reviewedAt >= :since") suspend fun distinctCardsSince(since: Long): Int
     @Query("DELETE FROM review_log WHERE id = :id") suspend fun deleteLog(id: Long)
     @Query("SELECT COUNT(*) FROM review_card WHERE entryId = :entryId") suspend fun cardCount(entryId: Long): Int
+    @Query("SELECT EXISTS(SELECT 1 FROM review_card WHERE id = :id)") suspend fun cardExists(id: Long): Boolean
     @Query("SELECT COUNT(*) FROM review_log WHERE reviewedAt >= :since") suspend fun reviewsSince(since: Long): Int
     @Query("UPDATE review_card SET dueAt = :dueAt WHERE id = :id") suspend fun setDue(id: Long, dueAt: Long)
     @Insert suspend fun insertTag(t: TagEntity): Long
