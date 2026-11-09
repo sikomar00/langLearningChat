@@ -11,3 +11,7 @@
 -keep,includedescriptorclasses class com.chatlearn.**$$serializer { *; }
 -keepclassmembers class com.chatlearn.** { *** Companion; }
 -keepclasseswithmembers class com.chatlearn.** { kotlinx.serialization.KSerializer serializer(...); }
+
+# Tink(security-crypto의 암호화 저장소)가 참조하는 컴파일 전용 어노테이션. 런타임에는 필요 없다.
+# 없으면 R8이 "Missing class com.google.errorprone.annotations.*"로 빌드를 멈춘다(CI에서 확인).
+-dontwarn com.google.errorprone.annotations.**
