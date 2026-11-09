@@ -34,13 +34,21 @@ jobs:
       - name: Accept Android SDK licenses
         run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
 
-      # services.gradle.org가 일시적으로 504/시간 초과를 돌려주는 일이 있어(2026-11-09 두 번 확인), 내려받기만 따로 재시도한다.
+      # services.gradle.org가 504/시간 초과를 돌려줘 테스트가 시작도 못 한 일이 두 번 있었다(2026-11-09).
+      # 이 주소는 GitHub 릴리스로 넘겨 주는 중간 단계일 뿐이라, 러너에서만 GitHub 주소를 바로 쓴다(저장소 설정은 그대로).
+      - name: Point the wrapper at the GitHub-hosted Gradle distribution
+        run: |
+          version=$(grep -oP 'gradle-\K[0-9.]+(?=-bin\.zip)' gradle/wrapper/gradle-wrapper.properties)
+          sed -i "s|^distributionUrl=.*|distributionUrl=https\\://github.com/gradle/gradle-distributions/releases/download/v${version}/gradle-${version}-bin.zip|" gradle/wrapper/gradle-wrapper.properties
+          grep '^distributionUrl' gradle/wrapper/gradle-wrapper.properties
+
+      # 내려받기만 따로 재시도한다. 한 번에 2분을 넘기면 끊고 다시 한다.
       - name: Fetch Gradle distribution (with retries)
         run: |
-          for i in 1 2 3 4 5; do
-            ./gradlew --version && exit 0
-            echo "::warning::Gradle 내려받기 ${i}번째 실패, $((i * 20))초 뒤 다시 시도"
-            sleep $((i * 20))
+          for i in 1 2 3 4; do
+            timeout 120 ./gradlew --version && exit 0
+            echo "::warning::Gradle 내려받기 ${i}번째 실패, 15초 뒤 다시 시도"
+            sleep 15
           done
           exit 1
 
