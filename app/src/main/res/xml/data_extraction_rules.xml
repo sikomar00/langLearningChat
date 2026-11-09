@@ -1,21 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
   Android 12 이상의 자동 백업·기기 간 이전 규칙: 스냅샷 폴더만 옮긴다(AutoBackup.kt 참고).
-  암호화된 API 키 저장소는 Keystore에 묶여 있어 새 폰으로 복원되면 열리지 않는다.
-  그 파일(shared_prefs의 secrets.xml과 Tink 키셋 파일들)과 DB가 따라가지 않도록 include만 믿지 않고 exclude도 명시한다.
+  <include>가 하나라도 있으면 그 밖의 파일은 옮겨지지 않는다. 그래서 암호화된 API 키 저장소(Keystore에 묶여 있어
+  새 폰에서 열리지 않는다)와 DB는 따로 제외하지 않아도 따라가지 않는다. 포함 경로 밖의 <exclude>는 lint가 오류로 막는다.
   include의 path는 AutoBackup.DIR_NAME과 같아야 하고, ManifestTest가 이 파일을 검사한다.
 -->
 <data-extraction-rules>
     <cloud-backup>
         <include domain="file" path="auto-backup" />
-        <exclude domain="sharedpref" path="." />
-        <exclude domain="database" path="." />
-        <exclude domain="file" path="datastore" />
     </cloud-backup>
     <device-transfer>
         <include domain="file" path="auto-backup" />
-        <exclude domain="sharedpref" path="." />
-        <exclude domain="database" path="." />
-        <exclude domain="file" path="datastore" />
     </device-transfer>
 </data-extraction-rules>

@@ -37,21 +37,17 @@ class ManifestTest {
         return out
     }
 
-    /** 한 구역(예: cloud-backup)의 규칙이 스냅샷만 싣고 암호화 저장소와 DB를 막는지. */
+    /**
+     * 한 구역(예: cloud-backup)의 규칙이 "스냅샷 폴더 포함" 하나뿐인지.
+     * <include>가 있으면 그 밖의 파일(DB, shared_prefs의 암호화 키 저장소)은 백업되지 않는다.
+     * 그래서 다른 include가 하나라도 생기면(예: sharedpref) 키 저장소가 따라갈 수 있으므로 여기서 막는다.
+     */
     private fun assertOnlySnapshotTravels(all: List<Rule>, section: String) {
-        val rules = all.filter { it.section == section }
-        assertTrue(rules.isNotEmpty(), "$section 규칙이 없다")
         assertEquals(
             listOf(Rule(section, "include", "file", AutoBackup.DIR_NAME)),
-            rules.filter { it.kind == "include" },
-            "$section: 포함하는 것은 스냅샷 폴더 하나뿐이어야 한다",
+            all.filter { it.section == section },
+            "$section: 규칙은 스냅샷 폴더 포함 하나뿐이어야 한다",
         )
-        for (domain in listOf("sharedpref", "database")) {
-            assertTrue(
-                rules.any { it.kind == "exclude" && it.domain == domain && it.path == "." },
-                "$section: $domain 전체를 제외해야 한다(암호화 키 저장소·DB가 따라가면 안 된다)",
-            )
-        }
     }
 
     @Test fun autoBackupIsOnButOnlyForTheSnapshotRules() {

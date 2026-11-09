@@ -13,7 +13,7 @@ Play 정책 수치(마감일, 요건)는 대부분 2차 자료이므로 Play Con
 | CI | 단위 테스트 + release·releaseCheck 빌드 + 시험용 APK 업로드 |
 | 개인정보 고지(앱 안) | 설정 > AI 탭 |
 | 개인정보처리방침 | `docs/privacy-policy.md` (운영자·문의처 반영). Pages 설정 전에는 공개되지 않음 |
-| 자동 백업 | 켜짐. 스냅샷 폴더만 포함, DB·API 키 저장소는 규칙으로 명시 제외(ManifestTest가 검사) |
+| 자동 백업 | 켜짐. 규칙은 스냅샷 폴더 포함 하나뿐이고, `<include>`가 있으면 그 밖의 파일(DB, API 키 저장소)은 백업되지 않음(ManifestTest가 검사, lint가 전제로 삼음). 실기기 복원은 미검증 |
 | 네트워크 목적지 | `generativelanguage.googleapis.com`(사용자 키로 직접 호출). 디버그 빌드만 평문 HTTP 허용 |
 | 권한 | INTERNET, POST_NOTIFICATIONS, RECEIVE_BOOT_COMPLETED |
 
