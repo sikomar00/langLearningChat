@@ -125,6 +125,21 @@ fun SettingsScreen(vm: SettingsViewModel, initialTab: Int = 0, onPreviewVoice: (
         Text("입력한 키와 모델을 저장한 뒤 확인해요.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         checkResult?.let { InfoMessage(it, if (checkOk) MessageKind.SUCCESS else MessageKind.ERROR) }
 
+        // 화면 메시지는 원인을 줄여 보여 주므로, 실제로 어떤 응답이 왔는지는 여기서 본다(adb 없이도).
+        val recent by vm.recentErrors.collectAsStateWithLifecycle()
+        if (recent.isNotEmpty()) {
+            val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
+            val zone = remember { java.time.ZoneId.systemDefault() }
+            val report = recent.joinToString("\n") { vm.diagnosticLine(it, zone) }
+            Text("최근 AI 오류", style = MaterialTheme.typography.titleMedium)
+            Text("문제를 알릴 때 복사해서 보내세요. API 키는 들어 있지 않아요. 앱을 완전히 종료하면 사라져요.", style = MaterialTheme.typography.bodySmall)
+            recent.forEach { Text(vm.diagnosticLine(it, zone), style = MaterialTheme.typography.bodySmall) }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(onClick = { clipboard.setText(androidx.compose.ui.text.AnnotatedString(report)); message = "복사했어요." }) { Text("복사") }
+                TextButton(onClick = { vm.clearRecentErrors() }) { Text("지우기") }
+            }
+        }
+
     }
     if (tab == 1) {
         OutlinedTextField(perDay, { perDay = it.filter(Char::isDigit) }, Modifier.fillMaxWidth(), singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), label = { Text("하루 새 카드 수") }, supportingText = { Text("입력하면 자동으로 저장돼요") })

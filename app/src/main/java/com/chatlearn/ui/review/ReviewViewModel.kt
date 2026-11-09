@@ -72,6 +72,9 @@ class ReviewViewModel(private val session: ReviewSession) : ViewModel() {
     private var started = false
     private var rating = false
 
+    /** 진행 중인 AI 채점. 응답이 늦을 때 "정답 보기"/"나중에"로 빠져나오려면 취소할 수 있어야 한다. */
+    private var gradeJob: Job? = null
+
     /** 화면이 다시 그려져도(탭 이동, 회전) 진행 중인 복습을 되돌리지 않는다. */
     fun ensureStarted(): Job {
         if (started) return Job().apply { complete() }
@@ -216,10 +219,10 @@ class ReviewViewModel(private val session: ReviewSession) : ViewModel() {
         setAnswer(p.answers[index] + text, index)
     }
 
-    /** 모르겠을 때: 정답을 보여 주고 "다시"를 권한다. 기록은 평가를 누를 때 남는다. */
+    /** 모르겠을 때: 정답을 보여 주고 "다시"를 권한다. 기록은 평가를 누를 때 남는다. AI 채점을 기다리는 중이어도 된다(채점은 취소). */
     fun giveUp(): Job = viewModelScope.launch {
         val p = _state.value as? ReviewUi.Prompt ?: return@launch
-        if (p.checking) return@launch
+        cancelGrading()
         _state.value = ReviewUi.Graded(
             p.item, GradeOutcome.SelfGrade(p.item.reference, null), "", Rating.AGAIN, session.now() - p.shownAt,
         )
@@ -228,7 +231,7 @@ class ReviewViewModel(private val session: ReviewSession) : ViewModel() {
     /** 지금 카드를 기록 없이 큐 맨 뒤로 보낸다. */
     fun postpone(): Job = viewModelScope.launch {
         val p = _state.value as? ReviewUi.Prompt ?: return@launch
-        if (p.checking) return@launch
+        cancelGrading()
         queue.addLast(DueCard(p.item.card, p.item.texts, p.item.keyPhrases, p.item.note))
         showNext()
     }
@@ -265,6 +268,11 @@ class ReviewViewModel(private val session: ReviewSession) : ViewModel() {
             is GradeOutcome.SelfGrade -> Rating.GOOD
         }
         _state.value = ReviewUi.Graded(p.item, outcome, p.answer, suggested, responseMs)
+    }.also { gradeJob = it }
+
+    private fun cancelGrading() {
+        gradeJob?.cancel()
+        gradeJob = null
     }
 
     fun rate(r: Rating): Job {

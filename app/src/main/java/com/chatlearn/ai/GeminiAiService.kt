@@ -207,7 +207,10 @@ class GeminiAiService(
             }
             when {
                 code == 429 -> {
-                    if (rateRetried) return fail(AiError.RATE_LIMIT)
+                    if (rateRetried) {
+                        onHttpError(code, body.take(1000))
+                        return fail(AiError.RATE_LIMIT)
+                    }
                     rateRetried = true
                     delay(retryDelayMs)
                 }
@@ -223,8 +226,10 @@ class GeminiAiService(
                     if (formatRetried) return fail(AiError.BAD_FORMAT)
                     formatRetried = true
                 }
-                code == 401 || code == 403 || (code == 400 && body.contains("API key", ignoreCase = true)) ->
+                code == 401 || code == 403 || (code == 400 && body.contains("API key", ignoreCase = true)) -> {
+                    onHttpError(code, body.take(1000))
                     return fail(AiError.BAD_KEY)
+                }
                 code == 404 -> {
                     onHttpError(code, body.take(1000))
                     return fail(AiError.MODEL_NOT_FOUND)

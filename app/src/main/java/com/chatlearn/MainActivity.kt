@@ -100,7 +100,8 @@ class MainActivity : ComponentActivity() {
                     }
                 LibraryViewModel::class.java -> LibraryViewModel(c.repo, c.expansion, keyPhraseService = c.keyPhrases)
                 ReviewViewModel::class.java -> ReviewViewModel(c.reviewSession())
-                SettingsViewModel::class.java -> SettingsViewModel(c.settings, c.repo, c.ai, onReminderChanged = { on, hour -> c.reminders.apply(on, hour) })
+                SettingsViewModel::class.java ->
+                    SettingsViewModel(c.settings, c.repo, c.ai, onReminderChanged = { on, hour -> c.reminders.apply(on, hour) }, diagnostics = c.diagnostics)
                 StatsViewModel::class.java -> StatsViewModel(c.repo)
                 else -> error("unknown ViewModel")
             } as T
@@ -212,7 +213,7 @@ class MainActivity : ComponentActivity() {
                                     reviewVm.startWith(ids, lang)
                                     tab = Tab.REVIEW
                                 }
-                                Tab.REVIEW -> ReviewScreen(reviewVm, viewModel(factory = factory), settings?.voice() ?: VoicePrefs())
+                                Tab.REVIEW -> ReviewScreen(reviewVm, viewModel(factory = factory), settings?.voice() ?: VoicePrefs(), onOpenSettings = { tab = Tab.SETTINGS })
                                 Tab.SETTINGS -> SettingsScreen(
                                     viewModel(factory = factory), initialTab = settingsTabRequest,
                                     onPreviewVoice = { lang -> c.tts.speak(voiceSample(lang), lang, false) },

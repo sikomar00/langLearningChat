@@ -2,6 +2,7 @@ package com.chatlearn.ui.settings
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.chatlearn.ai.AiDiagnostics
 import com.chatlearn.ai.AiError
 import com.chatlearn.ai.AiService
 import com.chatlearn.ai.checkConnection
@@ -18,7 +19,13 @@ import kotlinx.coroutines.launch
 class SettingsViewModel(private val settings: SettingsRepository, private val repo: EntryRepository, private val ai: AiService,
     private val onReminderChanged: (Boolean, Int) -> Unit = { _, _ -> },
     private val clock: () -> Long = System::currentTimeMillis,
+    private val diagnostics: AiDiagnostics = AiDiagnostics(),
 ) : ViewModel() {
+    /** 최근 AI 오류(최신 순). 설정 > AI에서 보여 준다. */
+    val recentErrors: StateFlow<List<AiDiagnostics.Entry>> = diagnostics.entries
+    fun clearRecentErrors() = diagnostics.clear()
+    fun diagnosticLine(e: AiDiagnostics.Entry, zone: java.time.ZoneId): String = diagnostics.line(e, zone)
+
     val state: StateFlow<AppSettings> =
         settings.settings.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), AppSettings("", "", 10, 0))
 
