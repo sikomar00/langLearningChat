@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -6,15 +8,55 @@ plugins {
     id("com.google.devtools.ksp")
 }
 
+// 업로드 키 정보는 저장소에 넣지 않는다. 루트에 keystore.properties(storeFile, storePassword, keyAlias, keyPassword)를 두면 release가 서명된다.
+// 파일이 없으면(예: CI) 서명 없는 release APK가 만들어진다.
+val keystoreProps: Properties? = rootProject.file("keystore.properties").takeIf { it.exists() }?.let { f ->
+    Properties().apply { f.inputStream().use { load(it) } }
+}
+
 android {
     namespace = "com.chatlearn"
     compileSdk = 36
     defaultConfig {
         applicationId = "com.chatlearn"
         minSdk = 26
-        targetSdk = 35
+        targetSdk = 36
         versionCode = 1
         versionName = "0.1"
+    }
+    signingConfigs {
+        keystoreProps?.let { props ->
+            create("release") {
+                storeFile = rootProject.file(props.getProperty("storeFile"))
+                storePassword = props.getProperty("storePassword")
+                keyAlias = props.getProperty("keyAlias")
+                keyPassword = props.getProperty("keyPassword")
+            }
+        }
+    }
+    buildTypes {
+        release {
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            signingConfigs.findByName("release")?.let { signingConfig = it }
+        }
+        // 릴리스와 같은 R8(코드 축소·난독화) 설정으로 빌드하되 디버그 키로 서명하고 다른 앱 ID(.rc)로 설치된다.
+        // 실기기에서 기존 앱과 데이터를 건드리지 않고 릴리스 빌드를 시험하려는 용도. 파일 확인(run-as)을 위해 debuggable로 둔다.
+        create("releaseCheck") {
+            initWith(getByName("release"))
+            applicationIdSuffix = ".rc"
+            versionNameSuffix = "-rc"
+            isDebuggable = true
+            signingConfig = signingConfigs.getByName("debug")
+            matchingFallbacks += listOf("release")
+        }
+    }
+    lint {
+        // androidx.lifecycle의 lint 검사기가 AGP 8.7.3의 lint와 바이너리 호환이 안 돼, release 빌드의 lintVital이 죽는다
+        // ("Found class ...KaCallableMemberCall, but interface was expected"). 이 앱은 LiveData를 쓰지 않아 이 검사는 필요 없다.
+        // AGP를 올리면 이 줄을 지워도 되는지 확인한다.
+        disable += "NullSafeMutableLiveData"
     }
     buildFeatures { compose = true }
     compileOptions {

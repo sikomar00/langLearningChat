@@ -53,8 +53,11 @@ import com.chatlearn.domain.Lang
 @Composable
 fun LibraryScreen(
     vm: LibraryViewModel, onGoTranslate: () -> Unit = {}, showGestureHint: Boolean = true, onDismissGestureHint: () -> Unit = {},
+    /** 0보다 크면 "파일 백업이 오래됐다"는 안내를 목록 위에 띄운다(값은 저장한 문장 수). */
+    backupNudgeCount: Int = 0, onOpenBackup: () -> Unit = {},
     onStartReview: (Set<Long>, Lang?) -> Unit = { _, _ -> },
 ) {
+    var nudgeHidden by rememberSaveable { mutableStateOf(false) }
     val items by vm.items.collectAsStateWithLifecycle()
     val query by vm.query.collectAsStateWithLifecycle()
     val lang by vm.langFilter.collectAsStateWithLifecycle()
@@ -303,6 +306,17 @@ fun LibraryScreen(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("길게 누르면 여러 개 선택 · 오른쪽으로 밀면 폴더 이동 · 왼쪽으로 밀면 삭제", Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
                 IconButton(onClick = onDismissGestureHint) { Icon(Icons.Default.Close, contentDescription = "안내 닫기") }
+            }
+        }
+        if (backupNudgeCount > 0 && !nudgeHidden && picked == null && items.isNotEmpty()) {
+            Card(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("문장 ${backupNudgeCount}개가 이 폰에만 있을 수 있어요. 파일로 내보내 두면 폰을 바꾸거나 앱을 지워도 안전해요.", style = MaterialTheme.typography.bodyMedium)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Button(onClick = onOpenBackup) { Text("백업하러 가기") }
+                        TextButton(onClick = { nudgeHidden = true }) { Text("나중에") }
+                    }
+                }
             }
         }
         // 많이 틀린 순으로 볼 때는 순서 자체가 의미라서 묶지 않는다.

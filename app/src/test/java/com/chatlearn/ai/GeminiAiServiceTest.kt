@@ -172,12 +172,42 @@ class GeminiAiServiceTest {
         val seen = mutableListOf<Pair<Int, String>>()
         val diag = GeminiAiService(
             OkHttpClient(), server.url("/").toString().trimEnd('/'),
+            apiKey = { "test-key" }, model = { "any-model" },
+            onHttpError = { code, body -> seen += code to body }, retryDelayMs = 0,
+        )
+        server.enqueue(MockResponse().setResponseCode(500).setBody("""{"error":{"message":"internal"}}"""))
+        val e = diag.translateReceived("hi").exceptionOrNull() as AiException
+        assertEquals(AiError.SERVER, e.kind)
+        assertEquals(500, seen.single().first)
+        assertTrue(seen.single().second.contains("internal"))
+    }
+
+    @Test fun reportsFinalRateLimitAndKeyErrorsForDiagnosisButNotTheRetriedOne() = runBlocking {
+        val seen = mutableListOf<Int>()
+        val diag = GeminiAiService(
+            OkHttpClient(), server.url("/").toString().trimEnd('/'),
+            apiKey = { "test-key" }, model = { "any-model" },
+            onHttpError = { code, _ -> seen += code }, retryDelayMs = 0,
+        )
+        server.enqueue(MockResponse().setResponseCode(429))
+        server.enqueue(MockResponse().setResponseCode(429))
+        assertEquals(AiError.RATE_LIMIT, (diag.translateReceived("hi").exceptionOrNull() as AiException).kind)
+        server.enqueue(MockResponse().setResponseCode(403).setBody("""{"error":{"message":"free tier is not available for this project"}}"""))
+        assertEquals(AiError.BAD_KEY, (diag.translateReceived("hi").exceptionOrNull() as AiException).kind)
+        assertEquals(listOf(429, 403), seen) // 다시 시도해서 풀린 첫 429는 남기지 않는다
+    }
+
+    @Test fun missingModelMeansModelNotFoundWithoutRetryAndIsReportedForDiagnosis() = runBlocking {
+        val seen = mutableListOf<Pair<Int, String>>()
+        val diag = GeminiAiService(
+            OkHttpClient(), server.url("/").toString().trimEnd('/'),
             apiKey = { "test-key" }, model = { "no-such-model" },
             onHttpError = { code, body -> seen += code to body }, retryDelayMs = 0,
         )
         server.enqueue(MockResponse().setResponseCode(404).setBody("""{"error":{"message":"model not found"}}"""))
         val e = diag.translateReceived("hi").exceptionOrNull() as AiException
-        assertEquals(AiError.SERVER, e.kind)
+        assertEquals(AiError.MODEL_NOT_FOUND, e.kind)
+        assertEquals(1, server.requestCount) // 같은 요청을 다시 보내도 소용없다
         assertEquals(404, seen.single().first)
         assertTrue(seen.single().second.contains("model not found"))
     }

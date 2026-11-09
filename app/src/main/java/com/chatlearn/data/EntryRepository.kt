@@ -251,6 +251,11 @@ class EntryRepository(internal val db: AppDatabase) {
     suspend fun moveToFolder(ids: Collection<Long>, folderId: Long?) { if (ids.isNotEmpty()) dao.setFolder(ids.toList(), folderId) }
     suspend fun updateNote(id: Long, note: String) = dao.updateNote(id, note)
 
+    suspend fun entryCount(): Int = dao.entryCount()
+
+    /** 저장한 문장 수. 목록을 통째로 읽지 않고 숫자만 받는다. */
+    fun observeEntryCount(): Flow<Int> = dao.observeEntryCount()
+
     suspend fun exportAll(): BackupData = db.withTransaction {
         BackupData(
             entries = dao.allEntries(), texts = dao.allTexts(), cards = dao.allCards(),

@@ -10,6 +10,7 @@ import com.chatlearn.review.exercise.ExercisePolicy
 import com.chatlearn.review.GoalProgress
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
@@ -253,6 +254,49 @@ class ReviewViewModelTest {
         assertNotEquals(first, second)
         assertTrue(db.dao().allLogs().isEmpty())
         assertEquals(ReviewProgress(0, 2), vm.progress.value)
+    }
+
+    /** 채점 요청이 끝나지 않는 AI. 응답이 늦은 상황을 흉내 낸다. */
+    private fun hangingGradeVm(): ReviewViewModel {
+        val hanging = object : AiService by FakeAiService() {
+            override suspend fun gradeAnswer(req: GradeRequest): Result<GradeResult> = awaitCancellation()
+        }
+        return ReviewViewModel(
+            ReviewSession(repo, hanging, { clockMs }, { 10 }, { false }, { 0.0 }, FakeTts(), { _, _, _, _ -> ExerciseKind.TRANSLATE }, { 0.0 })
+        )
+    }
+
+    @Test fun giveUpWhileTheAiIsStillGradingCancelsTheGradingAndShowsTheAnswer() = runBlocking {
+        two()
+        val v = hangingGradeVm()
+        v.start().join()
+        v.setAnswer("Hi")
+        val grading = v.submit()
+        assertTrue(assertIs<ReviewUi.Prompt>(v.state.value).checking)
+        v.giveUp().join()
+        val g = assertIs<ReviewUi.Graded>(v.state.value)
+        assertIs<GradeOutcome.SelfGrade>(g.outcome)
+        assertEquals(Rating.AGAIN, g.suggested)
+        grading.join()
+        assertIs<ReviewUi.Graded>(v.state.value) // 취소된 채점이 뒤늦게 화면을 덮어쓰지 않는다
+        assertTrue(db.dao().allLogs().isEmpty())
+    }
+
+    @Test fun postponeWhileTheAiIsStillGradingMovesOnToTheNextCard() = runBlocking {
+        two()
+        val v = hangingGradeVm()
+        v.start().join()
+        val first = assertIs<ReviewUi.Prompt>(v.state.value).item.card.id
+        v.setAnswer("Hi")
+        val grading = v.submit()
+        assertTrue(assertIs<ReviewUi.Prompt>(v.state.value).checking)
+        v.postpone().join()
+        val next = assertIs<ReviewUi.Prompt>(v.state.value)
+        assertNotEquals(first, next.item.card.id)
+        assertFalse(next.checking)
+        grading.join()
+        assertIs<ReviewUi.Prompt>(v.state.value)
+        assertEquals(next.item.card.id, (v.state.value as ReviewUi.Prompt).item.card.id)
     }
 
     @Test fun previewShowsCountsBeforeAnyCardAndBeginStartsTheFirst() = runBlocking {

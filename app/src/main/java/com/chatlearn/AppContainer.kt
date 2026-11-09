@@ -3,10 +3,12 @@ package com.chatlearn
 import android.content.Context
 import androidx.datastore.preferences.preferencesDataStore
 import androidx.room.Room
+import com.chatlearn.ai.AiDiagnostics
 import com.chatlearn.ai.AiService
 import com.chatlearn.ai.GeminiAiService
 import com.chatlearn.ai.geminiHttpClient
 import com.chatlearn.data.AppDatabase
+import com.chatlearn.data.AutoBackup
 import com.chatlearn.data.EntryRepository
 import com.chatlearn.data.Migrations
 import com.chatlearn.expansion.ExpansionService
@@ -33,15 +35,24 @@ class AppContainer(context: Context) {
         .addMigrations(Migrations.MIGRATION_1_2, Migrations.MIGRATION_2_3, Migrations.MIGRATION_3_4)
         .build()
     val repo = EntryRepository(db)
+
+    /** 기기 백업에 실어 보낼 스냅샷. 백업 규칙(res/xml)은 이 폴더만 포함한다. */
+    val autoBackup = AutoBackup(java.io.File(context.filesDir, AutoBackup.DIR_NAME), repo)
     val settings: SettingsRepository = DataStoreSettingsRepository(context.settingsStore, EncryptedSecretStore(context))
     private val debuggable = (context.applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0
+    val diagnostics = AiDiagnostics()
     val ai: AiService = GeminiAiService(
         geminiHttpClient(),
         com.chatlearn.ai.aiBaseUrl(debuggable, if (debuggable) runCatching { java.io.File(context.filesDir, "ai_base_url.txt").readText() }.getOrNull() else null),
         apiKey = { settings.currentApiKey() },
         model = { settings.currentModel() },
         onCall = { appScope.launch { settings.recordAiCall() } },
-        onHttpError = { code, body -> android.util.Log.w("GeminiAi", "HTTP $code: $body") },
+        onHttpError = { code, body ->
+            android.util.Log.w("GeminiAi", "HTTP $code: $body")
+            // 응답에 키가 들어 있을 일은 없지만, 화면에 보이고 복사되는 값이라 한 번 더 가린다.
+            val key = settings.currentApiKey()
+            diagnostics.record(System.currentTimeMillis(), settings.currentModel(), code, if (key.isNotBlank()) body.replace(key, "***") else body)
+        },
     )
 
     // 설정한 억양·빠르기를 TTS가 매번 읽어 간다.
@@ -60,6 +71,11 @@ class AppContainer(context: Context) {
     /** 홈 화면 위젯을 다시 그린다(앱을 나갈 때, 알림 시각에). */
     fun refreshWidget() {
         appScope.launch { com.chatlearn.widget.refreshReviewWidget(appContext) }
+    }
+
+    /** 스냅샷이 오래됐으면 새로 쓴다(앱을 나갈 때). 실패해도 앱에는 영향이 없다. */
+    fun snapshotBackup() {
+        appScope.launch { autoBackup.snapshotIfStale() }
     }
 
     fun reviewSession() = ReviewSession(

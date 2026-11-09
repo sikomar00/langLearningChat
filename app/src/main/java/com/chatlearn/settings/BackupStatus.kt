@@ -6,7 +6,7 @@ import java.time.temporal.ChronoUnit
 
 private const val DAY_MS = 86_400_000L
 
-/** 이만큼 지나면 백업을 권한다. 앱 데이터는 기기 백업에 들어가지 않아 폰을 바꾸면 사라진다. */
+/** 이만큼 지나면 파일 백업을 권한다. 기기(구글) 백업은 설정에 따라 동작하지 않을 수 있어 파일이 더 확실하다. */
 const val BACKUP_NUDGE_DAYS = 14
 
 /** 문장이 이보다 적으면 잃을 게 적으니 재촉하지 않는다. */

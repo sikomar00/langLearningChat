@@ -61,13 +61,15 @@ import com.chatlearn.ui.components.ButtonSpinner
 import com.chatlearn.ui.components.EmptyState
 import com.chatlearn.ui.components.LabeledText
 import com.chatlearn.ui.components.LoadingBox
+import com.chatlearn.ui.components.aiErrorText
+import com.chatlearn.ui.components.needsSettings
 import com.chatlearn.ui.components.SectionCard
 import com.chatlearn.ui.components.langLabel
 import com.chatlearn.ui.theme.statusColors
 
 /** 복습 탭: 위의 전환 버튼으로 "복습"과 "통계"를 오간다. */
 @Composable
-fun ReviewScreen(vm: ReviewViewModel, statsVm: StatsViewModel, voice: VoicePrefs = VoicePrefs()) {
+fun ReviewScreen(vm: ReviewViewModel, statsVm: StatsViewModel, voice: VoicePrefs = VoicePrefs(), onOpenSettings: () -> Unit = {}) {
     var showStats by rememberSaveable { mutableStateOf(false) }
     Column(Modifier.fillMaxSize().padding(horizontal = 16.dp, vertical = 8.dp)) {
         SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
@@ -79,7 +81,7 @@ fun ReviewScreen(vm: ReviewViewModel, statsVm: StatsViewModel, voice: VoicePrefs
             }
         }
         Spacer(Modifier.height(12.dp))
-        if (showStats) StatsScreen(statsVm) else ReviewPane(vm, statsVm, voice)
+        if (showStats) StatsScreen(statsVm) else ReviewPane(vm, statsVm, voice, onOpenSettings)
     }
 }
 
@@ -111,7 +113,7 @@ private fun answerKeyboard(kind: ExerciseKind, lang: Lang, ime: ImeAction, voice
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun ReviewPane(vm: ReviewViewModel, statsVm: StatsViewModel, voice: VoicePrefs) {
+private fun ReviewPane(vm: ReviewViewModel, statsVm: StatsViewModel, voice: VoicePrefs, onOpenSettings: () -> Unit) {
     val stats by statsVm.stats.collectAsStateWithLifecycle()
     val streak = stats?.streak ?: 0
     val state by vm.state.collectAsStateWithLifecycle()
@@ -163,7 +165,7 @@ private fun ReviewPane(vm: ReviewViewModel, statsVm: StatsViewModel, voice: Voic
         if (inSession) {
             Row(Modifier.fillMaxWidth().heightIn(min = 48.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    (if (custom != null) "선택 복습 · " else "") + "${minOf(progress.done + 1, progress.total)} / ${progress.total}",
+                    (if (custom != null) "선택 복습 · " else "") + "${minOf(progress.done + 1, progress.total)}/${progress.total}",
                     Modifier.weight(1f), style = MaterialTheme.typography.labelMedium,
                 )
                 if (goal.enabled) {
@@ -203,7 +205,7 @@ private fun ReviewPane(vm: ReviewViewModel, statsVm: StatsViewModel, voice: Voic
                     EmptyState(
                         message = emptyReviewMessage(custom != null, moreNew),
                         icon = Icons.Default.CheckCircle,
-                        actionLabel = if (custom != null) "평소 복습으로" else "다시 확인",
+                        actionLabel = if (custom != null) "평소 복습으로" else "더 있는지 확인",
                         onAction = { vm.start(preview = true) },
                     )
                     if (custom == null) LearnMore(moreNew) { vm.learnMore(LEARN_MORE) }
@@ -213,7 +215,7 @@ private fun ReviewPane(vm: ReviewViewModel, statsVm: StatsViewModel, voice: Voic
                     Text(if (s.newCards > 0) "복습 ${s.total - s.newCards}장 · 새 카드 ${s.newCards}장" else "모두 복습 카드예요.")
                     if (goal.enabled) {
                         Text(
-                            if (goal.reached) "오늘 목표 ${goal.goal}장을 달성했어요" else "오늘 목표 ${goal.done} / ${goal.goal}장",
+                            if (goal.reached) "오늘 목표 ${goal.goal}장을 달성했어요" else "오늘 목표 ${goal.done}/${goal.goal}장",
                             style = MaterialTheme.typography.bodyMedium,
                         )
                         LinearProgressIndicator(progress = { goal.fraction }, modifier = Modifier.fillMaxWidth())
@@ -224,7 +226,7 @@ private fun ReviewPane(vm: ReviewViewModel, statsVm: StatsViewModel, voice: Voic
                     val today = stats?.today
                     SectionCard("오늘의 복습") {
                         Text("${s.cards}장을 복습했어요", style = MaterialTheme.typography.headlineSmall)
-                        if (s.count > s.cards) Text("다시 푼 것까지 ${s.count}번 풀었어요", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        if (s.count > s.cards) Text("다시 푼 것까지 ${s.count}회 풀었어요", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                             SummaryStat("정답률", today?.let { com.chatlearn.stats.percent(it) } ?: "-", Modifier.weight(1f))
                             SummaryStat("연속 학습", if (streak > 0) "${streak}일" else "-", Modifier.weight(1f))
@@ -245,6 +247,7 @@ private fun ReviewPane(vm: ReviewViewModel, statsVm: StatsViewModel, voice: Voic
                     s, vm, canListen,
                     heard = heard?.takeIf { it.first == s.item.card.id }?.second,
                     onShadow = { listen(s.item.card.answerLang, SpeechTarget.Shadow(s.item.card.id)) },
+                    onOpenSettings = onOpenSettings,
                 )
             }
         }
@@ -264,8 +267,8 @@ private fun ReviewPane(vm: ReviewViewModel, statsVm: StatsViewModel, voice: Voic
                     }
                 }
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    OutlinedButton(enabled = !s.checking, onClick = { vm.giveUp() }) { Text("정답 보기") }
-                    if (progress.total - progress.done > 1) OutlinedButton(enabled = !s.checking, onClick = { vm.postpone() }) { Text("나중에") }
+                    OutlinedButton(onClick = { vm.giveUp() }) { Text("정답 보기") }
+                    if (progress.total - progress.done > 1) OutlinedButton(onClick = { vm.postpone() }) { Text("나중에") }
                     Button(
                         onClick = { vm.submit() }, enabled = s.answers.none { it.isBlank() } && !s.checking,
                         modifier = Modifier.weight(1f).heightIn(min = 48.dp),
@@ -360,7 +363,7 @@ private fun PromptBody(s: ReviewUi.Prompt, vm: ReviewViewModel, canListen: Boole
     if (isLeech(s.item.card)) {
         Card(Modifier.fillMaxWidth()) {
             Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text("이 카드를 ${s.item.card.lapses}번 틀렸어요.", style = MaterialTheme.typography.labelLarge)
+                Text("이 카드를 ${s.item.card.lapses}회 틀렸어요.", style = MaterialTheme.typography.labelLarge)
                 Text("정답을 확인한 뒤 설명을 읽어 보거나, 한 달 쉬었다가 다시 만나 볼 수 있어요.", style = MaterialTheme.typography.bodySmall)
                 TextButton(onClick = { vm.snoozeMonth() }, contentPadding = PaddingValues(horizontal = 4.dp)) { Text("한 달 쉬기") }
             }
@@ -412,7 +415,7 @@ private fun PromptBody(s: ReviewUi.Prompt, vm: ReviewViewModel, canListen: Boole
 }
 
 @Composable
-private fun GradedBody(s: ReviewUi.Graded, vm: ReviewViewModel, canListen: Boolean, heard: String?, onShadow: () -> Unit) {
+private fun GradedBody(s: ReviewUi.Graded, vm: ReviewViewModel, canListen: Boolean, heard: String?, onShadow: () -> Unit, onOpenSettings: () -> Unit) {
     verdictOf(s.outcome)?.let { VerdictBanner(it.name) }
     SectionCard(when (s.item.exercise) { ExerciseKind.TRANSLATE -> "문제"; ExerciseKind.CLOZE -> "완성된 문장"; ExerciseKind.DICTATION -> "뜻" }) {
         Text(
@@ -435,7 +438,11 @@ private fun GradedBody(s: ReviewUi.Graded, vm: ReviewViewModel, canListen: Boole
             }
             is GradeOutcome.SelfGrade -> {
                 LabeledText("정답", o.reference, valueColor = MaterialTheme.statusColors.success, valueStyle = MaterialTheme.typography.titleMedium)
-                Text(if (o.aiError == null) "스스로 채점해 주세요." else "AI를 쓸 수 없어서 스스로 채점해 주세요.", style = MaterialTheme.typography.bodyMedium)
+                Text(if (o.aiError == null) "스스로 채점해 주세요." else "AI 채점을 쓸 수 없어서 스스로 채점해 주세요.", style = MaterialTheme.typography.bodyMedium)
+                o.aiError?.let { kind ->
+                    Text(aiErrorText(kind), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    if (kind.needsSettings()) OutlinedButton(onClick = onOpenSettings) { Text("설정 열기") }
+                }
             }
             is GradeOutcome.Local -> if (s.item.exercise != ExerciseKind.CLOZE) {
                 LabeledText("정답", o.reference, valueColor = MaterialTheme.statusColors.success, valueStyle = MaterialTheme.typography.titleMedium)

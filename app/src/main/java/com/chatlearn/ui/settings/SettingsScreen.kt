@@ -16,6 +16,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.VisualTransformation
 import com.chatlearn.ui.components.InfoMessage
 import com.chatlearn.ui.components.MessageKind
+import com.chatlearn.ui.components.SectionCard
 import com.chatlearn.ui.components.SwitchRow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -29,7 +30,7 @@ import kotlinx.coroutines.withContext
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun SettingsScreen(vm: SettingsViewModel, onPreviewVoice: (com.chatlearn.domain.Lang) -> Unit = {}) {
+fun SettingsScreen(vm: SettingsViewModel, initialTab: Int = 0, onPreviewVoice: (com.chatlearn.domain.Lang) -> Unit = {}) {
     val s by vm.state.collectAsStateWithLifecycle()
     val entryCount by vm.entryCount.collectAsStateWithLifecycle()
     val backupDue = com.chatlearn.settings.backupOverdue(s.lastBackupAt, vm.now(), entryCount)
@@ -66,7 +67,9 @@ fun SettingsScreen(vm: SettingsViewModel, onPreviewVoice: (com.chatlearn.domain.
         kotlinx.coroutines.delay(700)
         goalText.toIntOrNull()?.let { if (it != s.dailyGoal) vm.saveDailyGoal(it) }
     }
-    var tab by rememberSaveable { mutableIntStateOf(0) }
+    var tab by rememberSaveable { mutableIntStateOf(initialTab) }
+    // 다른 화면의 안내(예: 라이브러리의 백업 안내)가 특정 탭으로 바로 보낼 때.
+    LaunchedEffect(initialTab) { if (initialTab != 0) tab = initialTab }
     val tabs = listOf("AI", "복습", "문장", "화면", "백업")
     Column(Modifier.fillMaxSize()) {
     TabRow(selectedTabIndex = tab) {
@@ -78,6 +81,13 @@ fun SettingsScreen(vm: SettingsViewModel, onPreviewVoice: (com.chatlearn.domain.
     }
     Column(Modifier.fillMaxSize().padding(16.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
     if (tab == 0) {
+        if (s.apiKey.isBlank()) {
+            SectionCard("처음 시작하기") {
+                Text("1. 아래 '키 발급 페이지 열기'에서 구글 계정으로 로그인해 API 키를 만들어요.", style = MaterialTheme.typography.bodyMedium)
+                Text("2. 키를 복사해서 'API 키' 칸에 붙여넣어요.", style = MaterialTheme.typography.bodyMedium)
+                Text("3. '저장하고 연결 확인'을 눌러 '연결됐어요'가 나오면 끝이에요.", style = MaterialTheme.typography.bodyMedium)
+            }
+        }
         Text("Gemini API 키", style = MaterialTheme.typography.titleMedium)
         Text("Google AI Studio에서 무료 키를 발급받아 붙여넣으세요.", style = MaterialTheme.typography.bodySmall)
         val uriHandler = androidx.compose.ui.platform.LocalUriHandler.current
@@ -95,30 +105,69 @@ fun SettingsScreen(vm: SettingsViewModel, onPreviewVoice: (com.chatlearn.domain.
                 }
             },
         )
-        OutlinedTextField(model, { model = it }, Modifier.fillMaxWidth(), singleLine = true, label = { Text("모델 이름") })
+        OutlinedTextField(
+            model, { model = it }, Modifier.fillMaxWidth(), singleLine = true, label = { Text("모델 이름") },
+            supportingText = { Text("-latest 별칭은 Google이 가리키는 모델을 바꿀 수 있어 갑자기 느려질 수 있어요.") },
+        )
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            listOf("gemini-flash-latest", "gemini-flash-lite-latest").forEach { preset ->
+            listOf(com.chatlearn.settings.DataStoreSettingsRepository.DEFAULT_MODEL).forEach { preset ->
                 FilterChip(selected = model == preset, onClick = { model = preset }, label = { Text(preset) })
             }
         }
-        Button(onClick = { vm.saveKey(key); vm.saveModel(model); message = "저장했어요." }, Modifier.fillMaxWidth()) { Text("저장") }
-
         var checking by remember { mutableStateOf(false) }
         var checkResult by remember { mutableStateOf<String?>(null) }
         var checkOk by remember { mutableStateOf(false) }
-        OutlinedButton(enabled = !checking, onClick = {
+        Button(enabled = !checking, modifier = Modifier.fillMaxWidth(), onClick = {
             checking = true; checkResult = null
             scope.launch {
                 // 입력한 값으로 확인하도록 먼저 저장을 끝낸다.
                 vm.saveKey(key).join(); vm.saveModel(model).join()
-                val err = vm.checkConnection()
-                checkOk = err == null
-                checkResult = err?.let(::connectionMessage) ?: "연결됐어요. 키와 모델이 잘 동작해요."
+                if (key.isBlank()) {
+                    checkOk = false
+                    checkResult = "API 키를 입력해 주세요."
+                } else {
+                    val err = vm.checkConnection()
+                    checkOk = err == null
+                    checkResult = err?.let(::connectionMessage) ?: "연결됐어요. 키와 모델이 잘 동작해요."
+                }
                 checking = false
             }
-        }) { Text(if (checking) "확인 중…" else "연결 확인") }
-        Text("입력한 키와 모델을 저장한 뒤 확인해요.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }) { Text(if (checking) "확인 중…" else "저장하고 연결 확인") }
         checkResult?.let { InfoMessage(it, if (checkOk) MessageKind.SUCCESS else MessageKind.ERROR) }
+
+        SectionCard("AI로 보내는 내용") {
+            Text("번역·첨삭·채점을 위해 붙여넣은 메시지와 내가 쓴 문장이 Google Gemini로 전송돼요.", style = MaterialTheme.typography.bodyMedium)
+            Text(
+                "Google의 무료(결제 계정을 연결하지 않은) API 약관에 따르면 이 내용이 서비스 개선에 쓰이고 사람이 검토할 수 있어요. " +
+                    "결제 계정을 연결한 프로젝트의 키는 다르게 취급돼요. 약관은 바뀔 수 있으니 아래에서 확인하세요.",
+                style = MaterialTheme.typography.bodySmall,
+            )
+            Text("이름, 전화번호, 주소 같은 개인정보는 지우고 붙여넣는 게 안전해요.", style = MaterialTheme.typography.bodySmall)
+            TextButton(onClick = { runCatching { uriHandler.openUri("https://ai.google.dev/gemini-api/terms") } }, contentPadding = PaddingValues(horizontal = 4.dp)) {
+                Text("Google 약관 보기")
+            }
+        }
+
+        Text("오늘 AI 호출: ${s.aiCallsToday}회", style = MaterialTheme.typography.bodyMedium)
+        Text(
+            "이 앱이 보낸 요청 수예요(재시도는 세지 않아요). 한도는 Google AI Studio에서 확인할 수 있어요.",
+            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+
+        // 화면 메시지는 원인을 줄여 보여 주므로, 실제로 어떤 응답이 왔는지는 여기서 본다(adb 없이도).
+        val recent by vm.recentErrors.collectAsStateWithLifecycle()
+        if (recent.isNotEmpty()) {
+            val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
+            val zone = remember { java.time.ZoneId.systemDefault() }
+            val report = recent.joinToString("\n") { vm.diagnosticLine(it, zone) }
+            Text("최근 AI 오류", style = MaterialTheme.typography.titleMedium)
+            Text("문제를 알릴 때 복사해서 보내세요. API 키는 들어 있지 않아요. 앱을 완전히 종료하면 사라져요.", style = MaterialTheme.typography.bodySmall)
+            recent.forEach { Text(vm.diagnosticLine(it, zone), style = MaterialTheme.typography.bodySmall) }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(onClick = { clipboard.setText(androidx.compose.ui.text.AnnotatedString(report)); message = "복사했어요." }) { Text("복사") }
+                TextButton(onClick = { vm.clearRecentErrors() }) { Text("지우기") }
+            }
+        }
 
     }
     if (tab == 1) {
@@ -221,11 +270,15 @@ fun SettingsScreen(vm: SettingsViewModel, onPreviewVoice: (com.chatlearn.domain.
         }
     }
     if (tab == 4) {
-        Text("오늘 AI 호출: ${s.aiCallsToday}회")
-
         Text("백업", style = MaterialTheme.typography.titleMedium)
         Text(com.chatlearn.settings.backupStatus(s.lastBackupAt, vm.now(), java.time.ZoneId.systemDefault()), style = MaterialTheme.typography.bodyMedium)
-        if (backupDue) InfoMessage("앱 데이터는 휴대폰 백업에 들어가지 않아요. 폰을 바꾸거나 앱을 지우면 문장 ${entryCount}개가 사라지니 내보내기로 파일을 보관해 두세요.", MessageKind.ERROR)
+        if (backupDue) InfoMessage("문장 ${entryCount}개가 이 폰에만 있을 수 있어요. 아래 '내보내기'로 파일을 만들어 클라우드 등에 보관해 두세요.", MessageKind.ERROR)
+        Text(
+            "구글 백업이 켜져 있으면 문장과 복습 기록이 조건이 맞을 때(충전·Wi-Fi 등) 하루 한 번쯤 구글 계정에 자동으로 보관돼요. " +
+                "API 키와 설정은 제외돼요. 새 폰에 앱을 설치하면 복원할지 물어봐요. " +
+                "기기나 구글 백업 설정에 따라 동작하지 않을 수 있으니 파일로도 보관해 두는 게 안전해요.",
+            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             OutlinedButton(onClick = { exportLauncher.launch("chatlearn-backup.json") }) { Text("내보내기") }
             OutlinedButton(onClick = { importLauncher.launch(arrayOf("application/json", "*/*")) }) { Text("가져오기") }
@@ -260,5 +313,6 @@ private fun connectionMessage(e: com.chatlearn.ai.AiError) = when (e) {
     com.chatlearn.ai.AiError.TIMEOUT -> "응답이 너무 오래 걸려요. 잠시 후 다시 확인해 보세요."
     com.chatlearn.ai.AiError.RATE_LIMIT -> "한도에 도달했어요. 키는 유효해 보여요. 잠시 후 다시 시도해 주세요."
     com.chatlearn.ai.AiError.OVERLOADED -> "지금 이 모델에 요청이 몰려 있어요. 다른 모델로 바꿔 보세요."
+    com.chatlearn.ai.AiError.MODEL_NOT_FOUND -> "이 이름의 모델을 찾을 수 없어요. 모델 이름을 확인하거나 위의 추천 모델로 바꿔 보세요."
     com.chatlearn.ai.AiError.BAD_FORMAT, com.chatlearn.ai.AiError.SERVER -> "AI 서버 응답에 문제가 있어요. 잠시 후 다시 시도해 주세요."
 }
