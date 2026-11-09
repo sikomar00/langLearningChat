@@ -30,7 +30,7 @@ class SettingsRepositoryTest {
     @Test fun defaults() = runBlocking {
         val s = repo.settings.first()
         assertEquals("", s.apiKey)
-        assertEquals("gemini-flash-latest", s.model)
+        assertEquals("gemini-3.5-flash-lite", s.model)
         assertEquals(10, s.newPerDay)
         assertEquals(0, s.aiCallsToday)
         assertTrue(s.autoExpand)

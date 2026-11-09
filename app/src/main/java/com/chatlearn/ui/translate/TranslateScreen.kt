@@ -154,10 +154,13 @@ fun TranslateScreen(vm: TranslateViewModel, onSpeak: (String, Lang) -> Unit = { 
         }
         s.error?.let {
             InfoMessage(errorText(it), MessageKind.ERROR)
-            if (it is TranslateError.Ai && it.kind != AiError.BAD_KEY) {
+            // 키나 모델 이름 문제는 다시 시도해도 같다. 설정에서 고쳐야 한다.
+            val aiKind = (it as? TranslateError.Ai)?.kind
+            val needsSettings = aiKind == AiError.BAD_KEY || aiKind == AiError.MODEL_NOT_FOUND
+            if (aiKind != null && !needsSettings) {
                 OutlinedButton(onClick = { vm.translate() }, enabled = !s.loading) { Text("다시 시도") }
             }
-            if (it is TranslateError.Ai && it.kind == AiError.BAD_KEY) {
+            if (needsSettings) {
                 Button(onClick = onOpenSettings) { Text("설정 열기") }
             }
         }
@@ -334,5 +337,6 @@ private fun errorText(e: TranslateError) = when (e) {
         AiError.BAD_KEY -> "API 키를 확인해 주세요. 설정 탭에서 바꿀 수 있어요."
         AiError.BAD_FORMAT -> "AI 응답을 읽지 못했어요. 다시 시도해 주세요."
         AiError.SERVER -> "AI 서버에 문제가 생겼어요."
+        AiError.MODEL_NOT_FOUND -> "설정한 모델을 찾을 수 없어요. 설정 탭에서 모델 이름을 확인하거나 다른 모델로 바꿔 주세요."
     }
 }

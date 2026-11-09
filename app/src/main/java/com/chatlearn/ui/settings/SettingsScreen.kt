@@ -95,9 +95,12 @@ fun SettingsScreen(vm: SettingsViewModel, onPreviewVoice: (com.chatlearn.domain.
                 }
             },
         )
-        OutlinedTextField(model, { model = it }, Modifier.fillMaxWidth(), singleLine = true, label = { Text("모델 이름") })
+        OutlinedTextField(
+            model, { model = it }, Modifier.fillMaxWidth(), singleLine = true, label = { Text("모델 이름") },
+            supportingText = { Text("-latest 별칭은 Google이 가리키는 모델을 바꿀 수 있어 갑자기 느려질 수 있어요.") },
+        )
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            listOf("gemini-flash-latest", "gemini-flash-lite-latest").forEach { preset ->
+            listOf(com.chatlearn.settings.DataStoreSettingsRepository.DEFAULT_MODEL).forEach { preset ->
                 FilterChip(selected = model == preset, onClick = { model = preset }, label = { Text(preset) })
             }
         }
@@ -260,5 +263,6 @@ private fun connectionMessage(e: com.chatlearn.ai.AiError) = when (e) {
     com.chatlearn.ai.AiError.TIMEOUT -> "응답이 너무 오래 걸려요. 잠시 후 다시 확인해 보세요."
     com.chatlearn.ai.AiError.RATE_LIMIT -> "한도에 도달했어요. 키는 유효해 보여요. 잠시 후 다시 시도해 주세요."
     com.chatlearn.ai.AiError.OVERLOADED -> "지금 이 모델에 요청이 몰려 있어요. 다른 모델로 바꿔 보세요."
+    com.chatlearn.ai.AiError.MODEL_NOT_FOUND -> "이 이름의 모델을 찾을 수 없어요. 모델 이름을 확인하거나 위의 추천 모델로 바꿔 보세요."
     com.chatlearn.ai.AiError.BAD_FORMAT, com.chatlearn.ai.AiError.SERVER -> "AI 서버 응답에 문제가 있어요. 잠시 후 다시 시도해 주세요."
 }

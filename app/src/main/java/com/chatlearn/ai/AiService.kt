@@ -3,7 +3,8 @@ package com.chatlearn.ai
 import com.chatlearn.domain.Lang
 import com.chatlearn.domain.Verdict
 
-enum class AiError { RATE_LIMIT, OFFLINE, TIMEOUT, OVERLOADED, BAD_KEY, BAD_FORMAT, SERVER }
+/** [MODEL_NOT_FOUND]: 모델 이름이 없거나 더는 쓸 수 없다(HTTP 404). 다시 시도해도 같으니 설정에서 바꿔야 한다. */
+enum class AiError { RATE_LIMIT, OFFLINE, TIMEOUT, OVERLOADED, BAD_KEY, BAD_FORMAT, SERVER, MODEL_NOT_FOUND }
 
 class AiException(val kind: AiError) : Exception(kind.name)
 

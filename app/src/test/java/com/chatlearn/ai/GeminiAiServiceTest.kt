@@ -172,12 +172,27 @@ class GeminiAiServiceTest {
         val seen = mutableListOf<Pair<Int, String>>()
         val diag = GeminiAiService(
             OkHttpClient(), server.url("/").toString().trimEnd('/'),
+            apiKey = { "test-key" }, model = { "any-model" },
+            onHttpError = { code, body -> seen += code to body }, retryDelayMs = 0,
+        )
+        server.enqueue(MockResponse().setResponseCode(500).setBody("""{"error":{"message":"internal"}}"""))
+        val e = diag.translateReceived("hi").exceptionOrNull() as AiException
+        assertEquals(AiError.SERVER, e.kind)
+        assertEquals(500, seen.single().first)
+        assertTrue(seen.single().second.contains("internal"))
+    }
+
+    @Test fun missingModelMeansModelNotFoundWithoutRetryAndIsReportedForDiagnosis() = runBlocking {
+        val seen = mutableListOf<Pair<Int, String>>()
+        val diag = GeminiAiService(
+            OkHttpClient(), server.url("/").toString().trimEnd('/'),
             apiKey = { "test-key" }, model = { "no-such-model" },
             onHttpError = { code, body -> seen += code to body }, retryDelayMs = 0,
         )
         server.enqueue(MockResponse().setResponseCode(404).setBody("""{"error":{"message":"model not found"}}"""))
         val e = diag.translateReceived("hi").exceptionOrNull() as AiException
-        assertEquals(AiError.SERVER, e.kind)
+        assertEquals(AiError.MODEL_NOT_FOUND, e.kind)
+        assertEquals(1, server.requestCount) // 같은 요청을 다시 보내도 소용없다
         assertEquals(404, seen.single().first)
         assertTrue(seen.single().second.contains("model not found"))
     }

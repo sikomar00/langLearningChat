@@ -151,5 +151,9 @@ class DataStoreSettingsRepository(
         }
     }
 
-    companion object { const val DEFAULT_MODEL = "gemini-flash-latest" }
+    /**
+     * 고정 이름. `gemini-flash-latest` 같은 별칭은 Google이 가리키는 모델을 바꿀 수 있다.
+     * 2026-11에 별칭으로 둔 채 번역이 "응답이 너무 오래 걸려요"로 실패했고, 이 이름으로 바꾸자 정상으로 돌아왔다.
+     */
+    companion object { const val DEFAULT_MODEL = "gemini-3.5-flash-lite" }
 }
