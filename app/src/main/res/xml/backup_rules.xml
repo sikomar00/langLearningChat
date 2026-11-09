@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Android 11 이하의 자동 백업 규칙. <include>가 있으면 그것만 백업된다.
+  DB 파일과 암호화된 API 키 저장소(shared_prefs/secrets.xml)는 일부러 뺀다: 스냅샷만 백업한다(AutoBackup.kt 참고).
+  path는 AutoBackup.DIR_NAME과 같아야 한다.
+-->
+<full-backup-content>
+    <include domain="file" path="auto-backup" />
+</full-backup-content>

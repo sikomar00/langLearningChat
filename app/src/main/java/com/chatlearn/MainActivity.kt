@@ -18,6 +18,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -45,6 +46,9 @@ private val DARK_NAV_SCRIM = android.graphics.Color.argb(0x80, 0x1b, 0x1b, 0x1b)
 
 private enum class Tab(val label: String) { TRANSLATE("번역"), LIBRARY("라이브러리"), REVIEW("복습"), SETTINGS("설정") }
 
+/** 설정 화면 안쪽 탭(AI, 복습, 문장, 화면, 백업) 중 백업의 순번. */
+private const val SETTINGS_BACKUP_TAB = 4
+
 class MainActivity : ComponentActivity() {
     // 공유·선택 메뉴로 넘어온 문장이나 알림·바로가기·위젯이 시킨 일. 화면이 처리하면 비운다.
     private var pendingLaunch by mutableStateOf<LaunchRequest?>(null)
@@ -58,7 +62,9 @@ class MainActivity : ComponentActivity() {
     // 앱을 나갈 때 홈 화면 위젯의 복습 수·목표를 방금 한 복습과 저장에 맞춘다.
     override fun onStop() {
         super.onStop()
-        (application as ChatLearnApp).container.refreshWidget()
+        val c = (application as ChatLearnApp).container
+        c.refreshWidget()
+        c.snapshotBackup()
     }
 
     /**
@@ -135,7 +141,38 @@ class MainActivity : ComponentActivity() {
                     }
                     pendingLaunch = null
                 }
+
+                // 새 폰에 앱을 설치하면 기기 백업이 스냅샷을 먼저 되돌려 놓는다. 라이브러리가 비어 있고 스냅샷이 있으면 복원할지 묻는다.
+                // 어느 쪽이든 한 번은 고르게 한다(그냥 닫으면 새 문장이 쌓이면서 스냅샷이 덮어써질 수 있다).
+                val scope = rememberCoroutineScope()
+                var restorable by remember { mutableIntStateOf(0) }
+                LaunchedEffect(Unit) { restorable = c.autoBackup.pendingRestoreCount() }
+                if (restorable > 0) AlertDialog(
+                    onDismissRequest = {},
+                    properties = DialogProperties(dismissOnBackPress = false, dismissOnClickOutside = false),
+                    title = { Text("이전 백업을 찾았어요") },
+                    text = {
+                        Text("문장 ${restorable}개가 든 백업이 있어요. 지금 라이브러리가 비어 있어서 복원해도 지워지는 문장은 없어요. API 키와 설정은 복원되지 않으니 설정에서 다시 넣어 주세요.")
+                    },
+                    confirmButton = {
+                        TextButton(onClick = {
+                            scope.launch {
+                                val r = c.autoBackup.restore()
+                                if (r.isFailure) android.widget.Toast.makeText(this@MainActivity, "복원하지 못했어요", android.widget.Toast.LENGTH_LONG).show()
+                                restorable = 0
+                                reviewVm.refresh(force = true)
+                            }
+                        }) { Text("복원") }
+                    },
+                    dismissButton = { TextButton(onClick = { scope.launch { c.autoBackup.discard(); restorable = 0 } }) { Text("백업 지우고 새로 시작") } },
+                )
+
+                // 문장이 쌓였는데 파일 백업이 오래됐으면 설정 탭 아이콘에 점을 찍고 라이브러리 위에 안내를 띄운다.
+                val entryCount by c.repo.observeEntryCount().collectAsStateWithLifecycle(initialValue = 0)
+                val backupDue = settings?.let { com.chatlearn.settings.backupOverdue(it.lastBackupAt, System.currentTimeMillis(), entryCount) } ?: false
+                var settingsTabRequest by remember { mutableIntStateOf(0) }
                 val current = tab ?: if (settings != null && settings!!.apiKey.isBlank()) Tab.SETTINGS else Tab.TRANSLATE
+                LaunchedEffect(current) { if (current != Tab.SETTINGS) settingsTabRequest = 0 }
                 // 첫 화면이 아닌 탭에서 뒤로가기를 누르면 앱을 끝내지 않고 번역 탭으로 돌아간다.
                 BackHandler(enabled = current != Tab.TRANSLATE) { tab = Tab.TRANSLATE }
                 Scaffold(
@@ -145,14 +182,16 @@ class MainActivity : ComponentActivity() {
                                 NavigationBarItem(
                                     selected = current == t, onClick = { tab = t }, label = { Text(t.label) },
                                     icon = {
-                                        Icon(
-                                            when (t) {
-                                                Tab.TRANSLATE -> Icons.Default.Translate
-                                                Tab.LIBRARY -> Icons.Default.Book
-                                                Tab.REVIEW -> Icons.Default.Repeat
-                                                Tab.SETTINGS -> Icons.Default.Settings
-                                            }, null,
-                                        )
+                                        BadgedBox(badge = { if (t == Tab.SETTINGS && backupDue) Badge() }) {
+                                            Icon(
+                                                when (t) {
+                                                    Tab.TRANSLATE -> Icons.Default.Translate
+                                                    Tab.LIBRARY -> Icons.Default.Book
+                                                    Tab.REVIEW -> Icons.Default.Repeat
+                                                    Tab.SETTINGS -> Icons.Default.Settings
+                                                }, null,
+                                            )
+                                        }
                                     },
                                 )
                             }
@@ -167,12 +206,17 @@ class MainActivity : ComponentActivity() {
                                     viewModel(factory = factory), onGoTranslate = { tab = Tab.TRANSLATE },
                                     showGestureHint = settings?.libraryHintDismissed == false,
                                     onDismissGestureHint = { lifecycleScope.launch { c.settings.dismissLibraryHint() } },
+                                    backupNudgeCount = if (backupDue) entryCount else 0,
+                                    onOpenBackup = { settingsTabRequest = SETTINGS_BACKUP_TAB; tab = Tab.SETTINGS },
                                 ) { ids, lang ->
                                     reviewVm.startWith(ids, lang)
                                     tab = Tab.REVIEW
                                 }
                                 Tab.REVIEW -> ReviewScreen(reviewVm, viewModel(factory = factory), settings?.voice() ?: VoicePrefs())
-                                Tab.SETTINGS -> SettingsScreen(viewModel(factory = factory), onPreviewVoice = { lang -> c.tts.speak(voiceSample(lang), lang, false) })
+                                Tab.SETTINGS -> SettingsScreen(
+                                    viewModel(factory = factory), initialTab = settingsTabRequest,
+                                    onPreviewVoice = { lang -> c.tts.speak(voiceSample(lang), lang, false) },
+                                )
                             }
                         }
                     }

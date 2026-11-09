@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Android 12 이상의 자동 백업·기기 간 이전 규칙. <include>가 있으면 그것만 옮겨진다.
+  DB 파일과 암호화된 API 키 저장소(shared_prefs/secrets.xml)는 일부러 뺀다: 스냅샷만 옮긴다(AutoBackup.kt 참고).
+  path는 AutoBackup.DIR_NAME과 같아야 한다.
+-->
+<data-extraction-rules>
+    <cloud-backup>
+        <include domain="file" path="auto-backup" />
+    </cloud-backup>
+    <device-transfer>
+        <include domain="file" path="auto-backup" />
+    </device-transfer>
+</data-extraction-rules>

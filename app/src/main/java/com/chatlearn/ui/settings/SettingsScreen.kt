@@ -29,7 +29,7 @@ import kotlinx.coroutines.withContext
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun SettingsScreen(vm: SettingsViewModel, onPreviewVoice: (com.chatlearn.domain.Lang) -> Unit = {}) {
+fun SettingsScreen(vm: SettingsViewModel, initialTab: Int = 0, onPreviewVoice: (com.chatlearn.domain.Lang) -> Unit = {}) {
     val s by vm.state.collectAsStateWithLifecycle()
     val entryCount by vm.entryCount.collectAsStateWithLifecycle()
     val backupDue = com.chatlearn.settings.backupOverdue(s.lastBackupAt, vm.now(), entryCount)
@@ -66,7 +66,9 @@ fun SettingsScreen(vm: SettingsViewModel, onPreviewVoice: (com.chatlearn.domain.
         kotlinx.coroutines.delay(700)
         goalText.toIntOrNull()?.let { if (it != s.dailyGoal) vm.saveDailyGoal(it) }
     }
-    var tab by rememberSaveable { mutableIntStateOf(0) }
+    var tab by rememberSaveable { mutableIntStateOf(initialTab) }
+    // 다른 화면의 안내(예: 라이브러리의 백업 안내)가 특정 탭으로 바로 보낼 때.
+    LaunchedEffect(initialTab) { if (initialTab != 0) tab = initialTab }
     val tabs = listOf("AI", "복습", "문장", "화면", "백업")
     Column(Modifier.fillMaxSize()) {
     TabRow(selectedTabIndex = tab) {
@@ -228,7 +230,13 @@ fun SettingsScreen(vm: SettingsViewModel, onPreviewVoice: (com.chatlearn.domain.
 
         Text("백업", style = MaterialTheme.typography.titleMedium)
         Text(com.chatlearn.settings.backupStatus(s.lastBackupAt, vm.now(), java.time.ZoneId.systemDefault()), style = MaterialTheme.typography.bodyMedium)
-        if (backupDue) InfoMessage("앱 데이터는 휴대폰 백업에 들어가지 않아요. 폰을 바꾸거나 앱을 지우면 문장 ${entryCount}개가 사라지니 내보내기로 파일을 보관해 두세요.", MessageKind.ERROR)
+        if (backupDue) InfoMessage("문장 ${entryCount}개가 이 폰에만 있을 수 있어요. 아래 '내보내기'로 파일을 만들어 클라우드 등에 보관해 두세요.", MessageKind.ERROR)
+        Text(
+            "구글 백업이 켜져 있으면 문장과 복습 기록이 조건이 맞을 때(충전·Wi-Fi 등) 하루 한 번쯤 구글 계정에 자동으로 보관돼요. " +
+                "API 키와 설정은 제외돼요. 새 폰에 앱을 설치하면 복원할지 물어봐요. " +
+                "기기나 구글 백업 설정에 따라 동작하지 않을 수 있으니 파일로도 보관해 두는 게 안전해요.",
+            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             OutlinedButton(onClick = { exportLauncher.launch("chatlearn-backup.json") }) { Text("내보내기") }
             OutlinedButton(onClick = { importLauncher.launch(arrayOf("application/json", "*/*")) }) { Text("가져오기") }

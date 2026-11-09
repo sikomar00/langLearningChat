@@ -16,6 +16,8 @@ interface AppDao {
     @Insert suspend fun insertCard(c: ReviewCardEntity): Long
     @Insert(onConflict = OnConflictStrategy.IGNORE) suspend fun insertCardIfAbsent(c: ReviewCardEntity): Long
     @Query("SELECT * FROM entry WHERE id = :id") suspend fun getEntry(id: Long): EntryEntity?
+    @Query("SELECT COUNT(*) FROM entry") suspend fun entryCount(): Int
+    @Query("SELECT COUNT(*) FROM entry") fun observeEntryCount(): Flow<Int>
     @Query(
         "SELECT e.id AS entryId, e.chatLang AS chatLang, t.text AS chatText FROM entry e " +
             "JOIN entry_text t ON t.entryId = e.id AND t.lang = e.chatLang " +
