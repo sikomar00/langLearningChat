@@ -1,0 +1,10 @@
+# GitHub Pages(Settings > Pages > Branch: main, 폴더: /docs)용 설정.
+# 공개하는 것은 index와 개인정보처리방침뿐이다. 내부 계획·점검 문서는 제외한다.
+title: ChatLearn
+lang: ko
+theme: jekyll-theme-minimal
+exclude:
+  - superpowers
+  - screenshots
+  - play-store-prep.md
+  - device-check.md
