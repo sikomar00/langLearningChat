@@ -20,7 +20,7 @@ Play 정책 수치(마감일, 요건)는 대부분 2차 자료이므로 Play Con
 ## 2. 한 일과 검증 수준
 | 항목 | 한 일 | 검증됨 | 검증 안 됨 |
 |---|---|---|---|
-| targetSdk 36 | 값을 올림 | 컴파일, 단위 테스트(CI) | 실기기 동작. 확인 항목은 `docs/device-check.md` 12번 |
+| targetSdk 36 | 값을 올림. Robolectric 4.14.1이 36을 지원하지 않아 단위 테스트는 SDK 35로 고정(`robolectric.properties`) | 컴파일, 단위 테스트(CI, Android 15 시뮬레이션) | **Android 16 동작 전부.** 실기기에서 `docs/device-check.md` 12번 |
 | R8 | release 규칙(`app/proguard-rules.pro`) | CI에서 빌드되는지 | **릴리스 앱이 실제로 도는지**(직렬화, Room, 암호화 저장소) — 실기기에서 `docs/device-check.md`로 |
 | 서명 | 키 정보를 저장소 밖에서 읽음 | 서명 없는 빌드 | 업로드 키로 서명한 빌드 |
 
