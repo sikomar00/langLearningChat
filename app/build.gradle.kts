@@ -52,6 +52,12 @@ android {
             matchingFallbacks += listOf("release")
         }
     }
+    lint {
+        // androidx.lifecycle의 lint 검사기가 AGP 8.7.3의 lint와 바이너리 호환이 안 돼, release 빌드의 lintVital이 죽는다
+        // ("Found class ...KaCallableMemberCall, but interface was expected"). 이 앱은 LiveData를 쓰지 않아 이 검사는 필요 없다.
+        // AGP를 올리면 이 줄을 지워도 되는지 확인한다.
+        disable += "NullSafeMutableLiveData"
+    }
     buildFeatures { compose = true }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
