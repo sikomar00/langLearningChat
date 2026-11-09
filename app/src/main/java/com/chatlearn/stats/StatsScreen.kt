@@ -82,7 +82,7 @@ private fun Heatmap(days: List<DayCount>) {
     )
     BoxWithConstraints(
         Modifier.fillMaxWidth().clearAndSetSemantics {
-            contentDescription = "최근 ${StatsCalculator.HEATMAP_WEEKS}주 중 ${active}일 복습, 가장 많이 한 날 ${best}번"
+            contentDescription = "최근 ${StatsCalculator.HEATMAP_WEEKS}주 중 ${active}일 복습, 가장 많이 한 날 ${best}회"
         },
     ) {
         val gap = 3.dp

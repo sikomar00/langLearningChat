@@ -165,7 +165,7 @@ private fun ReviewPane(vm: ReviewViewModel, statsVm: StatsViewModel, voice: Voic
         if (inSession) {
             Row(Modifier.fillMaxWidth().heightIn(min = 48.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    (if (custom != null) "선택 복습 · " else "") + "${minOf(progress.done + 1, progress.total)} / ${progress.total}",
+                    (if (custom != null) "선택 복습 · " else "") + "${minOf(progress.done + 1, progress.total)}/${progress.total}",
                     Modifier.weight(1f), style = MaterialTheme.typography.labelMedium,
                 )
                 if (goal.enabled) {
@@ -205,7 +205,7 @@ private fun ReviewPane(vm: ReviewViewModel, statsVm: StatsViewModel, voice: Voic
                     EmptyState(
                         message = emptyReviewMessage(custom != null, moreNew),
                         icon = Icons.Default.CheckCircle,
-                        actionLabel = if (custom != null) "평소 복습으로" else "다시 확인",
+                        actionLabel = if (custom != null) "평소 복습으로" else "더 있는지 확인",
                         onAction = { vm.start(preview = true) },
                     )
                     if (custom == null) LearnMore(moreNew) { vm.learnMore(LEARN_MORE) }
@@ -215,7 +215,7 @@ private fun ReviewPane(vm: ReviewViewModel, statsVm: StatsViewModel, voice: Voic
                     Text(if (s.newCards > 0) "복습 ${s.total - s.newCards}장 · 새 카드 ${s.newCards}장" else "모두 복습 카드예요.")
                     if (goal.enabled) {
                         Text(
-                            if (goal.reached) "오늘 목표 ${goal.goal}장을 달성했어요" else "오늘 목표 ${goal.done} / ${goal.goal}장",
+                            if (goal.reached) "오늘 목표 ${goal.goal}장을 달성했어요" else "오늘 목표 ${goal.done}/${goal.goal}장",
                             style = MaterialTheme.typography.bodyMedium,
                         )
                         LinearProgressIndicator(progress = { goal.fraction }, modifier = Modifier.fillMaxWidth())
@@ -226,7 +226,7 @@ private fun ReviewPane(vm: ReviewViewModel, statsVm: StatsViewModel, voice: Voic
                     val today = stats?.today
                     SectionCard("오늘의 복습") {
                         Text("${s.cards}장을 복습했어요", style = MaterialTheme.typography.headlineSmall)
-                        if (s.count > s.cards) Text("다시 푼 것까지 ${s.count}번 풀었어요", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        if (s.count > s.cards) Text("다시 푼 것까지 ${s.count}회 풀었어요", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                             SummaryStat("정답률", today?.let { com.chatlearn.stats.percent(it) } ?: "-", Modifier.weight(1f))
                             SummaryStat("연속 학습", if (streak > 0) "${streak}일" else "-", Modifier.weight(1f))
@@ -363,7 +363,7 @@ private fun PromptBody(s: ReviewUi.Prompt, vm: ReviewViewModel, canListen: Boole
     if (isLeech(s.item.card)) {
         Card(Modifier.fillMaxWidth()) {
             Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text("이 카드를 ${s.item.card.lapses}번 틀렸어요.", style = MaterialTheme.typography.labelLarge)
+                Text("이 카드를 ${s.item.card.lapses}회 틀렸어요.", style = MaterialTheme.typography.labelLarge)
                 Text("정답을 확인한 뒤 설명을 읽어 보거나, 한 달 쉬었다가 다시 만나 볼 수 있어요.", style = MaterialTheme.typography.bodySmall)
                 TextButton(onClick = { vm.snoozeMonth() }, contentPadding = PaddingValues(horizontal = 4.dp)) { Text("한 달 쉬기") }
             }
