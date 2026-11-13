@@ -13,8 +13,18 @@ android {
         applicationId = "com.chatlearn"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "0.1"
+        versionCode = 2
+        versionName = "0.2"
+    }
+    buildTypes {
+        release {
+            // 쓰지 않는 코드·아이콘(material-icons-extended)·리소스를 빼서 앱을 작고 빠르게 한다.
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            // shortcut: 혼자 쓰는 앱이라 디버그 키로 서명한다. 스토어에 올릴 때 출시용 키로 바꾼다.
+            signingConfig = signingConfigs.getByName("debug")
+        }
     }
     buildFeatures { compose = true }
     compileOptions {
@@ -23,6 +33,8 @@ android {
     }
     kotlinOptions { jvmTarget = "17" }
     testOptions { unitTests { isIncludeAndroidResources = true } }
+    // shortcut: AGP 8.7의 lint가 Kotlin 2.0 분석기와 맞지 않아 release 검사 중 스스로 죽는다. AGP를 올리면 다시 켠다.
+    lint { checkReleaseBuilds = false }
 }
 
 ksp { arg("room.schemaLocation", "$projectDir/schemas") }
