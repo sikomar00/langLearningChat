@@ -8,8 +8,6 @@ import com.chatlearn.review.exercise.Cloze
 import com.chatlearn.review.exercise.ClozeBuilder
 import com.chatlearn.review.exercise.ExercisePolicy
 import com.chatlearn.review.exercise.WordMark
-import java.time.Instant
-import java.time.ZoneId
 import kotlin.random.Random
 
 typealias ExercisePolicyFn = (card: ReviewCardEntity, canBlank: Boolean, ttsAvailable: Boolean, roll: Double) -> ExerciseKind
@@ -57,12 +55,14 @@ class ReviewSession(
 ) {
     fun now(): Long = clock()
 
+    /** 연결·키·하루 한도 문제로 AI가 실패하면 그 큐가 끝날 때까지 AI를 부르지 않는다(카드마다 오래 기다리지 않게). */
+    private var aiDown: AiError? = null
+
     /** [extraNew]는 오늘 새 카드 한도에 더 얹을 장 수("새 카드 더 배우기"). */
     suspend fun loadQueue(extraNew: Int = 0): List<DueCard> {
         val now = clock()
-        val dayStart = Instant.ofEpochMilli(now).atZone(ZoneId.systemDefault()).toLocalDate()
-            .atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
-        return spreadSiblings(repo.queue(now, dayStart, newPerDay(), extraNew = extraNew))
+        aiDown = null
+        return spreadSiblings(repo.queue(now, startOfDay(now), newPerDay(), extraNew = extraNew))
     }
 
     /** 오늘 한도 때문에 아직 못 낸 새 카드 수. */
@@ -81,13 +81,10 @@ class ReviewSession(
 
     /** 오늘은 건너뛴다: 평가 기록 없이 다음 날 0시로 미룬다. */
     suspend fun skipToday(card: ReviewCardEntity) {
-        val tomorrow = Instant.ofEpochMilli(clock()).atZone(ZoneId.systemDefault()).toLocalDate().plusDays(1)
-            .atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
-        repo.postponeCard(card.id, tomorrow)
+        repo.postponeCard(card.id, startOfDay(clock(), plusDays = 1))
     }
 
-    private fun dayStart(): Long = Instant.ofEpochMilli(clock()).atZone(ZoneId.systemDefault()).toLocalDate()
-        .atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
+    private fun dayStart(): Long = startOfDay(clock())
 
     /** 오늘 복습한 카드 수와 하루 목표. */
     suspend fun todayProgress(): GoalProgress = GoalProgress(repo.cardsReviewedSince(dayStart()), dailyGoal())
@@ -97,15 +94,19 @@ class ReviewSession(
 
     suspend fun deleteEntry(entryId: Long) = repo.deleteEntry(entryId)
 
-    /** 정답 문장과 한국어 뜻을 고치고, 새 텍스트가 반영된 카드를 돌려준다. */
-    suspend fun edit(card: ReviewCardEntity, answerText: String, ko: String, note: String? = null): DueCard {
+    /** 정답 문장과 한국어 뜻을 고치고, 새 텍스트가 반영된 카드를 돌려준다. 문장이 그사이 삭제됐으면 null. */
+    suspend fun edit(card: ReviewCardEntity, answerText: String, ko: String, note: String? = null): DueCard? {
+        if (!repo.entryExists(card.entryId)) return null
         if (note != null) repo.updateNote(card.entryId, note.trim())
         if (answerText.isNotBlank()) repo.putText(card.entryId, card.answerLang, answerText, TextOrigin.USER)
         if (ko.isNotBlank()) repo.putText(card.entryId, Lang.KO, ko, TextOrigin.USER)
         return repo.dueCardOf(card)
     }
 
-    suspend fun loadSelected(entryIds: Set<Long>, answerLang: Lang?): List<DueCard> = spreadSiblings(repo.cardsFor(entryIds, answerLang))
+    suspend fun loadSelected(entryIds: Set<Long>, answerLang: Lang?): List<DueCard> {
+        aiDown = null
+        return spreadSiblings(repo.cardsFor(entryIds, answerLang))
+    }
 
     suspend fun prepare(due: DueCard): ReviewItem {
         val answerLang = due.card.answerLang
@@ -120,11 +121,11 @@ class ReviewSession(
         var texts = due.texts
         var promptLang = Lang.KO
         if (chooseOther()) {
-            if (otherLang !in texts) {
+            if (otherLang !in texts && aiDown == null) {
                 ai.translateTo(reference, answerLang, otherLang).onSuccess { t ->
                     repo.putText(due.card.entryId, otherLang, t, TextOrigin.AI)
                     texts = texts + (otherLang to t)
-                }
+                }.onFailure { e -> (e as? AiException)?.kind?.takeIf { it in STICKY_AI_ERRORS }?.let { aiDown = it } }
             }
             if (otherLang in texts) promptLang = otherLang
         }
@@ -144,19 +145,23 @@ class ReviewSession(
             val r = AnswerGrader.gradeDictation(item.reference, answers.joinToString(" "))
             GradeOutcome.Local(r.verdict, suggestedRating(r.verdict), item.reference, r.marks)
         }
-        ExerciseKind.TRANSLATE -> {
+        ExerciseKind.TRANSLATE -> aiDown?.let { GradeOutcome.SelfGrade(item.reference, it) } ?: run {
             val req = GradeRequest(item.promptText, item.promptLang, answers.joinToString(" ").trim(), item.card.answerLang, item.reference)
             ai.gradeAnswer(req).fold(
                 onSuccess = { GradeOutcome.Ai(it, suggestedRating(it.verdict)) },
-                onFailure = { GradeOutcome.SelfGrade(item.reference, (it as? AiException)?.kind) },
+                onFailure = {
+                    val kind = (it as? AiException)?.kind
+                    if (kind in STICKY_AI_ERRORS) aiDown = kind
+                    GradeOutcome.SelfGrade(item.reference, kind)
+                },
             )
         }
     }
 
-    /** 평가를 저장하고, 갱신된 카드를 돌려준다(다시 평가를 같은 세션에 재출제할 때 쓴다). */
+    /** 평가를 저장하고, 갱신된 카드를 돌려준다(다시 평가를 같은 세션에 재출제할 때 쓴다). 카드가 그사이 삭제됐으면 null. */
     suspend fun rate(
         item: ReviewItem, rating: Rating, outcome: GradeOutcome, answer: String, responseMs: Long? = null,
-    ): ReviewCardEntity {
+    ): ReviewCardEntity? {
         val now = clock()
         val next = Scheduler.next(item.card.toState(), rating, now, jitter())
         val (verdict, feedback) = when (outcome) {
@@ -171,12 +176,15 @@ class ReviewSession(
                 aiVerdict = verdict, aiFeedback = feedback, rating = rating,
                 responseMs = responseMs, exercise = item.exercise,
             ),
-        )
+        ) ?: return null
         lastUndo = Undo(item.card, logId)
         return item.card.withState(next)
     }
 
     companion object {
+        /** 다음 카드에서도 그대로일 실패. 일시적인 한도·과부하·시간 초과는 다음 카드에서 다시 시도한다. */
+        private val STICKY_AI_ERRORS = setOf(AiError.OFFLINE, AiError.BAD_KEY, AiError.BAD_MODEL, AiError.DAILY_LIMIT)
+
         fun suggestedRating(v: Verdict) = when (v) {
             Verdict.CORRECT -> Rating.GOOD
             Verdict.CLOSE -> Rating.HARD

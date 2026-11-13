@@ -24,6 +24,7 @@ interface AppDao {
     )
     suspend fun expansionTargets(): List<ExpansionTarget>
     @Update suspend fun updateCard(c: ReviewCardEntity)
+    @Query("SELECT * FROM review_card WHERE id = :id") suspend fun getCard(id: Long): ReviewCardEntity?
     @Insert suspend fun insertLog(l: ReviewLogEntity): Long
     @Query("UPDATE entry_text SET keyPhrase = :phrase WHERE entryId = :entryId AND lang = :lang")
     suspend fun setKeyPhrase(entryId: Long, lang: Lang, phrase: String?)
@@ -73,6 +74,8 @@ interface AppDao {
     @Query("SELECT * FROM review_card") fun observeCards(): Flow<List<ReviewCardEntity>>
 
     @Query("SELECT * FROM entry_text WHERE entryId = :id") suspend fun textsFor(id: Long): List<EntryTextEntity>
+    @Query("SELECT * FROM entry_text WHERE entryId IN (:ids)") suspend fun textsForEntries(ids: List<Long>): List<EntryTextEntity>
+    @Query("SELECT * FROM entry WHERE id IN (:ids)") suspend fun entriesByIds(ids: List<Long>): List<EntryEntity>
     @Query("SELECT * FROM review_card WHERE entryId IN (:ids) AND (:lang IS NULL OR answerLang = :lang) ORDER BY dueAt, id")
     suspend fun cardsForEntries(ids: List<Long>, lang: Lang?): List<ReviewCardEntity>
     @Query("SELECT * FROM review_card WHERE lastReviewedAt IS NOT NULL AND dueAt <= :now ORDER BY dueAt LIMIT :limit")
@@ -111,6 +114,8 @@ interface AppDao {
     @Query("SELECT * FROM entry_text") suspend fun allTexts(): List<EntryTextEntity>
     @Query("SELECT * FROM review_card") suspend fun allCards(): List<ReviewCardEntity>
     @Query("SELECT * FROM review_log") suspend fun allLogs(): List<ReviewLogEntity>
+    @Query("SELECT reviewedAt FROM review_log") suspend fun reviewTimes(): List<Long>
+    @Query("SELECT COUNT(*) FROM review_card") suspend fun countCards(): Int
     @Query("SELECT * FROM tag") suspend fun allTags(): List<TagEntity>
     @Query("SELECT * FROM entry_tag") suspend fun allEntryTags(): List<EntryTagEntity>
 

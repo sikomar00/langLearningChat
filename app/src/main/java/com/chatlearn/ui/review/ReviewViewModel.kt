@@ -7,6 +7,8 @@ import com.chatlearn.domain.Lang
 import com.chatlearn.domain.Rating
 import com.chatlearn.review.*
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -146,7 +148,11 @@ class ReviewViewModel(private val session: ReviewSession) : ViewModel() {
         _progress.value = ReviewProgress(reviewed, reviewed + queue.size + if (next == null) 0 else 1)
         if (next == null) refreshMoreNew()
         _state.value = if (next == null) ReviewUi.Done(reviewed, ratedCards.distinct().size) else {
-            val item = session.prepare(next)
+            // 카드 준비에 AI 번역이 끼면 오래 걸릴 수 있다. 그때만 이전 카드 대신 불러오는 중을 보여 준다.
+            val item = coroutineScope {
+                val slow = launch { delay(300); _state.value = ReviewUi.Loading }
+                session.prepare(next).also { slow.cancel() }
+            }
             ReviewUi.Prompt(item, List(item.blankCount) { "" }, session.now())
         }
     }
@@ -205,7 +211,7 @@ class ReviewViewModel(private val session: ReviewSession) : ViewModel() {
     fun editCurrent(answerText: String, ko: String, note: String? = null): Job = viewModelScope.launch {
         val p = _state.value as? ReviewUi.Prompt ?: return@launch
         if (p.checking) return@launch
-        queue.addFirst(session.edit(p.item.card, answerText, ko, note))
+        session.edit(p.item.card, answerText, ko, note)?.let { queue.addFirst(it) }
         showNext()
     }
 
@@ -274,7 +280,8 @@ class ReviewViewModel(private val session: ReviewSession) : ViewModel() {
         rating = true
         return viewModelScope.launch {
             try {
-                val updated = session.rate(g.item, r, g.outcome, g.answer, g.responseMs)
+                // 그사이 삭제된 카드는 기록 없이 넘어간다.
+                val updated = session.rate(g.item, r, g.outcome, g.answer, g.responseMs) ?: return@launch showNext()
                 reviewed++
                 ratedCards += g.item.card.id
                 lastGraded = g

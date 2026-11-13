@@ -29,7 +29,7 @@ class ReminderReceiver : BroadcastReceiver() {
                 val s = container.settings.settings.first()
                 if (!s.reminderEnabled) return@launch
                 if (intent.action == ACTION_REMINDER) {
-                    val dayStart = java.time.LocalDate.now().atStartOfDay(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
+                    val dayStart = com.chatlearn.domain.startOfDay(System.currentTimeMillis())
                     // 오늘 이미 복습했다면 알리지 않는다.
                     // 쉬는 요일에도 울리지 않는다(다음 날 예약은 아래에서 그대로 이어진다).
                     if (isReminderDay(s.reminderDays, java.time.LocalDate.now().dayOfWeek) && !container.repo.reviewedSince(dayStart)) {
@@ -39,6 +39,11 @@ class ReminderReceiver : BroadcastReceiver() {
                 }
                 ReminderScheduler(context).apply(true, s.reminderHour)
                 com.chatlearn.widget.refreshReviewWidget(context)
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                // 알림 하나 못 띄운다고 앱 프로세스를 죽이지 않는다. 다음 앱 실행 때 예약을 다시 맞춘다.
+                android.util.Log.w("ReminderReceiver", "reminder failed", e)
             } finally {
                 pending.finish()
             }

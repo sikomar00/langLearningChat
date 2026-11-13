@@ -2,8 +2,10 @@ package com.chatlearn.data
 
 import androidx.room.withTransaction
 import com.chatlearn.domain.*
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flowOn
 
 data class EntryDraft(
     val direction: Direction,
@@ -92,6 +94,7 @@ class EntryRepository(internal val db: AppDatabase) {
         SaveResult.Saved(id)
     }
 
+    // 묶고 맞추는 계산은 문장 수에 비례하므로 화면 스레드가 아닌 곳에서 한다.
     fun observeLibrary(): Flow<List<LibraryItem>> =
         combine(dao.observeEntries(), dao.observeTexts(), dao.observeTagLinks()) { entries, texts, links ->
             val textsBy = texts.groupBy { it.entryId }
@@ -101,7 +104,7 @@ class EntryRepository(internal val db: AppDatabase) {
                 LibraryItem(e, mine.associate { it.lang to it.text }, tagsBy[e.id].orEmpty().sorted(), mine.associate { it.lang to it.origin },
                     mine.mapNotNull { t -> t.keyPhrase?.takeIf { it.isNotEmpty() }?.let { t.lang to it } }.toMap())
             }
-        }
+        }.flowOn(Dispatchers.Default)
 
     suspend fun expansionTargets(): List<ExpansionTarget> = dao.expansionTargets()
 
@@ -119,8 +122,11 @@ class EntryRepository(internal val db: AppDatabase) {
     }
 
     /** 통계 계산에 필요한 복습 기록, 카드, 라이브러리를 한 번에 관찰한다. */
-    fun observeStatsInput(): Flow<StatsInput> =
-        combine(dao.observeLogs(), dao.observeCards(), observeLibrary()) { logs, cards, items -> StatsInput(logs, cards, items) }
+    fun observeStatsInput(library: Flow<List<LibraryItem>> = observeLibrary()): Flow<StatsInput> =
+        combine(dao.observeLogs(), dao.observeCards(), library) { logs, cards, items -> StatsInput(logs, cards, items) }
+
+    suspend fun reviewTimes(): List<Long> = dao.reviewTimes()
+    suspend fun countCards(): Int = dao.countCards()
 
     /** 문장의 태그를 [tags] 목록으로 통째로 바꾼다. 어떤 문장에도 안 붙은 태그는 삭제한다. */
     suspend fun setTags(entryId: Long, tags: List<String>, now: Long) = db.withTransaction {
@@ -156,9 +162,7 @@ class EntryRepository(internal val db: AppDatabase) {
         // 더 배우기는 한도를 이미 넘겼어도 남은 한도 위에 더한다.
         val newLeft = (newPerDay - dao.introducedToday(dayStart)).coerceAtLeast(0) + extraNew
         val fresh = if (newLeft > 0) dao.dueNew(now, newLeft) else emptyList()
-        return interleave(reviews, fresh).map { c ->
-            dueCardOf(c)
-        }
+        return dueCardsOf(interleave(reviews, fresh))
     }
 
     suspend fun countDueNew(now: Long): Int = dao.countDueNew(now)
@@ -166,15 +170,22 @@ class EntryRepository(internal val db: AppDatabase) {
     /** 라이브러리에서 고른 문장의 카드. 기한과 하루 새 카드 수 제한은 보지 않는다. */
     suspend fun cardsFor(entryIds: Set<Long>, answerLang: Lang?): List<DueCard> {
         if (entryIds.isEmpty()) return emptyList()
-        return dao.cardsForEntries(entryIds.toList(), answerLang).map { c ->
-            dueCardOf(c)
-        }
+        val cards = entryIds.toList().chunked(500).flatMap { dao.cardsForEntries(it, answerLang) }.sortedWith(compareBy({ it.dueAt }, { it.id }))
+        return dueCardsOf(cards)
     }
 
-    suspend fun dueCardOf(card: ReviewCardEntity): DueCard {
-        val texts = dao.textsFor(card.entryId)
-        return DueCard(card, texts.associate { it.lang to it.text }, texts.mapNotNull { t -> t.keyPhrase?.takeIf { it.isNotEmpty() }?.let { t.lang to it } }.toMap(),
-            dao.getEntry(card.entryId)?.note.orEmpty())
+    suspend fun dueCardOf(card: ReviewCardEntity): DueCard = dueCardsOf(listOf(card)).single()
+
+    /** 카드마다 따로 조회하지 않고 텍스트와 메모를 한 번에 읽는다. SQLite 변수 한도 때문에 나눠 읽는다. */
+    private suspend fun dueCardsOf(cards: List<ReviewCardEntity>): List<DueCard> {
+        val ids = cards.map { it.entryId }.distinct().chunked(500)
+        val texts = ids.flatMap { dao.textsForEntries(it) }.groupBy { it.entryId }
+        val notes = ids.flatMap { dao.entriesByIds(it) }.associate { it.id to it.note }
+        return cards.map { card ->
+            val mine = texts[card.entryId].orEmpty()
+            DueCard(card, mine.associate { it.lang to it.text }, mine.mapNotNull { t -> t.keyPhrase?.takeIf { it.isNotEmpty() }?.let { t.lang to it } }.toMap(),
+                notes[card.entryId].orEmpty())
+        }
     }
 
     /** 텍스트를 바꾼다. 핵심 표현은 새 문장에도 들어 있을 때만 남긴다. */
@@ -202,11 +213,15 @@ class EntryRepository(internal val db: AppDatabase) {
     fun observeMissingKeyPhrases(): Flow<Int> = dao.observeMissingKeyPhrases()
 
     /** 평가를 저장하고 새 기록의 id를 돌려준다(되돌리기에 쓴다). */
-    suspend fun applyReview(card: ReviewCardEntity, newState: CardState, log: ReviewLogEntity): Long =
+    /** 카드가 그사이 삭제됐으면(문장 삭제·백업 가져오기) 아무것도 쓰지 않고 null. */
+    suspend fun applyReview(card: ReviewCardEntity, newState: CardState, log: ReviewLogEntity): Long? =
         db.withTransaction {
+            if (dao.getCard(card.id) == null) return@withTransaction null
             dao.updateCard(card.withState(newState))
             dao.insertLog(log)
         }
+
+    suspend fun entryExists(id: Long): Boolean = dao.getEntry(id) != null
 
     /** [applyReview]를 취소한다: 카드를 평가 전 상태로 되돌리고 그 기록을 지운다. */
     suspend fun undoReview(before: ReviewCardEntity, logId: Long) = db.withTransaction {
@@ -218,7 +233,6 @@ class EntryRepository(internal val db: AppDatabase) {
     suspend fun cardCount(entryId: Long): Int = dao.cardCount(entryId)
     suspend fun cardsReviewedSince(since: Long): Int = dao.distinctCardsSince(since)
     suspend fun reviewedSince(since: Long): Boolean = dao.reviewsSince(since) > 0
-    suspend fun textsOf(entryId: Long): Map<Lang, String> = dao.textsFor(entryId).associate { it.lang to it.text }
 
     suspend fun deleteEntry(id: Long) = dao.deleteEntry(id)
     suspend fun deleteEntries(ids: Collection<Long>) { if (ids.isNotEmpty()) dao.deleteEntries(ids.toList()) }

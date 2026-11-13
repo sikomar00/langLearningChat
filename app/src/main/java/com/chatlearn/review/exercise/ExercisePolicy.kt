@@ -4,7 +4,7 @@ import com.chatlearn.data.ReviewCardEntity
 import com.chatlearn.domain.ExerciseKind
 
 object ExercisePolicy {
-    const val MATURE_DAYS = 21.0
+    const val MATURE_DAYS = com.chatlearn.domain.Scheduler.MATURE_DAYS
     const val EARLY_CLOZE_SHARE = 0.5   // reps 1~2: 빈칸 채우기 비율
     const val MID_TRANSLATE_SHARE = 0.6 // reps 3+: 쓰기 번역 비율
     const val MATURE_TRANSLATE_SHARE = 0.5

@@ -44,8 +44,7 @@ data class SentenceStats(
 )
 
 object StatsCalculator {
-    /** 간격이 이 일수 이상이면 "익숙함"으로 본다. */
-    const val MATURE_DAYS = 21.0
+    const val MATURE_DAYS = com.chatlearn.domain.Scheduler.MATURE_DAYS
     const val HEATMAP_WEEKS = 12
     private const val WEAK_LIMIT = 5
 
@@ -73,10 +72,7 @@ object StatsCalculator {
         val heatmap = generateSequence(heatStart) { it.plusDays(1) }.takeWhile { !it.isAfter(today) }
             .map { DayCount(it, perDay[it]?.size ?: 0) }.toList()
 
-        // 오늘 아직 복습하지 않았어도 어제까지의 연속 기록은 유지한다.
-        var cursor = if (today in perDay) today else today.minusDays(1)
-        var streak = 0
-        while (cursor in perDay) { streak++; cursor = cursor.minusDays(1) }
+        val streak = streakOf(perDay.keys, today)
 
         val mix = CardMix(
             new = cards.count { it.lastReviewedAt == null },
@@ -116,6 +112,20 @@ object StatsCalculator {
             avgResponseMs = median(logs.mapNotNull { it.responseMs }),
             heatmap = heatmap,
         )
+    }
+
+    /** 연속 학습일. 위젯처럼 전체 통계가 필요 없는 곳은 복습 시각만으로 구한다. */
+    fun streak(reviewTimes: Collection<Long>, now: Long, zone: ZoneId): Int {
+        fun day(ms: Long) = Instant.ofEpochMilli(ms).atZone(zone).toLocalDate()
+        return streakOf(reviewTimes.mapTo(HashSet(), ::day), day(now))
+    }
+
+    private fun streakOf(days: Set<java.time.LocalDate>, today: java.time.LocalDate): Int {
+        // 오늘 아직 복습하지 않았어도 어제까지의 연속 기록은 유지한다.
+        var cursor = if (today in days) today else today.minusDays(1)
+        var streak = 0
+        while (cursor in days) { streak++; cursor = cursor.minusDays(1) }
+        return streak
     }
 
     fun sentenceStats(entryId: Long, logs: List<ReviewLogEntity>, cards: List<ReviewCardEntity>): SentenceStats {

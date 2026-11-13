@@ -156,11 +156,50 @@ class ReviewSessionTest {
         val item = s.prepare(s.loadQueue().single())
         val outcome = s.grade(item, "I'm fine")
         val updated = s.rate(item, Rating.GOOD, outcome, "I'm fine")
-        assertEquals(now + 86_400_000L, updated.dueAt)
+        assertEquals(now + 86_400_000L, updated!!.dueAt)
         assertTrue(s.loadQueue().isEmpty())
         val log = db.dao().allLogs().single()
         assertEquals("I'm fine", log.userAnswer)
         assertEquals(Verdict.CORRECT, log.aiVerdict)
         assertEquals(now + 86_400_000L, db.dao().allCards().single().dueAt)
+    }
+
+    @Test fun ratingACardWhoseSentenceWasDeletedSkipsInsteadOfCrashing() = runBlocking {
+        saveOne()
+        val s = session()
+        val item = s.prepare(s.loadQueue().single())
+        val outcome = s.grade(item, "I'm fine")
+        s.deleteEntry(item.card.entryId)
+        assertNull(s.rate(item, Rating.GOOD, outcome, "I'm fine"))
+        assertTrue(db.dao().allLogs().isEmpty())
+        assertFalse(s.undoLast())
+    }
+
+    @Test fun editingADeletedSentenceReturnsNull() = runBlocking {
+        saveOne()
+        val s = session()
+        val card = s.loadQueue().single().card
+        s.deleteEntry(card.entryId)
+        assertNull(s.edit(card, "How are you doing?", "잘 지내?"))
+    }
+
+    @Test fun afterAnOfflineFailureTheSessionStopsCallingAi() = runBlocking {
+        saveSentence("See you tomorrow"); saveSentence("Good night", "잘 자")
+        ai.grade = { Result.failure(AiException(AiError.OFFLINE)) }
+        val s = sessionWith(ExerciseKind.TRANSLATE)
+        val (a, b) = s.loadQueue()
+        assertEquals(AiError.OFFLINE, (s.grade(s.prepare(a), "x") as GradeOutcome.SelfGrade).aiError)
+        val second = s.grade(s.prepare(b), "y") as GradeOutcome.SelfGrade
+        assertEquals(AiError.OFFLINE, second.aiError)
+        assertEquals(1, ai.calls.count { it == "grade" })
+    }
+
+    @Test fun aRateLimitDoesNotTurnAiOffAndANewQueueTriesAgain() = runBlocking {
+        saveSentence("See you tomorrow")
+        ai.grade = { Result.failure(AiException(AiError.TIMEOUT)) }
+        val s = sessionWith(ExerciseKind.TRANSLATE)
+        s.grade(s.prepare(s.loadQueue().single()), "x")
+        ai.grade = { Result.success(GradeResult(Verdict.CORRECT, it.reference, "좋아요")) }
+        assertTrue(s.grade(s.prepare(s.loadQueue().single()), "x") is GradeOutcome.Ai)
     }
 }

@@ -19,10 +19,40 @@ class SchedulerTest {
     @Test fun goodSequenceIs1Then3ThenTimesEase() {
         var s = Scheduler.initial(now)
         s = Scheduler.next(s, Rating.GOOD, now)
-        s = Scheduler.next(s, Rating.GOOD, now)
+        s = Scheduler.next(s, Rating.GOOD, s.dueAt)
         assertEquals(3.0, s.intervalDays)
-        s = Scheduler.next(s, Rating.GOOD, now)
+        s = Scheduler.next(s, Rating.GOOD, s.dueAt)
         assertEquals(7.5, s.intervalDays)
+    }
+
+    private val mature = CardState(intervalDays = 30.0, ease = 2.5, reps = 5, lapses = 0, dueAt = now + 29 * day, lastReviewedAt = now - day)
+
+    @Test fun earlyGoodDoesNotInflateInterval() {
+        var s = mature
+        repeat(3) { s = Scheduler.next(s, Rating.GOOD, now) }
+        assertEquals(30.0, s.intervalDays, 1e-9)
+    }
+
+    @Test fun earlyGoodCreditsOnlyTheTimeThatPassed() {
+        val s = Scheduler.next(mature.copy(lastReviewedAt = now - 20 * day), Rating.GOOD, now)
+        assertEquals(50.0, s.intervalDays, 1e-9)
+    }
+
+    @Test fun earlyHardAndEasyDoNotInflateEither() {
+        assertEquals(30.0, Scheduler.next(mature, Rating.HARD, now).intervalDays, 1e-9)
+        assertEquals(30.0, Scheduler.next(mature, Rating.EASY, now).intervalDays, 1e-9)
+    }
+
+    @Test fun aCardMadeDueEarlyByJitterIsAnOnTimeReview() {
+        val due = CardState(10.0, 2.5, 5, 0, dueAt = now, lastReviewedAt = now - (9.5 * day).toLong())
+        val s = Scheduler.next(due, Rating.HARD, now)
+        assertEquals(12.0, s.intervalDays, 1e-9)
+        assertEquals(2.35, s.ease, 1e-9)
+    }
+
+    @Test fun onTimeGoodStillMultipliesByEase() {
+        val s = Scheduler.next(mature.copy(dueAt = now, lastReviewedAt = now - 30 * day), Rating.GOOD, now)
+        assertEquals(75.0, s.intervalDays, 1e-9)
     }
 
     @Test fun againRetriesInTenMinutesThenOneDay() {
