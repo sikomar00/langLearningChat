@@ -8,6 +8,8 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.Book
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.SearchOff
@@ -117,6 +119,7 @@ internal fun DetailDialog(item: LibraryItem, hasAltCard: Boolean, recentTags: Li
                         if (failed) Text("만들지 못했어요. 잠시 후 다시 시도해 주세요.", color = MaterialTheme.colorScheme.error)
                     }
                 }
+                item.entry.contextText?.let { ctx -> SectionCard("대화") { com.chatlearn.ui.review.ContextFold(ctx) } }
                 SectionCard("핵심 표현") {
                     Text("빈칸 채우기에서 이 표현이 빈칸이 돼요. 문장 안에 있는 그대로 적어야 해요.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     OutlinedTextField(
@@ -162,6 +165,12 @@ internal fun DetailDialog(item: LibraryItem, hasAltCard: Boolean, recentTags: Li
                             items(editedTags.toList()) { tag ->
                                 InputChip(
                                     selected = false, onClick = { editedTags.remove(tag) }, label = { Text(tag) },
+                                    // 사람·나라 태그는 아이콘으로 구분한다.
+                                    leadingIcon = when (item.tagKinds[tag]) {
+                                        com.chatlearn.domain.TagKind.PERSON -> ({ Icon(Icons.Default.Person, contentDescription = "사람", modifier = Modifier.size(18.dp)) })
+                                        com.chatlearn.domain.TagKind.COUNTRY -> ({ Icon(Icons.Default.Public, contentDescription = "나라", modifier = Modifier.size(18.dp)) })
+                                        else -> null
+                                    },
                                     trailingIcon = { Icon(Icons.Default.Close, contentDescription = "$tag 제거", modifier = Modifier.size(18.dp)) },
                                 )
                             }

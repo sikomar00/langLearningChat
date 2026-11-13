@@ -23,6 +23,9 @@ class SettingsViewModel(private val settings: SettingsRepository, private val re
         settings.settings.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), AppSettings("", "", 10, 0))
 
     fun saveKey(k: String) = viewModelScope.launch { settings.setApiKey(k) }
+    /** 저장이 끝난 뒤 바로 연결을 확인할 때. */
+    suspend fun saveKeyNow(k: String) = settings.setApiKey(k)
+    fun finishOnboarding() = viewModelScope.launch { settings.finishOnboarding() }
     fun saveModel(m: String) = viewModelScope.launch { settings.setModel(m) }
     fun saveNewPerDay(n: Int) = viewModelScope.launch { settings.setNewPerDay(n) }
     fun saveReminder(enabled: Boolean, hour: Int) = viewModelScope.launch {

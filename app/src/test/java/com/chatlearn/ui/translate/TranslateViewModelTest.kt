@@ -4,6 +4,7 @@ import com.chatlearn.ai.*
 import com.chatlearn.data.*
 import com.chatlearn.domain.Direction
 import com.chatlearn.domain.Lang
+import com.chatlearn.domain.TagKind
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
@@ -137,7 +138,7 @@ class TranslateViewModelTest {
         vm.setInput("How are you?")
         vm.translate().join()
         vm.saveReceived().join()
-        assertEquals(Notice.Duplicate, vm.state.value.notice)
+        assertEquals(Notice.Duplicate("How are you?"), vm.state.value.notice)
         assertEquals("How are you?", vm.state.value.input) // 중복이면 입력을 지우지 않는다
         assertEquals(1, repo.observeLibrary().first().size)
     }
@@ -278,7 +279,7 @@ class TranslateViewModelTest {
     @Test fun savedNoticeCountsTheCardsThatWereCreated() = runBlocking {
         vm.setInput("Hello"); vm.translate().join(); vm.saveReceived().join()
         assertEquals(Notice.Saved(2), vm.state.value.notice) // 영어 + 스페인어 확장
-        val off = TranslateViewModel(ai, repo, { 2_000L }) { false }
+        val off = TranslateViewModel(ai, repo, { 2_000L }, autoExpand = { false })
         off.setInput("Good night"); off.translate().join(); off.saveReceived().join()
         assertEquals(Notice.Saved(1), off.state.value.notice)
     }
@@ -416,5 +417,85 @@ class TranslateViewModelTest {
         vm.setInput("Hello there"); vm.translate().join()
         assertEquals(listOf("received"), ai.calls)
         assertTrue(vm.state.value.batch.isEmpty())
+    }
+
+    @Test fun koreanTextSharedFromAnotherAppBecomesSomethingToSay() = runBlocking {
+        vm.receiveShared("내일 몇 시에 만나?").join()
+        assertEquals(TranslateMode.SENT, vm.state.value.mode)
+        assertTrue("sent" in ai.calls)
+        vm.receiveShared("See you at 7").join()
+        assertEquals(TranslateMode.RECEIVED, vm.state.value.mode)
+    }
+
+    @Test fun aPastedKakaoChatSplitsOffSpeakersPicksTheFriendAndKeepsTheContext() = runBlocking {
+        vm.setInput("[Ana] [오후 3:15] Hola\n[나] [오후 3:16] Hi\n[Ana] [오후 3:17] Que tal")
+        vm.translate().join()
+        val st = vm.state.value
+        assertEquals(listOf("Hola", "Hi", "Que tal"), st.batch.map { it.text })
+        assertEquals(setOf("Ana"), st.people)
+        vm.toggleBatch(0); vm.toggleBatch(1) // 마지막 줄만 저장
+        vm.saveBatch().join()
+        val saved = db.dao().allEntries().single()
+        assertEquals("Ana: Hola\n나: Hi\n> Ana: Que tal", saved.contextText)
+        assertEquals(listOf("Ana"), repo.observeLibrary().first().single().tags)
+        assertEquals(TagKind.PERSON, repo.observeLibrary().first().single().tagKinds["Ana"])
+    }
+
+    @Test fun peopleAndCountriesCanBeToggledAndAreSavedWithTheSentence() = runBlocking {
+        vm.togglePerson("Leo"); vm.toggleCountry("멕시코"); vm.toggleCountry("스페인"); vm.toggleCountry("스페인")
+        vm.setInput("How are you?")
+        vm.translate().join()
+        vm.saveReceived().join()
+        val item = repo.observeLibrary().first().single()
+        assertEquals(setOf("Leo", "멕시코"), item.tags.toSet())
+        assertEquals(TagKind.COUNTRY, item.tagKinds["멕시코"])
+        assertEquals(setOf("Leo"), vm.state.value.people) // 다음 문장도 같은 친구일 때가 많아 남겨 둔다
+    }
+
+    @Test fun cuttingALongPasteIsReported() = runBlocking {
+        vm.setInput((1..25).joinToString("\n") { "line $it" })
+        vm.translate().join()
+        assertTrue(vm.state.value.truncated)
+        assertEquals(20, vm.state.value.batch.size)
+    }
+
+    @Test fun theReplyLanguageIsRememberedAndRestored() = runBlocking {
+        var saved: Lang? = null
+        val v = TranslateViewModel(ai, repo, { 1_000L }, savedTarget = { Lang.ES }, rememberTarget = { saved = it })
+        v.awaitTarget()
+        assertEquals(Lang.ES, v.state.value.targetLang)
+        v.setTarget(Lang.EN)
+        assertEquals(Lang.EN, saved)
+    }
+
+    @Test fun aDuplicateSaveTellsWhichSentenceItIs() = runBlocking {
+        vm.setInput("How are you?"); vm.translate().join(); vm.saveReceived().join()
+        vm.setInput("How are you?"); vm.translate().join(); vm.saveReceived().join()
+        assertEquals(Notice.Duplicate("How are you?"), vm.state.value.notice)
+    }
+
+    @Test fun aNewChatReplacesTheFriendThatWasPickedForTheLastOne() = runBlocking {
+        vm.setInput("[Ana] [오후 3:15] Hola\n[Ana] [오후 3:16] Que tal"); vm.translate().join()
+        assertEquals(setOf("Ana"), vm.state.value.people)
+        vm.setInput("[Bob] [오후 4:15] Hi\n[Bob] [오후 4:16] What's up"); vm.translate().join()
+        assertEquals(setOf("Bob"), vm.state.value.people)
+    }
+
+    @Test fun withTwoPossibleFriendsNobodyIsPickedButBothAreOffered() = runBlocking {
+        vm.setInput("[Ana] [오후 3:15] Hola\n[Minsu] [오후 3:16] Hi"); vm.translate().join()
+        assertTrue(vm.state.value.people.isEmpty())
+        assertEquals(listOf("Ana", "Minsu"), vm.state.value.speakers)
+    }
+
+    @Test fun theSavedReplyLanguageIsUsedEvenForTheFirstTranslation() = runBlocking {
+        // 저장된 언어를 읽는 데 시간이 걸려도 첫 번역이 그 언어를 기다린다.
+        val gate = kotlinx.coroutines.CompletableDeferred<Unit>()
+        val v = TranslateViewModel(ai, repo, { 1_000L }, savedTarget = { gate.await(); Lang.ES })
+        val job = v.receiveShared("내일 보자")
+        gate.complete(Unit)
+        job.join()
+        assertEquals(Lang.ES, ai.lastSentTarget)
+        v.setTarget(Lang.EN)
+        assertEquals(Lang.EN, v.state.value.targetLang)
     }
 }

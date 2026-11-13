@@ -68,6 +68,7 @@ internal fun GradedBody(s: ReviewUi.Graded, vm: ReviewViewModel, canListen: Bool
             is GradeOutcome.Local -> LabeledText("정답", o.reference, valueColor = MaterialTheme.statusColors.success, valueStyle = MaterialTheme.typography.titleMedium)
         }
         s.item.keyPhrase?.let { LabeledText("핵심 표현", it, valueColor = MaterialTheme.colorScheme.primary) }
+        s.item.context?.let { ContextFold(it) }
         if (s.item.note.isNotBlank()) LabeledText("설명", s.item.note, valueStyle = MaterialTheme.typography.bodyMedium)
     }
     ShadowingRow(vm, canListen, heard, s.item.reference, onShadow)
@@ -136,3 +137,12 @@ private fun VerdictBanner(verdict: Verdict) {
         Text(label, style = MaterialTheme.typography.headlineSmall, color = color)
     }
 }
+
+/** 저장할 때 함께 둔 앞뒤 대화. 접어 두었다가 눌러서 본다. ">" 줄이 이 문장. */
+@Composable
+internal fun ContextFold(context: String) {
+    var open by remember { mutableStateOf(false) }
+    TextButton(onClick = { open = !open }, contentPadding = PaddingValues(horizontal = 0.dp)) { Text(if (open) "대화 접기" else "어떤 대화였는지 보기") }
+    if (open) Text(context, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+}
+

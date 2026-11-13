@@ -325,4 +325,30 @@ class EntryRepositoryTest {
         assertEquals(3, repo.knownExpressions(Lang.EN, limit = 3).size)
         assertTrue(repo.knownExpressions(Lang.ES).isEmpty())
     }
+
+    @Test fun peopleAndCountriesAreSavedAsTheirOwnTagKindsWithTheConversation() = runBlocking {
+        val id = (repo.saveEntry(
+            draft().copy(tags = listOf("여행"), people = listOf("Ana"), countries = listOf("멕시코"), contextText = "> Ana: Hola"), now,
+        ) as SaveResult.Saved).id
+        val kinds = db.dao().allTags().associate { it.name to it.kind }
+        assertEquals(mapOf("여행" to TagKind.TOPIC, "Ana" to TagKind.PERSON, "멕시코" to TagKind.COUNTRY), kinds)
+        assertEquals("> Ana: Hola", db.dao().getEntry(id)!!.contextText)
+        val item = repo.observeLibrary().first().single()
+        assertEquals(TagKind.PERSON, item.tagKinds["Ana"])
+        assertEquals(listOf("Ana"), repo.observeRecentTags(TagKind.PERSON).first())
+        assertEquals(listOf("멕시코"), repo.observeRecentTags(TagKind.COUNTRY).first())
+    }
+
+    @Test fun aTopicTagUsedAsAPersonBecomesAPersonButNeverTheOtherWay() = runBlocking {
+        repo.saveEntry(draft().copy(chatText = "one", tags = listOf("Ana")), now)
+        repo.saveEntry(draft().copy(chatText = "two", people = listOf("Ana")), now)
+        assertEquals(TagKind.PERSON, db.dao().allTags().single().kind)
+        repo.saveEntry(draft().copy(chatText = "three", tags = listOf("Ana")), now)
+        assertEquals(TagKind.PERSON, db.dao().allTags().single().kind)
+    }
+
+    @Test fun cardsComingUpForReviewCarryTheirConversation() = runBlocking {
+        repo.saveEntry(draft().copy(contextText = "Ana: Hi\n> Ana: How are you?"), now)
+        assertEquals("Ana: Hi\n> Ana: How are you?", repo.queue(now, 0, 10).single().context)
+    }
 }

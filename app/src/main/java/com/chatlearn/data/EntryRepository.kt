@@ -20,6 +20,11 @@ data class EntryDraft(
     val altKeyPhrase: String? = null,
     /** 알게 된 날(밀리초). null이면 저장하는 지금. */
     val learnedAt: Long? = null,
+    /** 함께 대화한 사람·그 사람의 나라. 같은 이름의 태그로 저장되고 종류만 다르다. */
+    val people: List<String> = emptyList(),
+    val countries: List<String> = emptyList(),
+    /** 이 문장 앞뒤 대화. */
+    val contextText: String? = null,
 )
 
 sealed interface SaveResult {
@@ -31,7 +36,11 @@ enum class RenameResult { Renamed, Merged, Unchanged }
 
 data class StatsInput(val logs: List<ReviewLogEntity>, val cards: List<ReviewCardEntity>, val items: List<LibraryItem>)
 
-data class DueCard(val card: ReviewCardEntity, val texts: Map<Lang, String>, val keyPhrases: Map<Lang, String> = emptyMap(), val note: String = "")
+data class DueCard(
+    val card: ReviewCardEntity, val texts: Map<Lang, String>, val keyPhrases: Map<Lang, String> = emptyMap(), val note: String = "",
+    /** 이 문장을 저장할 때 함께 둔 앞뒤 대화. */
+    val context: String? = null,
+)
 data class KeyPhrasePending(val entryId: Long, val lang: Lang, val text: String)
 data class LibraryItem(
     val entry: EntryEntity,
@@ -39,6 +48,8 @@ data class LibraryItem(
     val tags: List<String>,
     val origins: Map<Lang, TextOrigin> = emptyMap(),
     val keyPhrases: Map<Lang, String> = emptyMap(),
+    /** 태그 이름별 종류(사람·나라·주제). */
+    val tagKinds: Map<String, TagKind> = emptyMap(),
 )
 
 internal fun <T> interleave(a: List<T>, b: List<T>): List<T> {
@@ -57,11 +68,15 @@ internal fun <T> interleave(a: List<T>, b: List<T>): List<T> {
 class EntryRepository(internal val db: AppDatabase) {
     private val dao get() = db.dao()
 
-    /** 이름으로 태그를 찾아 사용 시각을 갱신하고, 없으면 새로 만든다. */
-    private suspend fun tagIdFor(name: String, now: Long): Long {
-        val id = dao.findTagId(name)
-        if (id != null) { dao.touchTag(id, now); return id }
-        return dao.insertTag(TagEntity(name = name, lastUsedAt = now))
+    /**
+     * 이름으로 태그를 찾아 사용 시각을 갱신하고, 없으면 새로 만든다.
+     * 주제 태그를 사람·나라로 쓰면 그 종류로 바꾼다(반대로는 바꾸지 않는다: 상세 화면에서 태그를 고쳐도 사람이 주제로 돌아가지 않게).
+     */
+    private suspend fun tagIdFor(name: String, now: Long, kind: TagKind = TagKind.TOPIC): Long {
+        val tag = dao.findTag(name) ?: return dao.insertTag(TagEntity(name = name, lastUsedAt = now, kind = kind))
+        dao.touchTag(tag.id, now)
+        if (kind != TagKind.TOPIC && tag.kind == TagKind.TOPIC) dao.setTagKind(tag.id, kind)
+        return tag.id
     }
 
     private fun newCard(entryId: Long, lang: Lang, now: Long): ReviewCardEntity {
@@ -75,14 +90,19 @@ class EntryRepository(internal val db: AppDatabase) {
     suspend fun saveEntry(d: EntryDraft, now: Long, expand: Boolean = true): SaveResult = db.withTransaction {
         val text = d.chatText.trim()
         dao.findEntryIdByChatText(d.chatLang, text)?.let { return@withTransaction SaveResult.Duplicate(it) }
-        val id = dao.insertEntry(EntryEntity(createdAt = d.learnedAt ?: now, direction = d.direction, chatLang = d.chatLang, note = d.note, tone = d.tone))
+        val id = dao.insertEntry(EntryEntity(
+            createdAt = d.learnedAt ?: now, direction = d.direction, chatLang = d.chatLang, note = d.note, tone = d.tone,
+            contextText = d.contextText?.trim()?.ifEmpty { null },
+        ))
         val (chatOrigin, koOrigin) =
             if (d.direction == Direction.RECEIVED) TextOrigin.ORIGINAL to TextOrigin.AI
             else TextOrigin.AI to TextOrigin.USER
         dao.upsertText(EntryTextEntity(id, d.chatLang, text, chatOrigin, normalizeKeyPhrase(text, d.keyPhrase)))
         dao.upsertText(EntryTextEntity(id, Lang.KO, d.koText.trim(), koOrigin))
-        d.tags.map { it.trim() }.filter { it.isNotEmpty() }.distinct().forEach { name ->
-            dao.insertEntryTag(EntryTagEntity(id, tagIdFor(name, now)))
+        listOf(TagKind.TOPIC to d.tags, TagKind.PERSON to d.people, TagKind.COUNTRY to d.countries).forEach { (kind, names) ->
+            names.map { it.trim() }.filter { it.isNotEmpty() }.distinct().forEach { name ->
+                dao.insertEntryTag(EntryTagEntity(id, tagIdFor(name, now, kind)))
+            }
         }
         dao.insertCard(newCard(id, d.chatLang, now))
         val alt = d.altText?.trim().orEmpty()
@@ -99,10 +119,12 @@ class EntryRepository(internal val db: AppDatabase) {
         combine(dao.observeEntries(), dao.observeTexts(), dao.observeTagLinks()) { entries, texts, links ->
             val textsBy = texts.groupBy { it.entryId }
             val tagsBy = links.groupBy({ it.entryId }, { it.name })
+            val kindOf = links.associate { it.name to it.kind }
             entries.map { e ->
                 val mine = textsBy[e.id].orEmpty()
                 LibraryItem(e, mine.associate { it.lang to it.text }, tagsBy[e.id].orEmpty().sorted(), mine.associate { it.lang to it.origin },
-                    mine.mapNotNull { t -> t.keyPhrase?.takeIf { it.isNotEmpty() }?.let { t.lang to it } }.toMap())
+                    mine.mapNotNull { t -> t.keyPhrase?.takeIf { it.isNotEmpty() }?.let { t.lang to it } }.toMap(),
+                    tagsBy[e.id].orEmpty().associateWith { kindOf.getValue(it) })
             }
         }.flowOn(Dispatchers.Default)
 
@@ -158,6 +180,9 @@ class EntryRepository(internal val db: AppDatabase) {
     /** 최근에 쓴 태그 순서. 자동완성 후보로 쓴다. */
     fun observeRecentTags(): Flow<List<String>> = dao.observeTagsByRecency()
 
+    /** [kind] 종류의 태그만 최근 사용 순으로. 저장할 때 사람·나라 칩에 쓴다. */
+    fun observeRecentTags(kind: TagKind): Flow<List<String>> = dao.observeTagsByRecency(kind)
+
     suspend fun queue(now: Long, dayStart: Long, newPerDay: Int, maxReviews: Int = Scheduler.DEFAULT_MAX_REVIEWS, extraNew: Int = 0): List<DueCard> {
         val reviews = dao.dueReviewed(now, maxReviews)
         // 더 배우기는 한도를 이미 넘겼어도 남은 한도 위에 더한다.
@@ -181,11 +206,12 @@ class EntryRepository(internal val db: AppDatabase) {
     private suspend fun dueCardsOf(cards: List<ReviewCardEntity>): List<DueCard> {
         val ids = cards.map { it.entryId }.distinct().chunked(500)
         val texts = ids.flatMap { dao.textsForEntries(it) }.groupBy { it.entryId }
-        val notes = ids.flatMap { dao.entriesByIds(it) }.associate { it.id to it.note }
+        val entries = ids.flatMap { dao.entriesByIds(it) }.associateBy { it.id }
         return cards.map { card ->
             val mine = texts[card.entryId].orEmpty()
+            val e = entries[card.entryId]
             DueCard(card, mine.associate { it.lang to it.text }, mine.mapNotNull { t -> t.keyPhrase?.takeIf { it.isNotEmpty() }?.let { t.lang to it } }.toMap(),
-                notes[card.entryId].orEmpty())
+                e?.note.orEmpty(), e?.contextText)
         }
     }
 

@@ -45,7 +45,7 @@ import com.chatlearn.domain.splitMessages
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
-fun TranslateScreen(vm: TranslateViewModel, onSpeak: (String, Lang) -> Unit = { _, _ -> }, onOpenSettings: () -> Unit = {}) {
+fun TranslateScreen(vm: TranslateViewModel, onSpeak: (String, Lang) -> Unit = { _, _ -> }, onOpenSettings: () -> Unit = {}, onOpenLibrary: (String) -> Unit = {}) {
     val s by vm.state.collectAsStateWithLifecycle()
     val clipboard = LocalClipboardManager.current
     val ctx = androidx.compose.ui.platform.LocalContext.current
@@ -110,6 +110,7 @@ fun TranslateScreen(vm: TranslateViewModel, onSpeak: (String, Lang) -> Unit = { 
                 }
             }
         }
+        PeopleCountryPicker(vm)
         // 알게 된 날: 지난 대화를 옮겨 적을 때 그날로 기록한다. 고른 날짜는 저장 뒤에도 남는다.
         var pickingDate by remember { mutableStateOf(false) }
         val today = remember { java.time.LocalDate.now() }
@@ -171,12 +172,14 @@ fun TranslateScreen(vm: TranslateViewModel, onSpeak: (String, Lang) -> Unit = { 
             InfoMessage(
                 when (it) {
                     is Notice.Saved -> if (it.cards >= 2) "저장했어요. 영어·스페인어 카드 ${it.cards}장을 만들었어요." else "저장했어요."
-                    Notice.Duplicate -> "이미 저장된 문장이에요."
+                    is Notice.Duplicate -> "이미 저장된 문장이에요. 라이브러리에서 볼 수 있어요."
                     is Notice.BatchSaved -> "${it.saved}개를 저장했어요." + if (it.duplicates > 0) " (이미 있는 ${it.duplicates}개는 건너뛰었어요)" else ""
                 },
                 MessageKind.SUCCESS,
             )
+            (it as? Notice.Duplicate)?.let { d -> TextButton(onClick = { onOpenLibrary(d.text) }) { Text("저장된 문장 보기") } }
         }
+        if (s.truncated && s.batch.isNotEmpty()) InfoMessage("20줄까지만 가져왔어요. 나머지는 따로 붙여 넣어 주세요.", MessageKind.INFO)
 
         if (s.batch.isNotEmpty()) {
             val chosen = s.batch.count { it.selected }
@@ -186,7 +189,7 @@ fun TranslateScreen(vm: TranslateViewModel, onSpeak: (String, Lang) -> Unit = { 
                     Row(Modifier.padding(12.dp), verticalAlignment = Alignment.Top) {
                         Checkbox(checked = b.selected, onCheckedChange = null, enabled = b.savable)
                         Column(Modifier.weight(1f).padding(start = 8.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                            Text(b.text, style = MaterialTheme.typography.bodyLarge)
+                            Text(b.speaker?.let { "$it: ${b.text}" } ?: b.text, style = MaterialTheme.typography.bodyLarge)
                             if (b.savable) {
                                 Text(b.result!!.koTranslation, style = MaterialTheme.typography.bodyMedium)
                                 if (b.keyPhrase.isNotBlank()) Text("핵심 표현: ${b.keyPhrase}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)

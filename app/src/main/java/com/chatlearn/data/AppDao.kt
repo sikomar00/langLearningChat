@@ -4,7 +4,7 @@ import androidx.room.*
 import com.chatlearn.domain.Lang
 import kotlinx.coroutines.flow.Flow
 
-data class TagLink(val entryId: Long, val name: String)
+data class TagLink(val entryId: Long, val name: String, val kind: com.chatlearn.domain.TagKind)
 data class KnownExpressionRow(val phrase: String, val ko: String)
 data class KeyPhraseTarget(val entryId: Long, val lang: Lang, val text: String)
 data class ExpansionTarget(val entryId: Long, val chatLang: Lang, val chatText: String)
@@ -46,6 +46,10 @@ interface AppDao {
     @Insert(onConflict = OnConflictStrategy.IGNORE) suspend fun insertEntryTag(et: EntryTagEntity)
 
     @Query("SELECT id FROM tag WHERE name = :name") suspend fun findTagId(name: String): Long?
+    @Query("SELECT * FROM tag WHERE name = :name") suspend fun findTag(name: String): TagEntity?
+    @Query("UPDATE tag SET kind = :kind WHERE id = :id") suspend fun setTagKind(id: Long, kind: com.chatlearn.domain.TagKind)
+    @Query("SELECT name FROM tag WHERE kind = :kind AND id IN (SELECT tagId FROM entry_tag) ORDER BY lastUsedAt DESC, id DESC")
+    fun observeTagsByRecency(kind: com.chatlearn.domain.TagKind): Flow<List<String>>
     @Query("UPDATE tag SET lastUsedAt = :at WHERE id = :id") suspend fun touchTag(id: Long, at: Long)
     @Query("SELECT lastUsedAt FROM tag WHERE id = :id") suspend fun tagLastUsed(id: Long): Long
     @Query("DELETE FROM entry_tag WHERE entryId = :entryId") suspend fun deleteEntryTags(entryId: Long)
@@ -64,7 +68,7 @@ interface AppDao {
 
     @Query("SELECT * FROM entry ORDER BY createdAt DESC") fun observeEntries(): Flow<List<EntryEntity>>
     @Query("SELECT * FROM entry_text") fun observeTexts(): Flow<List<EntryTextEntity>>
-    @Query("SELECT et.entryId AS entryId, t.name AS name FROM entry_tag et JOIN tag t ON t.id = et.tagId")
+    @Query("SELECT et.entryId AS entryId, t.name AS name, t.kind AS kind FROM entry_tag et JOIN tag t ON t.id = et.tagId")
     fun observeTagLinks(): Flow<List<TagLink>>
 
     @Query("SELECT name FROM tag WHERE id IN (SELECT tagId FROM entry_tag) ORDER BY lastUsedAt DESC, id DESC")

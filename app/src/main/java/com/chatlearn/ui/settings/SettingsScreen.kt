@@ -256,7 +256,7 @@ fun SettingsScreen(vm: SettingsViewModel, onPreviewVoice: (com.chatlearn.domain.
     }
 }
 
-private fun connectionMessage(e: com.chatlearn.ai.AiError) = when (e) {
+internal fun connectionMessage(e: com.chatlearn.ai.AiError) = when (e) {
     com.chatlearn.ai.AiError.BAD_KEY -> "API 키나 모델 이름이 올바르지 않아요."
     com.chatlearn.ai.AiError.OFFLINE -> "인터넷에 연결되어 있지 않아요."
     com.chatlearn.ai.AiError.TIMEOUT -> "응답이 너무 오래 걸려요. 잠시 후 다시 확인해 보세요."

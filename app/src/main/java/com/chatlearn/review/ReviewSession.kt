@@ -20,7 +20,11 @@ data class ReviewItem(
     val cloze: Cloze? = null,
     val keyPhrases: Map<Lang, String> = emptyMap(),
     val note: String = "",
+    val context: String? = null,
 ) {
+    /** 같은 카드를 큐에 다시 넣을 때(나중에, 다시, 평가 취소). */
+    fun toDue(card: ReviewCardEntity = this.card) = DueCard(card, texts, keyPhrases, note, context)
+
     /** 정답 언어 문장의 핵심 표현. 없으면 null. */
     val keyPhrase: String? get() = keyPhrases[card.answerLang]
     val promptText: String get() = texts.getValue(promptLang)
@@ -128,7 +132,7 @@ class ReviewSession(
         val kind = policy(due.card, cloze != null, tts.isAvailable(answerLang), roll())
         if (kind != ExerciseKind.TRANSLATE) {
             // 빈칸 채우기와 받아쓰기는 한국어 뜻이 힌트다.
-            return ReviewItem(due.card, due.texts, Lang.KO, kind, cloze.takeIf { kind == ExerciseKind.CLOZE }, due.keyPhrases, due.note)
+            return ReviewItem(due.card, due.texts, Lang.KO, kind, cloze.takeIf { kind == ExerciseKind.CLOZE }, due.keyPhrases, due.note, due.context)
         }
         val otherLang = answerLang.otherForeign()
         var texts = due.texts
@@ -142,7 +146,7 @@ class ReviewSession(
             }
             if (otherLang in texts) promptLang = otherLang
         }
-        return ReviewItem(due.card, texts, promptLang, keyPhrases = due.keyPhrases, note = due.note)
+        return ReviewItem(due.card, texts, promptLang, keyPhrases = due.keyPhrases, note = due.note, context = due.context)
     }
 
     fun speak(item: ReviewItem, slow: Boolean) = tts.speak(item.reference, item.card.answerLang, slow)

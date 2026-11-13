@@ -168,7 +168,7 @@ class ReviewViewModel(private val session: ReviewSession) : ViewModel() {
         if (rating || (cur !is ReviewUi.Prompt && cur !is ReviewUi.Done)) return@launch
         if (!session.undoLast()) return@launch
         // 평가 뒤 새로 나온 카드는 큐 맨 앞으로 돌려놓고, "다시"로 뒤에 붙었던 같은 카드는 뺀다.
-        if (cur is ReviewUi.Prompt && cur.item.card.id != g.item.card.id) queue.addFirst(DueCard(cur.item.card, cur.item.texts, cur.item.keyPhrases, cur.item.note))
+        if (cur is ReviewUi.Prompt && cur.item.card.id != g.item.card.id) queue.addFirst(cur.item.toDue())
         queue.removeAll { it.card.id == g.item.card.id }
         reviewed = (reviewed - 1).coerceAtLeast(0)
         ratedCards.removeLastOrNull()
@@ -236,7 +236,7 @@ class ReviewViewModel(private val session: ReviewSession) : ViewModel() {
     fun postpone(): Job = viewModelScope.launch {
         val p = _state.value as? ReviewUi.Prompt ?: return@launch
         if (p.checking) return@launch
-        queue.addLast(DueCard(p.item.card, p.item.texts, p.item.keyPhrases, p.item.note))
+        queue.addLast(p.item.toDue())
         showNext()
     }
 
@@ -296,7 +296,7 @@ class ReviewViewModel(private val session: ReviewSession) : ViewModel() {
                 if (firstToday) refreshStreak()
                 if (!wasReached && _goal.value.reached && !celebratedThisSession) { _celebrate.value = true; celebratedThisSession = true }
                 // 다시: 갱신된 카드 상태로 같은 세션 끝에 한 번 더 낸다
-                if (r == Rating.AGAIN) queue.addLast(DueCard(updated, g.item.texts, g.item.keyPhrases, g.item.note))
+                if (r == Rating.AGAIN) queue.addLast(g.item.toDue(updated))
                 showNext()
             } finally {
                 rating = false

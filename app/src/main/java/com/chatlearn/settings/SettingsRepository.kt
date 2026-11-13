@@ -33,6 +33,10 @@ data class AppSettings(
     val retention: Double = com.chatlearn.domain.Scheduler.DEFAULT_RETENTION,
     /** 하루에 내는 복습 카드(새 카드 제외) 최대 수. */
     val maxReviews: Int = com.chatlearn.domain.Scheduler.DEFAULT_MAX_REVIEWS,
+    /** 보낼 말을 마지막으로 만든 언어(EN/ES). */
+    val sentTarget: String = "EN",
+    /** 첫 실행 안내를 끝냈거나 건너뛰었다. */
+    val onboardingDone: Boolean = false,
 )
 
 interface SecretStore {
@@ -73,6 +77,8 @@ interface SettingsRepository {
     suspend fun dismissLibraryHint() {}
     suspend fun setRetention(r: Double) {}
     suspend fun setMaxReviews(n: Int) {}
+    suspend fun setSentTarget(code: String) {}
+    suspend fun finishOnboarding() {}
     suspend fun recordAiCall()
 }
 
@@ -103,6 +109,8 @@ class DataStoreSettingsRepository(
     private val LIBRARY_HINT_DISMISSED = booleanPreferencesKey("library_hint_dismissed")
     private val RETENTION = doublePreferencesKey("retention")
     private val MAX_REVIEWS = intPreferencesKey("max_reviews")
+    private val SENT_TARGET = stringPreferencesKey("sent_target")
+    private val ONBOARDING_DONE = booleanPreferencesKey("onboarding_done")
 
     private fun today() = Instant.ofEpochMilli(clock()).atZone(ZoneId.systemDefault()).toLocalDate().toString()
 
@@ -115,6 +123,8 @@ class DataStoreSettingsRepository(
             libraryHintDismissed = p[LIBRARY_HINT_DISMISSED] ?: false,
             retention = p[RETENTION] ?: com.chatlearn.domain.Scheduler.DEFAULT_RETENTION,
             maxReviews = p[MAX_REVIEWS] ?: com.chatlearn.domain.Scheduler.DEFAULT_MAX_REVIEWS,
+            sentTarget = p[SENT_TARGET] ?: "EN",
+            onboardingDone = p[ONBOARDING_DONE] ?: false,
         )
     }
 
@@ -152,6 +162,8 @@ class DataStoreSettingsRepository(
     override suspend fun setLastBackupAt(at: Long) { store.edit { it[LAST_BACKUP_AT] = at } }
     override suspend fun dismissLibraryHint() { store.edit { it[LIBRARY_HINT_DISMISSED] = true } }
     override suspend fun setRetention(r: Double) { store.edit { it[RETENTION] = r.coerceIn(com.chatlearn.domain.Scheduler.RETENTION_RANGE) } }
+    override suspend fun setSentTarget(code: String) { store.edit { it[SENT_TARGET] = code } }
+    override suspend fun finishOnboarding() { store.edit { it[ONBOARDING_DONE] = true } }
     override suspend fun setMaxReviews(n: Int) { store.edit { it[MAX_REVIEWS] = n.coerceIn(10, 1000) } }
 
     override suspend fun recordAiCall() {

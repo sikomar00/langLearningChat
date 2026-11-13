@@ -18,7 +18,8 @@ class MessageSplitTest {
         assertEquals(listOf("Hola"), splitMessages("[12/31/25, 12:30:15] Hola"))
     }
 
-    @Test fun namesAreLeftAlone() = assertEquals(listOf("Alex: Hola"), splitMessages("[12:30] Alex: Hola"))
+    // 시간 표시가 붙은 대화 형식의 "이름: " 은 말한 사람으로 떼어 낸다(parseChat이 이름을 따로 돌려준다).
+    @Test fun speakerNamesAfterATimestampAreSplitOff() = assertEquals(listOf("Hola"), splitMessages("[12:30] Alex: Hola"))
 
     @Test fun linesThatAreOnlyDatesOrTimesAreDropped() {
         assertEquals(listOf("Hola"), splitMessages("12/31/2025\n12:30\nHola"))

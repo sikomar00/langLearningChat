@@ -24,11 +24,12 @@ class FakeAiService : AiService {
         Result.success(CorrectionResult(Lang.EN, "I don't know.", false, "don't로 줄여 써요.", "몰라.", listOf("No idea."), "don't know", "No lo sé.", "No lo sé"))
     }
     var lastKnown: List<KnownExpression> = emptyList()
+    var lastSentTarget: Lang? = null
     val calls = mutableListOf<String>()
 
     override suspend fun translateReceived(text: String) = received(text).also { calls += "received" }
     override suspend fun suggestSent(koText: String, target: Lang, known: List<KnownExpression>) =
-        sent(koText, target).also { calls += "sent"; lastKnown = known }
+        sent(koText, target).also { calls += "sent"; lastKnown = known; lastSentTarget = target }
     override suspend fun gradeAnswer(req: GradeRequest) = grade(req).also { calls += "grade" }
     override suspend fun translateTo(text: String, from: Lang, to: Lang) = translate(text, from, to).also { calls += "translate" }
     override suspend fun translateReceivedBatch(items: List<String>) =

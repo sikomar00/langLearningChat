@@ -156,6 +156,12 @@ class LibraryViewModel(
         }
     }
 
+    /** 다른 화면에서 문장 하나를 보여 달라고 할 때: 걸려 있던 필터를 풀고 그 글자로 찾는다. */
+    fun showOnly(text: String) {
+        langFilter.value = null; tagFilter.value = null; folderFilter.value = null; statusFilter.value = StatusFilter.ALL
+        query.value = text
+    }
+
     internal fun dropStaleTagFilter(existing: List<String>) {
         val current = tagFilter.value
         if (current != null && current !in existing) tagFilter.value = null
