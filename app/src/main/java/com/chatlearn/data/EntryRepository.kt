@@ -127,6 +127,7 @@ class EntryRepository(internal val db: AppDatabase) {
 
     suspend fun reviewTimes(): List<Long> = dao.reviewTimes()
     suspend fun countCards(): Int = dao.countCards()
+    suspend fun reviewDueTimes(until: Long): List<Long> = dao.reviewDueTimes(until)
 
     /** 문장의 태그를 [tags] 목록으로 통째로 바꾼다. 어떤 문장에도 안 붙은 태그는 삭제한다. */
     suspend fun setTags(entryId: Long, tags: List<String>, now: Long) = db.withTransaction {
@@ -157,7 +158,7 @@ class EntryRepository(internal val db: AppDatabase) {
     /** 최근에 쓴 태그 순서. 자동완성 후보로 쓴다. */
     fun observeRecentTags(): Flow<List<String>> = dao.observeTagsByRecency()
 
-    suspend fun queue(now: Long, dayStart: Long, newPerDay: Int, maxReviews: Int = 50, extraNew: Int = 0): List<DueCard> {
+    suspend fun queue(now: Long, dayStart: Long, newPerDay: Int, maxReviews: Int = Scheduler.DEFAULT_MAX_REVIEWS, extraNew: Int = 0): List<DueCard> {
         val reviews = dao.dueReviewed(now, maxReviews)
         // 더 배우기는 한도를 이미 넘겼어도 남은 한도 위에 더한다.
         val newLeft = (newPerDay - dao.introducedToday(dayStart)).coerceAtLeast(0) + extraNew
@@ -269,11 +270,12 @@ class EntryRepository(internal val db: AppDatabase) {
         BackupData(
             entries = dao.allEntries(), texts = dao.allTexts(), cards = dao.allCards(),
             logs = dao.allLogs(), tags = dao.allTags(), entryTags = dao.allEntryTags(),
-            folders = dao.allFolders(),
+            folders = dao.allFolders(), grammarEvents = dao.allGrammarEvents(), entryGrammar = dao.allEntryGrammar(),
         )
     }
 
     suspend fun importAll(d: BackupData) = db.withTransaction {
+        dao.deleteAllGrammarEvents() // 문장을 지워도 남는 기록이라 따로 비운다(먼저 지워 쓸데없는 SET NULL을 피한다)
         dao.deleteAllEntries()
         dao.deleteAllTags()
         dao.deleteAllFolders()
@@ -284,5 +286,7 @@ class EntryRepository(internal val db: AppDatabase) {
         dao.insertLogs(d.logs)
         dao.insertTags(d.tags)
         dao.insertEntryTags(d.entryTags)
+        dao.insertGrammarEvents(d.grammarEvents)
+        dao.insertEntryGrammar(d.entryGrammar)
     }
 }

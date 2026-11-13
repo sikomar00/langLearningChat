@@ -116,6 +116,7 @@ interface AppDao {
     @Query("SELECT * FROM review_log") suspend fun allLogs(): List<ReviewLogEntity>
     @Query("SELECT reviewedAt FROM review_log") suspend fun reviewTimes(): List<Long>
     @Query("SELECT COUNT(*) FROM review_card") suspend fun countCards(): Int
+    @Query("SELECT dueAt FROM review_card WHERE lastReviewedAt IS NOT NULL AND dueAt < :until") suspend fun reviewDueTimes(until: Long): List<Long>
     @Query("SELECT * FROM tag") suspend fun allTags(): List<TagEntity>
     @Query("SELECT * FROM entry_tag") suspend fun allEntryTags(): List<EntryTagEntity>
 
@@ -127,4 +128,11 @@ interface AppDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun insertEntryTags(l: List<EntryTagEntity>)
     @Query("DELETE FROM entry") suspend fun deleteAllEntries()
     @Query("DELETE FROM tag") suspend fun deleteAllTags()
+
+    @Insert suspend fun insertGrammarEvent(e: GrammarEventEntity): Long
+    @Insert suspend fun insertGrammarEvents(e: List<GrammarEventEntity>)
+    @Query("SELECT * FROM grammar_event") suspend fun allGrammarEvents(): List<GrammarEventEntity>
+    @Query("DELETE FROM grammar_event") suspend fun deleteAllGrammarEvents()
+    @Insert(onConflict = OnConflictStrategy.IGNORE) suspend fun insertEntryGrammar(rows: List<EntryGrammarEntity>)
+    @Query("SELECT * FROM entry_grammar") suspend fun allEntryGrammar(): List<EntryGrammarEntity>
 }

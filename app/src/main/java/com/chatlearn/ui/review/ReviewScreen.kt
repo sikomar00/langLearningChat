@@ -43,10 +43,10 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.chatlearn.domain.ExerciseKind
 import com.chatlearn.domain.Lang
+import com.chatlearn.domain.Rating
 import com.chatlearn.domain.Verdict
 import com.chatlearn.domain.ratingChoices
 import com.chatlearn.domain.ratingLabel
-import com.chatlearn.domain.ratingPreviews
 import com.chatlearn.review.GradeOutcome
 import com.chatlearn.review.exercise.WordMark
 import com.chatlearn.review.isLeech
@@ -276,7 +276,6 @@ private fun ReviewPane(vm: ReviewViewModel, statsVm: StatsViewModel, voice: Voic
                 val verdict = verdictOf(s.outcome)
                 val choices = ratingChoices(verdict)
                 Text("얼마나 기억났나요?", style = MaterialTheme.typography.labelLarge)
-                val previews = remember(s.item.card) { ratingPreviews(s.item.card.toState(), System.currentTimeMillis()) }
                 FlowRow(
                     Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp),
                     maxItemsInEachRow = if (choices.size > 3) 2 else choices.size,
@@ -286,7 +285,7 @@ private fun ReviewPane(vm: ReviewViewModel, statsVm: StatsViewModel, voice: Voic
                         Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
                             if (r == s.suggested) Button(onClick = { vm.rate(r) }, Modifier.fillMaxWidth().heightIn(min = 48.dp)) { Text(label, maxLines = 1) }
                             else OutlinedButton(onClick = { vm.rate(r) }, Modifier.fillMaxWidth().heightIn(min = 48.dp)) { Text(label, maxLines = 1) }
-                            Text(previews.getValue(r), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(s.previews[r].orEmpty(), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
                 }

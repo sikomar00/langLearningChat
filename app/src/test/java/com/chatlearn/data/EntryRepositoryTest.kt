@@ -69,7 +69,7 @@ class EntryRepositoryTest {
         repo.applyReview(due.card, state, logFor(due.card, now))
         assertTrue(repo.queue(now, 0, 10).isEmpty())
         assertEquals(1, db.dao().allLogs().size)
-        assertEquals(now + 86_400_000L, db.dao().allCards().single().dueAt)
+        assertEquals(now + 3 * 86_400_000L, db.dao().allCards().single().dueAt)
     }
 
     @Test fun deletingEntryCascadesToCardsAndTexts() = runBlocking {

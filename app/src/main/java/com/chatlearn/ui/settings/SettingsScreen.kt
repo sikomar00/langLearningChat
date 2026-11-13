@@ -126,6 +126,20 @@ fun SettingsScreen(vm: SettingsViewModel, onPreviewVoice: (com.chatlearn.domain.
 
         OutlinedTextField(goalText, { goalText = it.filter(Char::isDigit) }, Modifier.fillMaxWidth(), singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), label = { Text("하루 복습 목표(장, 0이면 끔)") }, supportingText = { Text("입력하면 자동으로 저장돼요") })
 
+        Text("기억 목표", style = MaterialTheme.typography.labelLarge)
+        Text("복습할 때 이만큼은 기억나도록 간격을 정해요. 높일수록 더 자주 복습해요.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            listOf(0.85 to "85% 여유", 0.9 to "90% 보통", 0.95 to "95% 꼼꼼").forEach { (r, label) ->
+                FilterChip(selected = kotlin.math.abs(s.retention - r) < 0.001, onClick = { vm.saveRetention(r) }, label = { Text(label) })
+            }
+        }
+        Text("하루 최대 복습", style = MaterialTheme.typography.labelLarge)
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            listOf(50, 100, 200).forEach { n ->
+                FilterChip(selected = s.maxReviews == n, onClick = { vm.saveMaxReviews(n) }, label = { Text("${n}장") })
+            }
+        }
+
         val notifPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
             if (!granted) message = "알림 권한이 꺼져 있어요. 휴대폰 설정 > 앱 > ChatLearn > 알림에서 켜 주세요."
         }

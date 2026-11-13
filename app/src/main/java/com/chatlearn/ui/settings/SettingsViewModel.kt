@@ -39,6 +39,8 @@ class SettingsViewModel(private val settings: SettingsRepository, private val re
     fun saveEnAccent(name: String) = viewModelScope.launch { settings.setEnAccent(name) }
     fun saveEsAccent(name: String) = viewModelScope.launch { settings.setEsAccent(name) }
     fun saveSpeechRate(rate: Float) = viewModelScope.launch { settings.setSpeechRate(rate) }
+    fun saveRetention(r: Double) = viewModelScope.launch { settings.setRetention(r) }
+    fun saveMaxReviews(n: Int) = viewModelScope.launch { settings.setMaxReviews(n) }
 
     /** 저장한 문장 수: 백업을 권할지 정할 때 쓴다. */
     val entryCount: StateFlow<Int> = repo.observeLibrary().map { it.size }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)

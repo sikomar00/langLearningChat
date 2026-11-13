@@ -156,12 +156,12 @@ class ReviewSessionTest {
         val item = s.prepare(s.loadQueue().single())
         val outcome = s.grade(item, "I'm fine")
         val updated = s.rate(item, Rating.GOOD, outcome, "I'm fine")
-        assertEquals(now + 86_400_000L, updated!!.dueAt)
+        assertEquals(now + 3 * 86_400_000L, updated!!.dueAt)
         assertTrue(s.loadQueue().isEmpty())
         val log = db.dao().allLogs().single()
         assertEquals("I'm fine", log.userAnswer)
         assertEquals(Verdict.CORRECT, log.aiVerdict)
-        assertEquals(now + 86_400_000L, db.dao().allCards().single().dueAt)
+        assertEquals(now + 3 * 86_400_000L, db.dao().allCards().single().dueAt)
     }
 
     @Test fun ratingACardWhoseSentenceWasDeletedSkipsInsteadOfCrashing() = runBlocking {

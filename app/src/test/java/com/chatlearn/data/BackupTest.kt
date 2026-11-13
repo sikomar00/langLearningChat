@@ -50,17 +50,18 @@ class BackupTest {
         assertEquals(1, Backup.decode(noVersion).entries.size)
     }
 
-    @Test fun exportedFileDeclaresVersion4() = runBlocking {
-        assertTrue(Backup.encode(repo.exportAll()).contains("\"version\":4"))
+    @Test fun exportedFileDeclaresVersion5() = runBlocking {
+        assertTrue(Backup.encode(repo.exportAll()).contains("\"version\":5"))
     }
 
-    @Test fun versions2To4AreAcceptedAndVersion5IsRejected() {
+    @Test fun versions2To5AreAcceptedAndVersion6IsRejected() {
         val empty = BackupData(version = 2, entries = emptyList(), texts = emptyList(), cards = emptyList(),
             logs = emptyList(), tags = emptyList(), entryTags = emptyList())
         assertEquals(2, Backup.decode(Backup.encode(empty)).version)
         assertEquals(3, Backup.decode(Backup.encode(empty.copy(version = 3))).version)
         assertEquals(4, Backup.decode(Backup.encode(empty.copy(version = 4))).version)
-        assertFailsWith<BackupFormatException> { Backup.decode(Backup.encode(empty.copy(version = 5))) }
+        assertEquals(5, Backup.decode(Backup.encode(empty.copy(version = 5))).version)
+        assertFailsWith<BackupFormatException> { Backup.decode(Backup.encode(empty.copy(version = 6))) }
     }
 
     @Test fun keyPhrasesSurviveARoundTripAndOldFilesHaveNone() = runBlocking {
@@ -126,5 +127,26 @@ class BackupTest {
         assertFails { repo.importAll(bad) }
         assertEquals(1, repo.observeLibrary().first().size)
         assertEquals(nasty, repo.observeLibrary().first().single().texts[Lang.EN])
+    }
+
+    @Test fun v5RoundTripKeepsGrammarRecordsWordCardsAndTagKinds() = runBlocking {
+        val id = (repo.saveEntry(EntryDraft(Direction.RECEIVED, Lang.ES, "Estoy cansado", "피곤해", "", null, listOf("Ana")), 1_000) as SaveResult.Saved).id
+        db.dao().insertGrammarEvent(GrammarEventEntity(lang = Lang.ES, pointKey = "es.ser_estar", source = GrammarSource.REVIEW, isError = true, entryId = id, at = 2_000))
+        db.dao().insertEntryGrammar(listOf(EntryGrammarEntity(id, "es.ser_estar")))
+        repo.importAll(Backup.decode(Backup.encode(repo.exportAll())))
+        assertEquals("es.ser_estar", db.dao().allGrammarEvents().single().pointKey)
+        assertEquals(listOf(EntryGrammarEntity(id, "es.ser_estar")), db.dao().allEntryGrammar())
+        assertEquals(EntryKind.SENTENCE, db.dao().allEntries().single().kind)
+    }
+
+    @Test fun aVersion4FileWithoutTheNewFieldsStillLoads() {
+        val v4 = """{"version":4,"entries":[{"id":1,"createdAt":1,"direction":"RECEIVED","chatLang":"EN","note":"","tone":null}],""" +
+            """"texts":[],"cards":[{"id":1,"entryId":1,"answerLang":"EN","dueAt":0,"intervalDays":3.0,"ease":2.5,"reps":2,"lapses":0,"lastReviewedAt":5}],""" +
+            """"logs":[],"tags":[{"id":1,"name":"Alex","lastUsedAt":0}],"entryTags":[]}"""
+        val d = Backup.decode(v4)
+        assertEquals(EntryKind.SENTENCE, d.entries.single().kind)
+        assertNull(d.cards.single().stability)
+        assertEquals(TagKind.TOPIC, d.tags.single().kind)
+        assertTrue(d.grammarEvents.isEmpty())
     }
 }

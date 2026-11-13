@@ -3,7 +3,10 @@ package com.chatlearn.data
 import android.content.Context
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
+import com.chatlearn.domain.EntryKind
 import com.chatlearn.domain.ExerciseKind
+import com.chatlearn.domain.GrammarSource
+import com.chatlearn.domain.TagKind
 import com.chatlearn.domain.Lang
 import com.chatlearn.domain.Verdict
 import kotlinx.coroutines.runBlocking
@@ -22,9 +25,9 @@ class MigrationTest {
 
     @After fun tearDown() { ctx.deleteDatabase(dbName) }
 
-    /** Room이 내보낸 v1 스키마 그대로 DB를 만들고, 실제 사용자 데이터와 비슷한 행을 넣는다. */
-    private fun createV1() {
-        val root = Json.parseToJsonElement(File("schemas/com.chatlearn.data.AppDatabase/1.json").readText()).jsonObject
+    /** Room이 내보낸 [version] 스키마 그대로 DB를 만들고 [rows]를 넣는다(실제 예전 앱이 만든 DB와 같은 모양). */
+    private fun createFromSchema(version: Int, rows: List<String>) {
+        val root = Json.parseToJsonElement(File("schemas/com.chatlearn.data.AppDatabase/$version.json").readText()).jsonObject
         val database = root["database"]!!.jsonObject
         val db = ctx.openOrCreateDatabase(dbName, Context.MODE_PRIVATE, null)
         database["entities"]!!.jsonArray.forEach { e ->
@@ -35,28 +38,31 @@ class MigrationTest {
             o["indices"]?.jsonArray?.forEach { db.execSQL(sql(it.jsonObject["createSql"]!!.jsonPrimitive.content)) }
         }
         database["setupQueries"]!!.jsonArray.forEach { db.execSQL(it.jsonPrimitive.content) }
-        listOf(
-            "INSERT INTO entry (id, createdAt, direction, chatLang, note, tone) VALUES (1, 100, 'RECEIVED', 'EN', 'n', NULL)",
-            "INSERT INTO entry (id, createdAt, direction, chatLang, note, tone) VALUES (2, 300, 'SENT', 'ES', 'm', 'casual')",
-            "INSERT INTO entry_text VALUES (1, 'EN', 'Hello', 'ORIGINAL')",
-            "INSERT INTO entry_text VALUES (1, 'KO', '안녕', 'AI')",
-            "INSERT INTO entry_text VALUES (2, 'ES', 'Hola', 'AI')",
-            "INSERT INTO entry_text VALUES (2, 'KO', '안녕', 'USER')",
-            "INSERT INTO review_card (id, entryId, answerLang, dueAt, intervalDays, ease, reps, lapses, lastReviewedAt) VALUES (1, 1, 'EN', 500, 3.0, 2.5, 2, 1, 400)",
-            "INSERT INTO review_log (id, cardId, reviewedAt, promptLang, userAnswer, aiVerdict, aiFeedback, rating) VALUES (1, 1, 400, 'KO', 'Hello', 'CORRECT', 'ok', 'GOOD')",
-            "INSERT INTO tag (id, name) VALUES (1, 'Alex')",
-            "INSERT INTO tag (id, name) VALUES (2, 'orphan')",
-            "INSERT INTO entry_tag VALUES (1, 1)",
-            "INSERT INTO entry_tag VALUES (2, 1)",
-        ).forEach(db::execSQL)
-        db.version = 1
+        rows.forEach(db::execSQL)
+        db.version = version
         db.close()
     }
 
-    private fun openV2() = Room.databaseBuilder(ctx, AppDatabase::class.java, dbName)
-        .addMigrations(Migrations.MIGRATION_1_2, Migrations.MIGRATION_2_3, Migrations.MIGRATION_3_4)
-        .allowMainThreadQueries()
-        .build()
+    private fun open() = Room.databaseBuilder(ctx, AppDatabase::class.java, dbName)
+        .addMigrations(*Migrations.ALL).allowMainThreadQueries().build()
+
+    /** v1 DB에 실제 사용자 데이터와 비슷한 행을 넣는다. */
+    private fun createV1() = createFromSchema(1, listOf(
+        "INSERT INTO entry (id, createdAt, direction, chatLang, note, tone) VALUES (1, 100, 'RECEIVED', 'EN', 'n', NULL)",
+        "INSERT INTO entry (id, createdAt, direction, chatLang, note, tone) VALUES (2, 300, 'SENT', 'ES', 'm', 'casual')",
+        "INSERT INTO entry_text VALUES (1, 'EN', 'Hello', 'ORIGINAL')",
+        "INSERT INTO entry_text VALUES (1, 'KO', '안녕', 'AI')",
+        "INSERT INTO entry_text VALUES (2, 'ES', 'Hola', 'AI')",
+        "INSERT INTO entry_text VALUES (2, 'KO', '안녕', 'USER')",
+        "INSERT INTO review_card (id, entryId, answerLang, dueAt, intervalDays, ease, reps, lapses, lastReviewedAt) VALUES (1, 1, 'EN', 500, 3.0, 2.5, 2, 1, 400)",
+        "INSERT INTO review_log (id, cardId, reviewedAt, promptLang, userAnswer, aiVerdict, aiFeedback, rating) VALUES (1, 1, 400, 'KO', 'Hello', 'CORRECT', 'ok', 'GOOD')",
+        "INSERT INTO tag (id, name) VALUES (1, 'Alex')",
+        "INSERT INTO tag (id, name) VALUES (2, 'orphan')",
+        "INSERT INTO entry_tag VALUES (1, 1)",
+        "INSERT INTO entry_tag VALUES (2, 1)",
+    ))
+
+    private fun openV2() = open()
 
     @Test fun upgradesV1DataWithoutLosingAnything() = runBlocking {
         createV1()
@@ -88,32 +94,16 @@ class MigrationTest {
         db.close()
     }
 
-    private fun createV2() {
-        val root = Json.parseToJsonElement(File("schemas/com.chatlearn.data.AppDatabase/2.json").readText()).jsonObject
-        val database = root["database"]!!.jsonObject
-        val db = ctx.openOrCreateDatabase(dbName, Context.MODE_PRIVATE, null)
-        database["entities"]!!.jsonArray.forEach { e ->
-            val o = e.jsonObject
-            val table = o["tableName"]!!.jsonPrimitive.content
-            fun sql(s: String) = s.replace("\${TABLE_NAME}", table)
-            db.execSQL(sql(o["createSql"]!!.jsonPrimitive.content))
-            o["indices"]?.jsonArray?.forEach { db.execSQL(sql(it.jsonObject["createSql"]!!.jsonPrimitive.content)) }
-        }
-        database["setupQueries"]!!.jsonArray.forEach { db.execSQL(it.jsonPrimitive.content) }
-        listOf(
-            "INSERT INTO entry (id, createdAt, direction, chatLang, note, tone) VALUES (1, 100, 'RECEIVED', 'EN', 'n', NULL)",
-            "INSERT INTO entry_text VALUES (1, 'EN', 'Hello', 'ORIGINAL')",
-            "INSERT INTO entry_text VALUES (1, 'KO', '안녕', 'AI')",
-            "INSERT INTO review_card (id, entryId, answerLang, dueAt, intervalDays, ease, reps, lapses, lastReviewedAt) VALUES (1, 1, 'EN', 500, 3.0, 2.5, 2, 1, 400)",
-        ).forEach(db::execSQL)
-        db.version = 2
-        db.close()
-    }
+    private fun createV2() = createFromSchema(2, listOf(
+        "INSERT INTO entry (id, createdAt, direction, chatLang, note, tone) VALUES (1, 100, 'RECEIVED', 'EN', 'n', NULL)",
+        "INSERT INTO entry_text VALUES (1, 'EN', 'Hello', 'ORIGINAL')",
+        "INSERT INTO entry_text VALUES (1, 'KO', '안녕', 'AI')",
+        "INSERT INTO review_card (id, entryId, answerLang, dueAt, intervalDays, ease, reps, lapses, lastReviewedAt) VALUES (1, 1, 'EN', 500, 3.0, 2.5, 2, 1, 400)",
+    ))
 
     @Test fun v2UpgradesToV3KeepingTextsAndLeavingKeyPhrasesEmpty() = runBlocking {
         createV2()
-        val db = Room.databaseBuilder(ctx, AppDatabase::class.java, dbName)
-            .addMigrations(Migrations.MIGRATION_2_3, Migrations.MIGRATION_3_4).allowMainThreadQueries().build()
+        val db = open()
         val texts = db.dao().allTexts()
         assertEquals(2, texts.size)
         assertTrue(texts.all { it.keyPhrase == null })
@@ -122,31 +112,15 @@ class MigrationTest {
         db.close()
     }
 
-    private fun createV3() {
-        val root = Json.parseToJsonElement(File("schemas/com.chatlearn.data.AppDatabase/3.json").readText()).jsonObject
-        val database = root["database"]!!.jsonObject
-        val db = ctx.openOrCreateDatabase(dbName, Context.MODE_PRIVATE, null)
-        database["entities"]!!.jsonArray.forEach { e ->
-            val o = e.jsonObject
-            val table = o["tableName"]!!.jsonPrimitive.content
-            fun sql(s: String) = s.replace("\${TABLE_NAME}", table)
-            db.execSQL(sql(o["createSql"]!!.jsonPrimitive.content))
-            o["indices"]?.jsonArray?.forEach { db.execSQL(sql(it.jsonObject["createSql"]!!.jsonPrimitive.content)) }
-        }
-        database["setupQueries"]!!.jsonArray.forEach { db.execSQL(it.jsonPrimitive.content) }
-        listOf(
-            "INSERT INTO entry (id, createdAt, direction, chatLang, note, tone) VALUES (1, 100, 'RECEIVED', 'EN', 'n', NULL)",
-            "INSERT INTO entry_text (entryId, lang, text, origin) VALUES (1, 'EN', 'Hello', 'ORIGINAL')",
-            "INSERT INTO entry_text (entryId, lang, text, origin) VALUES (1, 'KO', '안녕', 'AI')",
-        ).forEach(db::execSQL)
-        db.version = 3
-        db.close()
-    }
+    private fun createV3() = createFromSchema(3, listOf(
+        "INSERT INTO entry (id, createdAt, direction, chatLang, note, tone) VALUES (1, 100, 'RECEIVED', 'EN', 'n', NULL)",
+        "INSERT INTO entry_text (entryId, lang, text, origin) VALUES (1, 'EN', 'Hello', 'ORIGINAL')",
+        "INSERT INTO entry_text (entryId, lang, text, origin) VALUES (1, 'KO', '안녕', 'AI')",
+    ))
 
     @Test fun v3UpgradesToV4WithEntriesOutsideAnyFolderAndFolderDeleteKeepsEntries() = runBlocking {
         createV3()
-        val db = Room.databaseBuilder(ctx, AppDatabase::class.java, dbName)
-            .addMigrations(Migrations.MIGRATION_3_4).allowMainThreadQueries().build()
+        val db = open()
         val dao = db.dao()
         val e = dao.allEntries().single()
         assertEquals(100L, e.createdAt)
@@ -157,6 +131,54 @@ class MigrationTest {
         dao.deleteFolder(folder) // 폴더만 지워지고 문장은 남아야 한다
         assertNull(dao.allEntries().single().folderId)
         assertEquals(1, dao.allEntries().size)
+        db.close()
+    }
+
+    private fun createV4() = createFromSchema(4, listOf(
+        "INSERT INTO entry (id, createdAt, direction, chatLang, note, tone, folderId) VALUES (1, 100, 'RECEIVED', 'EN', 'n', NULL, NULL)",
+        "INSERT INTO entry_text (entryId, lang, text, origin, keyPhrase) VALUES (1, 'EN', 'Hello there', 'ORIGINAL', 'Hello')",
+        "INSERT INTO entry_text (entryId, lang, text, origin, keyPhrase) VALUES (1, 'KO', '안녕', 'AI', NULL)",
+        "INSERT INTO review_card (id, entryId, answerLang, dueAt, intervalDays, ease, reps, lapses, lastReviewedAt) VALUES (1, 1, 'EN', 500, 10.0, 2.5, 3, 0, 400)",
+        "INSERT INTO review_card (id, entryId, answerLang, dueAt, intervalDays, ease, reps, lapses, lastReviewedAt) VALUES (2, 1, 'ES', 0, 0.0, 2.5, 0, 0, NULL)",
+        "INSERT INTO review_card (id, entryId, answerLang, dueAt, intervalDays, ease, reps, lapses, lastReviewedAt) VALUES (3, 1, 'KO', 900, 2.0, 1.3, 1, 4, 800)",
+        "INSERT INTO review_log (id, cardId, reviewedAt, promptLang, userAnswer, aiVerdict, aiFeedback, rating, responseMs, exercise) VALUES (1, 1, 400, 'KO', 'Hello', 'CORRECT', 'ok', 'GOOD', 1200, 'CLOZE')",
+        "INSERT INTO tag (id, name, lastUsedAt) VALUES (1, 'Alex', 100)",
+        "INSERT INTO entry_tag VALUES (1, 1)",
+    ))
+
+    @Test fun v4UpgradesToV5KeepingDataAndSeedingFsrsFromTheOldSchedule() = runBlocking {
+        createV4()
+        val db = open()
+        val dao = db.dao()
+        val e = dao.allEntries().single()
+        assertEquals(EntryKind.SENTENCE, e.kind)
+        assertNull(e.contextText)
+        assertNull(e.notionPageId)
+        assertEquals("Hello", dao.allTexts().first { it.lang == Lang.EN }.keyPhrase)
+        assertEquals(TagKind.TOPIC, dao.allTags().single().kind)
+        val cards = dao.allCards().associateBy { it.id }
+        // 복습한 카드: 지금 간격을 안정도로, ease를 난이도(1~10)로 옮긴다. 기한은 그대로.
+        assertEquals(10.0, cards.getValue(1).stability); assertEquals(5.0, cards.getValue(1).difficulty); assertEquals(500L, cards.getValue(1).dueAt)
+        assertEquals(10.0, cards.getValue(3).difficulty) // ease 1.3(가장 어려움) → 10
+        // 아직 안 본 카드는 첫 복습 때 정한다.
+        assertNull(cards.getValue(2).stability); assertNull(cards.getValue(2).difficulty)
+        assertEquals(ExerciseKind.CLOZE, dao.allLogs().single().exercise)
+        db.close()
+    }
+
+    @Test fun v5HasGrammarTablesAndTheNewIndexes() = runBlocking {
+        createV4()
+        val db = open()
+        val dao = db.dao()
+        dao.insertGrammarEvent(GrammarEventEntity(lang = Lang.ES, pointKey = "es.ser_estar", source = GrammarSource.ATTEMPT, isError = true, entryId = 1, at = 5))
+        dao.insertEntryGrammar(listOf(EntryGrammarEntity(1, "es.ser_estar")))
+        dao.deleteEntry(1)
+        assertNull(dao.allGrammarEvents().single().entryId) // 문장이 지워져도 약점 기록은 남는다
+        assertTrue(dao.allEntryGrammar().isEmpty())
+        val names = db.openHelper.readableDatabase.query("SELECT name FROM sqlite_master WHERE type = 'index'").use { c ->
+            buildList { while (c.moveToNext()) add(c.getString(0)) }
+        }
+        assertTrue(names.containsAll(listOf("index_review_log_reviewedAt", "index_entry_text_lang_text", "index_entry_createdAt")))
         db.close()
     }
 }

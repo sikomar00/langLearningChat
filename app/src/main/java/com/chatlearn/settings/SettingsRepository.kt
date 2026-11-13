@@ -29,6 +29,10 @@ data class AppSettings(
     val speechRate: Float = 1f,
     val lastBackupAt: Long = 0L,
     val libraryHintDismissed: Boolean = false,
+    /** 복습 일정의 목표 기억률(FSRS). 높을수록 자주 복습한다. */
+    val retention: Double = com.chatlearn.domain.Scheduler.DEFAULT_RETENTION,
+    /** 하루에 내는 복습 카드(새 카드 제외) 최대 수. */
+    val maxReviews: Int = com.chatlearn.domain.Scheduler.DEFAULT_MAX_REVIEWS,
 )
 
 interface SecretStore {
@@ -67,6 +71,8 @@ interface SettingsRepository {
     suspend fun setSpeechRate(rate: Float) {}
     suspend fun setLastBackupAt(at: Long) {}
     suspend fun dismissLibraryHint() {}
+    suspend fun setRetention(r: Double) {}
+    suspend fun setMaxReviews(n: Int) {}
     suspend fun recordAiCall()
 }
 
@@ -95,6 +101,8 @@ class DataStoreSettingsRepository(
     private val SPEECH_RATE = floatPreferencesKey("speech_rate")
     private val LAST_BACKUP_AT = longPreferencesKey("last_backup_at")
     private val LIBRARY_HINT_DISMISSED = booleanPreferencesKey("library_hint_dismissed")
+    private val RETENTION = doublePreferencesKey("retention")
+    private val MAX_REVIEWS = intPreferencesKey("max_reviews")
 
     private fun today() = Instant.ofEpochMilli(clock()).atZone(ZoneId.systemDefault()).toLocalDate().toString()
 
@@ -105,6 +113,8 @@ class DataStoreSettingsRepository(
             themeMode = p[THEME_MODE] ?: "SYSTEM", enAccent = p[EN_ACCENT] ?: "US", esAccent = p[ES_ACCENT] ?: "ES",
             speechRate = p[SPEECH_RATE] ?: 1f, lastBackupAt = p[LAST_BACKUP_AT] ?: 0L,
             libraryHintDismissed = p[LIBRARY_HINT_DISMISSED] ?: false,
+            retention = p[RETENTION] ?: com.chatlearn.domain.Scheduler.DEFAULT_RETENTION,
+            maxReviews = p[MAX_REVIEWS] ?: com.chatlearn.domain.Scheduler.DEFAULT_MAX_REVIEWS,
         )
     }
 
@@ -141,6 +151,8 @@ class DataStoreSettingsRepository(
     override suspend fun setSpeechRate(rate: Float) { store.edit { it[SPEECH_RATE] = rate.coerceIn(MIN_SPEECH_RATE, MAX_SPEECH_RATE) } }
     override suspend fun setLastBackupAt(at: Long) { store.edit { it[LAST_BACKUP_AT] = at } }
     override suspend fun dismissLibraryHint() { store.edit { it[LIBRARY_HINT_DISMISSED] = true } }
+    override suspend fun setRetention(r: Double) { store.edit { it[RETENTION] = r.coerceIn(com.chatlearn.domain.Scheduler.RETENTION_RANGE) } }
+    override suspend fun setMaxReviews(n: Int) { store.edit { it[MAX_REVIEWS] = n.coerceIn(10, 1000) } }
 
     override suspend fun recordAiCall() {
         store.edit {

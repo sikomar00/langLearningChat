@@ -114,6 +114,13 @@ object StatsCalculator {
         )
     }
 
+    /** 앞으로 [days]일 동안 날짜별로 복습할 카드 수. 이미 밀린 카드는 오늘에 넣는다. [dueTimes]는 한 번 이상 복습한 카드의 기한. */
+    fun forecast(dueTimes: List<Long>, now: Long, zone: ZoneId, days: Int = 7): List<DayCount> {
+        val today = Instant.ofEpochMilli(now).atZone(zone).toLocalDate()
+        val perDay = dueTimes.groupingBy { maxOf(Instant.ofEpochMilli(it).atZone(zone).toLocalDate(), today) }.eachCount()
+        return (0 until days).map { i -> today.plusDays(i.toLong()).let { DayCount(it, perDay[it] ?: 0) } }
+    }
+
     /** 연속 학습일. 위젯처럼 전체 통계가 필요 없는 곳은 복습 시각만으로 구한다. */
     fun streak(reviewTimes: Collection<Long>, now: Long, zone: ZoneId): Int {
         fun day(ms: Long) = Instant.ofEpochMilli(ms).atZone(zone).toLocalDate()

@@ -52,8 +52,16 @@ class ReviewSession(
     private val policy: ExercisePolicyFn = ExercisePolicy::choose,
     private val roll: () -> Double = { Random.nextDouble() },
     private val dailyGoal: suspend () -> Int = { 0 },
+    private val retention: suspend () -> Double = { Scheduler.DEFAULT_RETENTION },
+    private val maxReviews: suspend () -> Int = { Scheduler.DEFAULT_MAX_REVIEWS },
 ) {
     fun now(): Long = clock()
+
+    // 기억 목표는 큐를 불러올 때 한 번 읽어 그 세션 동안 쓴다(버튼 아래 보여 준 간격과 실제 일정이 어긋나지 않게).
+    private var sessionRetention = Scheduler.DEFAULT_RETENTION
+
+    /** 평가 버튼 아래에 보여 줄 다음 복습까지의 시간. */
+    fun previews(card: ReviewCardEntity): Map<Rating, String> = ratingPreviews(card.toState(), clock(), sessionRetention)
 
     /** 연결·키·하루 한도 문제로 AI가 실패하면 그 큐가 끝날 때까지 AI를 부르지 않는다(카드마다 오래 기다리지 않게). */
     private var aiDown: AiError? = null
@@ -62,7 +70,8 @@ class ReviewSession(
     suspend fun loadQueue(extraNew: Int = 0): List<DueCard> {
         val now = clock()
         aiDown = null
-        return spreadSiblings(repo.queue(now, startOfDay(now), newPerDay(), extraNew = extraNew))
+        sessionRetention = retention()
+        return spreadSiblings(repo.queue(now, startOfDay(now), newPerDay(), maxReviews(), extraNew = extraNew))
     }
 
     /** 오늘 한도 때문에 아직 못 낸 새 카드 수. */
@@ -105,6 +114,7 @@ class ReviewSession(
 
     suspend fun loadSelected(entryIds: Set<Long>, answerLang: Lang?): List<DueCard> {
         aiDown = null
+        sessionRetention = retention()
         return spreadSiblings(repo.cardsFor(entryIds, answerLang))
     }
 
@@ -163,7 +173,7 @@ class ReviewSession(
         item: ReviewItem, rating: Rating, outcome: GradeOutcome, answer: String, responseMs: Long? = null,
     ): ReviewCardEntity? {
         val now = clock()
-        val next = Scheduler.next(item.card.toState(), rating, now, jitter())
+        val next = Scheduler.next(item.card.toState(), rating, now, jitter(), sessionRetention)
         val (verdict, feedback) = when (outcome) {
             is GradeOutcome.Ai -> outcome.result.verdict to outcome.result.explanationKo
             is GradeOutcome.Local -> outcome.verdict to null

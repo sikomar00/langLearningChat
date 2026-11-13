@@ -193,4 +193,18 @@ class StatsCalculatorTest {
     @Test fun heatLevelGrowsWithTheNumberOfReviews() {
         assertEquals(listOf(0, 1, 1, 2, 3, 4), listOf(0, 1, 4, 5, 10, 20).map(::heatLevel))
     }
+
+    @Test fun forecastCountsReviewedCardsDuePerDayWithOverdueToday() {
+        val due = listOf(
+            ms(today.minusDays(3), 9, 0), // 밀린 카드는 오늘로
+            ms(today, 23, 0),
+            ms(today.plusDays(1), 8, 0), ms(today.plusDays(1), 20, 0),
+            ms(today.plusDays(6), 10, 0),
+            ms(today.plusDays(7), 10, 0), // 7일 밖
+        )
+        val f = StatsCalculator.forecast(due, now, zone, days = 7)
+        assertEquals(7, f.size)
+        assertEquals(today, f.first().date)
+        assertEquals(listOf(2, 2, 0, 0, 0, 0, 1), f.map { it.reviews })
+    }
 }

@@ -20,7 +20,12 @@ class IntervalLabelTest {
         val p = ratingPreviews(Scheduler.initial(0), 0)
         assertEquals("10분", p.getValue(Rating.AGAIN))
         assertEquals("1일", p.getValue(Rating.HARD))
-        assertEquals("1일", p.getValue(Rating.GOOD))
-        assertEquals("3일", p.getValue(Rating.EASY))
+        assertEquals("3일", p.getValue(Rating.GOOD))
+        assertEquals("16일", p.getValue(Rating.EASY))
+    }
+
+    @Test fun longIntervalsAreShownInYears() {
+        assertEquals("11개월", intervalLabel(330L * 86_400_000L))
+        assertEquals("2년", intervalLabel(800L * 86_400_000L))
     }
 }

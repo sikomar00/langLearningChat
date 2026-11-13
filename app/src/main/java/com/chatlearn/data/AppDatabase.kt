@@ -7,8 +7,9 @@ import androidx.room.RoomDatabase
     entities = [
         EntryEntity::class, EntryTextEntity::class, ReviewCardEntity::class,
         ReviewLogEntity::class, TagEntity::class, EntryTagEntity::class, FolderEntity::class,
+        GrammarEventEntity::class, EntryGrammarEntity::class,
     ],
-    version = 4,
+    version = 5,
     exportSchema = true,
 )
 abstract class AppDatabase : RoomDatabase() {

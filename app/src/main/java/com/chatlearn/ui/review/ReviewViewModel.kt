@@ -33,6 +33,8 @@ sealed interface ReviewUi {
         val answer: String,
         val suggested: Rating,
         val responseMs: Long,
+        /** 평가마다 다음 복습까지의 시간("3일"). */
+        val previews: Map<Rating, String> = emptyMap(),
     ) : ReviewUi
     /** [count]: 평가한 횟수(다시 푼 것 포함), [cards]: 복습한 카드 수. */
     data class Done(val count: Int, val cards: Int = count) : ReviewUi
@@ -228,6 +230,7 @@ class ReviewViewModel(private val session: ReviewSession) : ViewModel() {
         if (p.checking) return@launch
         _state.value = ReviewUi.Graded(
             p.item, GradeOutcome.SelfGrade(p.item.reference, null), "", Rating.AGAIN, session.now() - p.shownAt,
+            session.previews(p.item.card),
         )
     }
 
@@ -270,7 +273,7 @@ class ReviewViewModel(private val session: ReviewSession) : ViewModel() {
             is GradeOutcome.Local -> outcome.suggested
             is GradeOutcome.SelfGrade -> Rating.GOOD
         }
-        _state.value = ReviewUi.Graded(p.item, outcome, p.answer, suggested, responseMs)
+        _state.value = ReviewUi.Graded(p.item, outcome, p.answer, suggested, responseMs, session.previews(p.item.card))
     }
 
     fun rate(r: Rating): Job {

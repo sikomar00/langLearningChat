@@ -30,7 +30,7 @@ private val Context.settingsStore by preferencesDataStore("settings")
 class AppContainer(context: Context) {
     private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     val db: AppDatabase = Room.databaseBuilder(context, AppDatabase::class.java, "chatlearn.db")
-        .addMigrations(Migrations.MIGRATION_1_2, Migrations.MIGRATION_2_3, Migrations.MIGRATION_3_4)
+        .addMigrations(*Migrations.ALL)
         .build()
     val repo = EntryRepository(db)
     val settings: SettingsRepository = DataStoreSettingsRepository(context.settingsStore, EncryptedSecretStore(context))
@@ -75,5 +75,7 @@ class AppContainer(context: Context) {
     fun reviewSession() = ReviewSession(
         repo, ai, System::currentTimeMillis, { settings.settings.first().newPerDay }, tts = tts,
         dailyGoal = { settings.settings.first().dailyGoal },
+        retention = { settings.settings.first().retention },
+        maxReviews = { settings.settings.first().maxReviews },
     )
 }
