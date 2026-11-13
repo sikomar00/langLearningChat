@@ -2,7 +2,9 @@ package com.chatlearn.ai
 
 import com.chatlearn.domain.Lang
 import com.chatlearn.domain.Verdict
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
@@ -177,7 +179,7 @@ class GeminiAiServiceTest {
         )
         server.enqueue(MockResponse().setResponseCode(404).setBody("""{"error":{"message":"model not found"}}"""))
         val e = diag.translateReceived("hi").exceptionOrNull() as AiException
-        assertEquals(AiError.SERVER, e.kind)
+        assertEquals(AiError.BAD_MODEL, e.kind)
         assertEquals(404, seen.single().first)
         assertTrue(seen.single().second.contains("model not found"))
     }
@@ -336,5 +338,92 @@ class GeminiAiServiceTest {
         server.enqueue(ok("""{"results":[{"detectedLang":"es","koTranslation":"a","note":"b","altText":"","keyPhrase":"","altKeyPhrase":""}]}"""))
         server.enqueue(ok("""{"results":[{"detectedLang":"es","koTranslation":"a","note":"b","altText":"","keyPhrase":"","altKeyPhrase":""}]}"""))
         assertTrue(ai.translateReceivedBatch(listOf("a", "b")).isFailure)
+    }
+
+    private val received = """{"detectedLang":"en","koTranslation":"a","note":"b"}"""
+
+    @Test fun dailyQuotaIsReportedAsDailyLimitWithoutRetrying() = runBlocking {
+        server.enqueue(MockResponse().setResponseCode(429).setBody(
+            """{"error":{"details":[{"violations":[{"quotaId":"GenerateRequestsPerDayPerProjectPerModel-FreeTier"}]}]}}""",
+        ))
+        assertEquals(AiError.DAILY_LIMIT, (ai.translateReceived("hi").exceptionOrNull() as AiException).kind)
+        assertEquals(1, server.requestCount)
+    }
+
+    @Test fun longRetryAfterFailsAtOnceInsteadOfWaiting() = runBlocking {
+        server.enqueue(MockResponse().setResponseCode(429).setHeader("Retry-After", "60"))
+        assertEquals(AiError.RATE_LIMIT, (ai.translateReceived("hi").exceptionOrNull() as AiException).kind)
+        assertEquals(1, server.requestCount)
+    }
+
+    @Test fun internalServerErrorRetriesOnce() = runBlocking {
+        server.enqueue(MockResponse().setResponseCode(500))
+        server.enqueue(ok(received))
+        assertTrue(ai.translateReceived("hi").isSuccess)
+        assertEquals(2, server.requestCount)
+    }
+
+    @Test fun blockedPromptIsBlockedAndNotRetried() = runBlocking {
+        server.enqueue(MockResponse().setResponseCode(200).setBody("""{"promptFeedback":{"blockReason":"SAFETY"}}"""))
+        assertEquals(AiError.BLOCKED, (ai.translateReceived("hi").exceptionOrNull() as AiException).kind)
+        assertEquals(1, server.requestCount)
+    }
+
+    @Test fun safetyStopIsBlocked() = runBlocking {
+        server.enqueue(MockResponse().setResponseCode(200).setBody("""{"candidates":[{"finishReason":"SAFETY"}]}"""))
+        assertEquals(AiError.BLOCKED, (ai.translateReceived("hi").exceptionOrNull() as AiException).kind)
+        assertEquals(1, server.requestCount)
+    }
+
+    @Test fun truncatedAnswerIsBadFormatWithoutRetrying() = runBlocking {
+        server.enqueue(MockResponse().setResponseCode(200).setBody(
+            """{"candidates":[{"finishReason":"MAX_TOKENS","content":{"parts":[{"text":"{\"detected"}]}}]}""",
+        ))
+        assertEquals(AiError.BAD_FORMAT, (ai.translateReceived("hi").exceptionOrNull() as AiException).kind)
+        assertEquals(1, server.requestCount)
+    }
+
+    @Test fun unknownModelIsBadModel() = runBlocking {
+        server.enqueue(MockResponse().setResponseCode(404).setBody("""{"error":{"status":"NOT_FOUND"}}"""))
+        assertEquals(AiError.BAD_MODEL, (ai.translateReceived("hi").exceptionOrNull() as AiException).kind)
+    }
+
+    @Test fun cancellingTheCallerStopsWaitingForTheServer() = runBlocking {
+        server.enqueue(ok(received).setHeadersDelay(10, java.util.concurrent.TimeUnit.SECONDS))
+        val started = System.currentTimeMillis()
+        val job = launch(kotlinx.coroutines.Dispatchers.Default) { ai.translateReceived("hi") }
+        kotlinx.coroutines.delay(300)
+        job.cancel()
+        withTimeout(3_000) { job.join() }
+        assertTrue(System.currentTimeMillis() - started < 5_000)
+    }
+
+    @Test fun repeatedRequestIsServedFromCache() = runBlocking {
+        server.enqueue(ok(received))
+        assertTrue(ai.translateReceived("hi").isSuccess)
+        assertEquals("a", ai.translateReceived("hi").getOrThrow().koTranslation)
+        assertEquals(1, server.requestCount)
+        assertEquals(1, calls)
+    }
+
+    @Test fun failuresAreNotCached() = runBlocking {
+        server.enqueue(MockResponse().setResponseCode(403))
+        assertTrue(ai.translateReceived("hi").isFailure)
+        server.enqueue(ok(received))
+        assertTrue(ai.translateReceived("hi").isSuccess)
+    }
+
+    @Test fun connectionCheckAlwaysAsksTheServer() = runBlocking {
+        server.enqueue(ok("""{"text":"hola"}"""))
+        assertTrue(ai.ping().isSuccess)
+        server.enqueue(MockResponse().setResponseCode(403))
+        assertEquals(AiError.BAD_KEY, (ai.ping().exceptionOrNull() as AiException).kind)
+    }
+
+    @Test fun noInternetIsReportedWithoutRetrying() = runBlocking {
+        val offline = GeminiAiService(OkHttpClient(), "http://no-such-host.invalid", apiKey = { "k" }, model = { "m" }, retryDelayMs = 5_000)
+        val started = System.currentTimeMillis()
+        assertEquals(AiError.OFFLINE, (offline.translateReceived("hi").exceptionOrNull() as AiException).kind)
+        assertTrue(System.currentTimeMillis() - started < 5_000)
     }
 }

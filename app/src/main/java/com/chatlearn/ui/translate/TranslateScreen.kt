@@ -127,7 +127,9 @@ fun TranslateScreen(vm: TranslateViewModel, onSpeak: (String, Lang) -> Unit = { 
             initial = s.learnedOn ?: today, today = today, onDismiss = { pickingDate = false },
             onPick = { d -> vm.setLearnedOn(d.takeIf { it.isBefore(today) }); pickingDate = false },
         )
-        Button(onClick = { vm.translate() }, enabled = s.input.isNotBlank() && !s.loading, modifier = Modifier.fillMaxWidth()) {
+        // 키보드가 결과와 저장 버튼을 가리지 않게 번역을 누르면 내린다.
+        val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
+        Button(onClick = { focusManager.clearFocus(); vm.translate() }, enabled = s.input.isNotBlank() && !s.loading, modifier = Modifier.fillMaxWidth()) {
             val lineCount = if (s.mode == TranslateMode.RECEIVED) splitMessages(s.input).size else 0
             if (s.loading) ButtonSpinner()
             else Text(if (lineCount >= 2) "문장별로 번역 (${lineCount}개)" else if (s.mode == TranslateMode.CORRECT) "첨삭 받기" else "번역")
@@ -154,10 +156,13 @@ fun TranslateScreen(vm: TranslateViewModel, onSpeak: (String, Lang) -> Unit = { 
         }
         s.error?.let {
             InfoMessage(errorText(it), MessageKind.ERROR)
-            if (it is TranslateError.Ai && it.kind != AiError.BAD_KEY) {
+            // 키·모델이 틀렸거나 하루 한도·안전 필터에 걸렸으면 다시 시도해도 같다.
+            val settingsFix = it is TranslateError.Ai && (it.kind == AiError.BAD_KEY || it.kind == AiError.BAD_MODEL)
+            val hopeless = it is TranslateError.Ai && (it.kind == AiError.DAILY_LIMIT || it.kind == AiError.BLOCKED)
+            if (it is TranslateError.Ai && !settingsFix && !hopeless) {
                 OutlinedButton(onClick = { vm.translate() }, enabled = !s.loading) { Text("다시 시도") }
             }
-            if (it is TranslateError.Ai && it.kind == AiError.BAD_KEY) {
+            if (settingsFix) {
                 Button(onClick = onOpenSettings) { Text("설정 열기") }
             }
         }
@@ -327,7 +332,10 @@ private fun CorrectionCard(c: com.chatlearn.ai.CorrectionResult, original: Strin
 private fun errorText(e: TranslateError) = when (e) {
     TranslateError.UnsupportedLang -> "영어나 스페인어 문장만 다룰 수 있어요."
     is TranslateError.Ai -> when (e.kind) {
-        AiError.RATE_LIMIT -> "오늘 AI 한도에 도달했어요. 잠시 후 다시 시도해 주세요."
+        AiError.RATE_LIMIT -> "AI 요청이 잠깐 너무 많았어요. 1분쯤 뒤에 다시 시도해 주세요."
+        AiError.DAILY_LIMIT -> "오늘 AI 한도를 다 썼어요. 내일 다시 쓸 수 있어요."
+        AiError.BAD_MODEL -> "모델 이름을 찾을 수 없어요. 설정에서 모델 이름을 확인해 주세요."
+        AiError.BLOCKED -> "AI가 이 문장은 다루지 않겠다고 했어요(안전 필터)."
         AiError.OFFLINE -> "인터넷에 연결되어 있지 않아요."
         AiError.TIMEOUT -> "AI 응답이 너무 오래 걸려요. 잠시 후 다시 시도해 주세요."
         AiError.OVERLOADED -> "지금 이 AI 모델에 요청이 몰려 있어요. 잠시 후 다시 시도하거나, 설정에서 다른 모델 이름으로 바꿔 보세요."

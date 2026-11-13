@@ -258,7 +258,10 @@ private fun connectionMessage(e: com.chatlearn.ai.AiError) = when (e) {
     com.chatlearn.ai.AiError.BAD_KEY -> "API 키나 모델 이름이 올바르지 않아요."
     com.chatlearn.ai.AiError.OFFLINE -> "인터넷에 연결되어 있지 않아요."
     com.chatlearn.ai.AiError.TIMEOUT -> "응답이 너무 오래 걸려요. 잠시 후 다시 확인해 보세요."
-    com.chatlearn.ai.AiError.RATE_LIMIT -> "한도에 도달했어요. 키는 유효해 보여요. 잠시 후 다시 시도해 주세요."
+    com.chatlearn.ai.AiError.RATE_LIMIT -> "요청이 잠깐 많았어요. 키는 유효해 보여요. 1분쯤 뒤에 다시 시도해 주세요."
+    com.chatlearn.ai.AiError.DAILY_LIMIT -> "오늘 한도를 다 썼어요. 키는 유효해 보여요. 내일 다시 확인해 보세요."
+    com.chatlearn.ai.AiError.BAD_MODEL -> "모델 이름을 찾을 수 없어요. 모델 이름을 확인해 주세요."
+    com.chatlearn.ai.AiError.BLOCKED -> "키는 유효해 보여요. (확인 문장이 안전 필터에 걸렸어요)"
     com.chatlearn.ai.AiError.OVERLOADED -> "지금 이 모델에 요청이 몰려 있어요. 다른 모델로 바꿔 보세요."
     com.chatlearn.ai.AiError.BAD_FORMAT, com.chatlearn.ai.AiError.SERVER -> "AI 서버 응답에 문제가 있어요. 잠시 후 다시 시도해 주세요."
 }

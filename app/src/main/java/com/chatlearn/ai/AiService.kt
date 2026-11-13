@@ -3,7 +3,8 @@ package com.chatlearn.ai
 import com.chatlearn.domain.Lang
 import com.chatlearn.domain.Verdict
 
-enum class AiError { RATE_LIMIT, OFFLINE, TIMEOUT, OVERLOADED, BAD_KEY, BAD_FORMAT, SERVER }
+/** RATE_LIMIT은 분당 한도(잠시 뒤 풀림), DAILY_LIMIT은 하루 한도, BLOCKED는 안전 필터, BAD_MODEL은 없는 모델 이름. */
+enum class AiError { RATE_LIMIT, DAILY_LIMIT, OFFLINE, TIMEOUT, OVERLOADED, BAD_KEY, BAD_MODEL, BLOCKED, BAD_FORMAT, SERVER }
 
 class AiException(val kind: AiError) : Exception(kind.name)
 
@@ -43,6 +44,8 @@ data class GradeRequest(
 data class GradeResult(val verdict: Verdict, val corrected: String, val explanationKo: String)
 
 interface AiService {
+    /** 연결 확인용 짧은 요청. 캐시를 쓰는 구현도 이것만은 매번 서버에 묻는다. */
+    suspend fun ping(): Result<String> = translateTo("hello", Lang.EN, Lang.ES)
     suspend fun translateReceived(text: String): Result<ReceivedResult>
     suspend fun suggestSent(koText: String, target: Lang, known: List<KnownExpression> = emptyList()): Result<List<SentCandidate>>
     suspend fun gradeAnswer(req: GradeRequest): Result<GradeResult>
