@@ -17,6 +17,7 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
@@ -83,6 +84,7 @@ class MainActivity : ComponentActivity() {
         // 회전 등으로 다시 만들어질 때 같은 문장을 또 번역하지 않는다.
         if (savedInstanceState == null) pendingLaunch = launchRequestOf(intent)
         val c = (application as ChatLearnApp).container
+        c.warmUpTts()
         // 예약이 사라졌을 수 있으니(강제 종료, 설정 변경) 앱을 열 때마다 설정대로 다시 맞춘다.
         lifecycleScope.launch { c.settings.settings.first().let { c.reminders.apply(it.reminderEnabled, it.reminderHour) } }
         val factory = object : ViewModelProvider.Factory {
@@ -135,7 +137,13 @@ class MainActivity : ComponentActivity() {
                     }
                     pendingLaunch = null
                 }
-                val current = tab ?: if (settings != null && settings!!.apiKey.isBlank()) Tab.SETTINGS else Tab.TRANSLATE
+                // 첫 탭은 설정을 읽은 뒤 한 번만 정한다. 키를 저장하는 순간 탭이 바뀌거나, 읽기 전에 번역 탭이 잠깐 보이지 않게.
+                LaunchedEffect(settings == null) {
+                    if (tab == null) settings?.let { tab = if (it.apiKey.isBlank()) Tab.SETTINGS else Tab.TRANSLATE }
+                }
+                val current = tab ?: return@AppTheme
+                // 탭을 오갈 때 스크롤·필터·선택 같은 화면 상태를 탭마다 따로 보관한다.
+                val tabStates = rememberSaveableStateHolder()
                 // 첫 화면이 아닌 탭에서 뒤로가기를 누르면 앱을 끝내지 않고 번역 탭으로 돌아간다.
                 BackHandler(enabled = current != Tab.TRANSLATE) { tab = Tab.TRANSLATE }
                 Scaffold(
@@ -161,6 +169,7 @@ class MainActivity : ComponentActivity() {
                 ) { pad ->
                     Surface(Modifier.padding(pad).consumeWindowInsets(pad)) {
                         Crossfade(targetState = current, animationSpec = tween(200), label = "tab") { shown ->
+                          tabStates.SaveableStateProvider(shown.name) {
                             when (shown) {
                                 Tab.TRANSLATE -> TranslateScreen(translateVm, onSpeak = { text, lang -> c.tts.speak(text, lang, false) }, onOpenSettings = { tab = Tab.SETTINGS })
                                 Tab.LIBRARY -> LibraryScreen(
@@ -174,6 +183,7 @@ class MainActivity : ComponentActivity() {
                                 Tab.REVIEW -> ReviewScreen(reviewVm, viewModel(factory = factory), settings?.voice() ?: VoicePrefs())
                                 Tab.SETTINGS -> SettingsScreen(viewModel(factory = factory), onPreviewVoice = { lang -> c.tts.speak(voiceSample(lang), lang, false) })
                             }
+                          }
                         }
                     }
                 }
