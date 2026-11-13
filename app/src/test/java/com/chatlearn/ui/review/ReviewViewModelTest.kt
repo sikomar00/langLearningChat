@@ -100,17 +100,6 @@ class ReviewViewModelTest {
         Unit
     }
 
-    @Test fun ensureStartedDoesNotResetAReviewInProgress() = runBlocking {
-        repo.saveEntry(EntryDraft(Direction.RECEIVED, Lang.EN, "Hi", "안녕", "", null, emptyList()), now - 1)
-        vm.ensureStarted().join()
-        vm.begin().join()
-        vm.setAnswer("Hi"); vm.submit().join()
-        assertIs<ReviewUi.Graded>(vm.state.value)
-        vm.ensureStarted().join() // 탭을 다녀와도 채점 결과가 남아 있어야 한다
-        assertIs<ReviewUi.Graded>(vm.state.value)
-        Unit
-    }
-
     @Test fun spokenAnswerFillsTheFirstFieldOrIsAppended() = runBlocking {
         repo.saveEntry(EntryDraft(Direction.RECEIVED, Lang.EN, "Hi there", "안녕", "", null, emptyList()), now - 1)
         vm.start().join()
@@ -118,33 +107,6 @@ class ReviewViewModelTest {
         assertEquals("hi", assertIs<ReviewUi.Prompt>(vm.state.value).answers[0])
         vm.putSpokenAnswer("there")
         assertEquals("hi there", assertIs<ReviewUi.Prompt>(vm.state.value).answers[0])
-    }
-
-    @Test fun refreshPicksUpCardsThatBecameDueWhileTheTabWasEmpty() = runBlocking {
-        vm.ensureStarted().join()
-        assertEquals(ReviewUi.Empty, vm.state.value)
-        repo.saveEntry(EntryDraft(Direction.RECEIVED, Lang.EN, "Hi", "안녕", "", null, emptyList()), now - 1)
-        vm.refresh(force = false).join()
-        assertEquals(ReviewUi.Ready(1, 1), vm.state.value)
-    }
-
-    @Test fun refreshNeverInterruptsACardOnScreen() = runBlocking {
-        repo.saveEntry(EntryDraft(Direction.RECEIVED, Lang.EN, "Hi", "안녕", "", null, emptyList()), now - 1)
-        vm.start().join()
-        vm.setAnswer("Hi")
-        vm.refresh(force = true).join()
-        assertEquals("Hi", assertIs<ReviewUi.Prompt>(vm.state.value).answers.single())
-    }
-
-    @Test fun onlyAForcedRefreshReplacesTheDoneSummary() = runBlocking {
-        repo.saveEntry(EntryDraft(Direction.RECEIVED, Lang.EN, "Hi", "안녕", "", null, emptyList()), now - 1)
-        vm.start().join()
-        vm.setAnswer("Hi"); vm.submit().join(); vm.rate(Rating.GOOD).join()
-        repo.saveEntry(EntryDraft(Direction.RECEIVED, Lang.EN, "Bye", "잘 가", "", null, emptyList()), now - 1)
-        vm.refresh(force = false).join()
-        assertEquals(ReviewUi.Done(1), vm.state.value)
-        vm.refresh(force = true).join()
-        assertEquals(ReviewUi.Ready(1, 1), vm.state.value)
     }
 
     @Test fun afterTodaysNewCardLimitYouCanLearnMore() = runBlocking {
@@ -253,35 +215,6 @@ class ReviewViewModelTest {
         assertNotEquals(first, second)
         assertTrue(db.dao().allLogs().isEmpty())
         assertEquals(ReviewProgress(0, 2), vm.progress.value)
-    }
-
-    @Test fun previewShowsCountsBeforeAnyCardAndBeginStartsTheFirst() = runBlocking {
-        two()
-        vm.start(preview = true).join()
-        assertEquals(ReviewUi.Ready(total = 2, newCards = 2), vm.state.value)
-        vm.begin().join()
-        assertIs<ReviewUi.Prompt>(vm.state.value)
-        assertEquals(ReviewProgress(0, 2), vm.progress.value)
-    }
-
-    @Test fun previewWithNothingDueIsEmpty() = runBlocking {
-        vm.start(preview = true).join()
-        assertEquals(ReviewUi.Empty, vm.state.value)
-    }
-
-    @Test fun beginWithoutPreviewIsIgnored() = runBlocking {
-        two()
-        vm.start().join()
-        val before = vm.state.value
-        vm.begin().join()
-        assertEquals(before, vm.state.value)
-    }
-
-    @Test fun ensureStartedShowsPreviewFirst() = runBlocking {
-        two()
-        vm.ensureStarted().join()
-        assertIs<ReviewUi.Ready>(vm.state.value)
-        Unit
     }
 
     private suspend fun firstCardId() = db.dao().allCards().minOf { it.id }
@@ -420,5 +353,82 @@ class ReviewViewModelTest {
         val queue = ReviewSession(repo, ai, { now }, { 10 }, { false }, { 0.0 }).loadQueue()
         assertEquals(6, queue.size)
         queue.zipWithNext().forEach { (a, b) -> assertNotEquals(a.card.entryId, b.card.entryId) }
+    }
+
+    @Test fun comboCountsConsecutiveRememberedCardsAndResetsOnAgain() = runBlocking {
+        two()
+        val v = goalVm(5)
+        v.start().join()
+        v.setAnswer("x"); v.submit().join(); v.rate(Rating.GOOD).join()
+        assertEquals(1, v.combo.value)
+        v.setAnswer("y"); v.submit().join(); v.rate(Rating.AGAIN).join()
+        assertEquals(0, v.combo.value)
+        assertEquals(1, v.remembered.value)
+    }
+
+    @Test fun reachingTheGoalDuringTheSessionCelebratesOnce() = runBlocking {
+        two()
+        val v = goalVm(1)
+        v.start().join()
+        assertFalse(v.celebrate.value)
+        v.setAnswer("x"); v.submit().join(); v.rate(Rating.GOOD).join()
+        assertTrue(v.celebrate.value)
+        v.celebrated()
+        v.setAnswer("y"); v.submit().join(); v.rate(Rating.GOOD).join()
+        assertFalse(v.celebrate.value) // 이미 달성한 뒤에는 다시 축하하지 않는다
+    }
+
+    @Test fun streakIsKeptUpToDateWithoutTheStatsScreen() = runBlocking {
+        two()
+        val v = goalVm(5)
+        v.start().join()
+        assertEquals(0, v.streak.value)
+        v.setAnswer("x"); v.submit().join(); v.rate(Rating.GOOD).join()
+        assertEquals(1, v.streak.value)
+    }
+
+    @Test fun openStartsRightAwayButKeepsACardInProgress() = runBlocking {
+        two()
+        val v = goalVm(5)
+        v.open().join()
+        assertIs<ReviewUi.Prompt>(v.state.value)
+        v.setAnswer("x"); v.submit().join()
+        v.open().join()
+        assertIs<ReviewUi.Graded>(v.state.value)
+        Unit
+    }
+
+    @Test fun ensureOpenStartsTodaysReviewOnlyWhenNothingIsRunning() = runBlocking {
+        two()
+        val v = goalVm(5)
+        v.ensureOpen().join()
+        assertIs<ReviewUi.Prompt>(v.state.value)
+        v.setAnswer("x"); v.submit().join()
+        v.ensureOpen().join()
+        assertIs<ReviewUi.Graded>(v.state.value)
+        Unit
+    }
+
+    @Test fun openFromTodayReplacesALeftoverLibrarySelection() = runBlocking {
+        val (a, _) = two()
+        val v = goalVm(5)
+        v.startWith(setOf(a), null).join()
+        assertNotNull(v.custom.value)
+        v.open().join()
+        assertNull(v.custom.value)
+        assertEquals(2, v.progress.value.total)
+    }
+
+    @Test fun undoPutsTheComboBackAndDoesNotCelebrateTwice() = runBlocking {
+        two()
+        val v = goalVm(1)
+        v.start().join()
+        v.setAnswer("x"); v.submit().join(); v.rate(Rating.GOOD).join()
+        assertTrue(v.celebrate.value); v.celebrated()
+        v.undo().join()
+        assertEquals(0, v.combo.value)
+        v.rate(Rating.GOOD).join()
+        assertFalse(v.celebrate.value)
+        assertEquals(1, v.combo.value)
     }
 }

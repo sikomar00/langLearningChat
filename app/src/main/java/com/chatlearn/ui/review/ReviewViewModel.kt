@@ -17,8 +17,6 @@ import kotlinx.coroutines.launch
 sealed interface ReviewUi {
     data object Loading : ReviewUi
     data object Empty : ReviewUi
-    /** 복습을 시작하기 전 요약: 오늘 낼 카드 수와 그중 새 카드 수. */
-    data class Ready(val total: Int, val newCards: Int) : ReviewUi
     data class Prompt(
         val item: ReviewItem,
         val answers: List<String>,
@@ -58,11 +56,37 @@ class ReviewViewModel(private val session: ReviewSession) : ViewModel() {
     private val _canUndo = MutableStateFlow(false)
     val canUndo: StateFlow<Boolean> = _canUndo.asStateFlow()
     private var lastGraded: ReviewUi.Graded? = null
+    private var lastRating: Rating? = null
 
     private val _goal = MutableStateFlow(GoalProgress(0, 0))
     /** 오늘 복습한 카드 수와 하루 목표. */
     val goal: StateFlow<GoalProgress> = _goal.asStateFlow()
     private suspend fun refreshGoal() { _goal.value = session.todayProgress() }
+
+    // 연속일은 복습 기록 전체를 읽으므로 세션을 열 때와 오늘 첫 복습·취소 때만 다시 센다.
+    private suspend fun refreshStreak() { _streak.value = session.streak() }
+
+    private val _streak = MutableStateFlow(0)
+    val streak: StateFlow<Int> = _streak.asStateFlow()
+
+    private val _combo = MutableStateFlow(0)
+    /** 이번 세션에서 이어서 기억한 카드 수. "다시"를 누르면 0으로. */
+    val combo: StateFlow<Int> = _combo.asStateFlow()
+
+    private val _remembered = MutableStateFlow(0)
+    /** 이번 세션에서 "다시"가 아닌 평가를 한 횟수(요약의 기억률). */
+    val remembered: StateFlow<Int> = _remembered.asStateFlow()
+
+    private val _celebrate = MutableStateFlow(false)
+    /** 이번 세션에서 오늘 목표를 막 달성했다. 화면이 축하를 보여 준 뒤 [celebrated]로 끈다. */
+    val celebrate: StateFlow<Boolean> = _celebrate.asStateFlow()
+    fun celebrated() { _celebrate.value = false }
+
+    // 같은 세션에서 평가 취소 뒤 다시 평가해도 축하는 한 번만.
+    private var celebratedThisSession = false
+    private var comboBeforeLast = 0
+
+    private fun resetSessionCounters() { _combo.value = 0; _remembered.value = 0; _celebrate.value = false; celebratedThisSession = false }
 
     private val _moreNew = MutableStateFlow(0)
     /** 다 끝냈거나 비었을 때, 오늘 한도 밖에서 더 배울 수 있는 새 카드 수. */
@@ -76,73 +100,44 @@ class ReviewViewModel(private val session: ReviewSession) : ViewModel() {
     private var started = false
     private var rating = false
 
-    /** 화면이 다시 그려져도(탭 이동, 회전) 진행 중인 복습을 되돌리지 않는다. */
-    fun ensureStarted(): Job {
-        if (started) return Job().apply { complete() }
-        return start(preview = true)
-    }
-
     /**
-     * 탭에 다시 들어왔거나 알림으로 열었을 때 큐를 새로 읽는다. 문제·채점 화면이면 건드리지 않는다.
-     * 다 끝낸 요약(Done)은 [force]일 때만 바꾼다(되돌리기와 요약을 지키려고).
+     * 오늘 화면에서 "복습 시작": 오늘 복습을 하던 중이면 그대로 이어 가고, 아니면 바로 시작한다.
+     * 라이브러리에서 고른 복습이 남아 있으면 버리고 오늘 복습을 연다(버튼이 오늘 카드 수를 보여 주므로).
      */
-    fun refresh(force: Boolean): Job {
+    fun open(): Job {
         val s = _state.value
-        val idle = s is ReviewUi.Empty || s is ReviewUi.Ready || (force && s is ReviewUi.Done)
-        if (!started || !idle || rating) return if (!started) start(preview = true) else Job().apply { complete() }
-        return start(preview = true)
+        if (started && _custom.value == null && (s is ReviewUi.Prompt || s is ReviewUi.Graded || s is ReviewUi.Loading)) return Job().apply { complete() }
+        return start()
     }
 
-    /** 오늘 새 카드 한도를 다 쓴 뒤 [n]장을 더 배운다. 요약 없이 바로 시작한다. */
-    fun learnMore(n: Int): Job = viewModelScope.launch {
-        started = true
-        _state.value = ReviewUi.Loading
-        _custom.value = null
-        clearUndo()
-        reviewed = 0
-        ratedCards.clear()
-        queue.clear()
-        queue.addAll(session.loadQueue(extraNew = n))
-        refreshGoal()
-        if (queue.isEmpty()) { _progress.value = ReviewProgress(0, 0); _state.value = ReviewUi.Empty; refreshMoreNew() } else showNext()
-    }
+    /** 복습 화면이 열렸는데 아직 아무것도 시작하지 않았으면(프로세스가 다시 만들어진 경우) 오늘 복습을 연다. */
+    fun ensureOpen(): Job = if (started) Job().apply { complete() } else open()
 
-    /** [preview]면 첫 카드를 바로 내지 않고 요약(Ready)을 먼저 보여 준다. */
-    fun start(preview: Boolean = false): Job = viewModelScope.launch {
-        started = true
-        _state.value = ReviewUi.Loading
-        _custom.value = null
-        clearUndo()
-        reviewed = 0
-        ratedCards.clear()
-        queue.clear()
-        queue.addAll(session.loadQueue())
-        refreshGoal()
-        if (queue.isEmpty()) {
-            _progress.value = ReviewProgress(0, 0); _state.value = ReviewUi.Empty; refreshMoreNew()
-        } else if (preview) {
-            _progress.value = ReviewProgress(0, queue.size)
-            _state.value = ReviewUi.Ready(queue.size, queue.count { it.card.lastReviewedAt == null })
-        } else showNext()
-    }
+    /** 오늘 새 카드 한도를 다 쓴 뒤 [n]장을 더 배운다. */
+    fun learnMore(n: Int): Job = begin(custom = false) { session.loadQueue(extraNew = n) }
 
-    /** 요약 화면에서 "시작"을 눌렀을 때. */
-    fun begin(): Job = viewModelScope.launch {
-        if (_state.value is ReviewUi.Ready) showNext()
-    }
+    fun start(): Job = begin(custom = false) { session.loadQueue() }
 
     /** 라이브러리에서 고른 문장만 복습한다. 채점과 일정 반영은 평소 복습과 같다. */
-    fun startWith(entryIds: Set<Long>, answerLang: Lang?): Job = viewModelScope.launch {
+    fun startWith(entryIds: Set<Long>, answerLang: Lang?): Job = begin(custom = true) { session.loadSelected(entryIds, answerLang) }
+
+    private fun begin(custom: Boolean, load: suspend () -> List<DueCard>): Job = viewModelScope.launch {
         started = true
         _state.value = ReviewUi.Loading
         clearUndo()
         reviewed = 0
+        resetSessionCounters()
         ratedCards.clear()
         queue.clear()
-        queue.addAll(session.loadSelected(entryIds, answerLang))
-        _custom.value = queue.size
+        queue.addAll(load())
+        _custom.value = if (custom) queue.size else null
         refreshGoal()
-        if (queue.isEmpty()) { _progress.value = ReviewProgress(0, 0); _state.value = ReviewUi.Empty } else showNext()
+        refreshStreak()
+        if (queue.isEmpty()) {
+            _progress.value = ReviewProgress(0, 0)
+            _state.value = ReviewUi.Empty
+            if (!custom) refreshMoreNew()
+        } else showNext()
     }
 
     private suspend fun showNext() {
@@ -177,10 +172,13 @@ class ReviewViewModel(private val session: ReviewSession) : ViewModel() {
         queue.removeAll { it.card.id == g.item.card.id }
         reviewed = (reviewed - 1).coerceAtLeast(0)
         ratedCards.removeLastOrNull()
+        _combo.value = comboBeforeLast
+        if (lastRating != Rating.AGAIN) _remembered.value = (_remembered.value - 1).coerceAtLeast(0)
         clearUndo()
         _state.value = g
         refreshProgress()
         refreshGoal()
+        if (_goal.value.done == 0) refreshStreak() // 오늘 유일한 복습을 취소했으면 연속일이 줄 수 있다
     }
 
     /** 복습 중 카드 메뉴: 오늘은 건너뛰기(평가 기록 없이 내일로). */
@@ -284,12 +282,19 @@ class ReviewViewModel(private val session: ReviewSession) : ViewModel() {
         return viewModelScope.launch {
             try {
                 // 그사이 삭제된 카드는 기록 없이 넘어간다.
+                val wasReached = _goal.value.reached
+                val firstToday = _goal.value.done == 0
                 val updated = session.rate(g.item, r, g.outcome, g.answer, g.responseMs) ?: return@launch showNext()
                 reviewed++
+                lastRating = r
+                comboBeforeLast = _combo.value
+                if (r == Rating.AGAIN) _combo.value = 0 else { _combo.value++; _remembered.value++ }
                 ratedCards += g.item.card.id
                 lastGraded = g
                 _canUndo.value = true
                 refreshGoal()
+                if (firstToday) refreshStreak()
+                if (!wasReached && _goal.value.reached && !celebratedThisSession) { _celebrate.value = true; celebratedThisSession = true }
                 // 다시: 갱신된 카드 상태로 같은 세션 끝에 한 번 더 낸다
                 if (r == Rating.AGAIN) queue.addLast(DueCard(updated, g.item.texts, g.item.keyPhrases, g.item.note))
                 showNext()

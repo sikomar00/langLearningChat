@@ -36,7 +36,7 @@ fun StatsScreen(vm: StatsViewModel) {
             Text("복습 ${s.today.reviews}회 · 정답률 ${percent(s.today)}", style = MaterialTheme.typography.titleMedium)
             Text("연속 학습 ${s.streak}일")
         }
-        SectionCard("최근 7일") { WeekBars(s.last7) }
+        SectionCard("최근 7일") { com.chatlearn.ui.components.DayBars(s.last7, { "${it.date.monthValue}/${it.date.dayOfMonth}" }, s.last7.last().date) }
         if (s.heatmap.isNotEmpty()) SectionCard("${StatsCalculator.HEATMAP_WEEKS}주 학습 기록") { Heatmap(s.heatmap) }
         SectionCard("카드 상태") {
             Text("새 카드 ${s.cards.new}개 · 학습 중 ${s.cards.learning}개 · 익숙함 ${s.cards.mature}개")
@@ -125,19 +125,3 @@ private fun Heatmap(days: List<DayCount>) {
     }
 }
 
-@Composable
-private fun WeekBars(days: List<DayCount>) {
-    val max = (days.maxOfOrNull { it.reviews } ?: 0).coerceAtLeast(1)
-    Row(Modifier.fillMaxWidth().height(96.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.Bottom) {
-        days.forEach { d ->
-            Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Bottom) {
-                Text(d.reviews.toString(), style = MaterialTheme.typography.labelSmall)
-                Box(
-                    Modifier.fillMaxWidth().height((56.dp * d.reviews / max).coerceAtLeast(2.dp))
-                        .background(MaterialTheme.colorScheme.primary),
-                )
-                Text("${d.date.monthValue}/${d.date.dayOfMonth}", style = MaterialTheme.typography.labelSmall)
-            }
-        }
-    }
-}

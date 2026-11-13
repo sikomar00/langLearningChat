@@ -37,8 +37,6 @@ fun SettingsScreen(vm: SettingsViewModel, onPreviewVoice: (com.chatlearn.domain.
     val scope = rememberCoroutineScope()
     var key by remember(s.apiKey) { mutableStateOf(s.apiKey) }
     var model by remember(s.model) { mutableStateOf(s.model) }
-    var perDay by remember(s.newPerDay) { mutableStateOf(s.newPerDay.toString()) }
-    var goalText by remember(s.dailyGoal) { mutableStateOf(s.dailyGoal.toString()) }
     var message by remember { mutableStateOf<String?>(null) }
     var pendingImport by remember { mutableStateOf<android.net.Uri?>(null) }
 
@@ -57,15 +55,6 @@ fun SettingsScreen(vm: SettingsViewModel, onPreviewVoice: (com.chatlearn.domain.
         if (uri != null) pendingImport = uri
     }
 
-    // 숫자 설정은 입력을 멈추면 알아서 저장한다(저장 버튼을 눌러야 하는 번거로움과 입력 유실을 없앤다).
-    LaunchedEffect(perDay) {
-        kotlinx.coroutines.delay(700)
-        perDay.toIntOrNull()?.let { if (it != s.newPerDay) vm.saveNewPerDay(it) }
-    }
-    LaunchedEffect(goalText) {
-        kotlinx.coroutines.delay(700)
-        goalText.toIntOrNull()?.let { if (it != s.dailyGoal) vm.saveDailyGoal(it) }
-    }
     var tab by rememberSaveable { mutableIntStateOf(0) }
     val tabs = listOf("AI", "복습", "문장", "화면", "백업")
     Column(Modifier.fillMaxSize()) {
@@ -122,9 +111,8 @@ fun SettingsScreen(vm: SettingsViewModel, onPreviewVoice: (com.chatlearn.domain.
 
     }
     if (tab == 1) {
-        OutlinedTextField(perDay, { perDay = it.filter(Char::isDigit) }, Modifier.fillMaxWidth(), singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), label = { Text("하루 새 카드 수") }, supportingText = { Text("입력하면 자동으로 저장돼요") })
-
-        OutlinedTextField(goalText, { goalText = it.filter(Char::isDigit) }, Modifier.fillMaxWidth(), singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), label = { Text("하루 복습 목표(장, 0이면 끔)") }, supportingText = { Text("입력하면 자동으로 저장돼요") })
+        com.chatlearn.ui.components.Stepper("하루 새 카드", s.newPerDay, { vm.saveNewPerDay(it) }, com.chatlearn.ui.components.StepperSpec(0..100, 5))
+        com.chatlearn.ui.components.Stepper("하루 복습 목표", s.dailyGoal, { vm.saveDailyGoal(it) }, com.chatlearn.ui.components.StepperSpec(0..200, 5, "끔"))
 
         Text("기억 목표", style = MaterialTheme.typography.labelLarge)
         Text("복습할 때 이만큼은 기억나도록 간격을 정해요. 높일수록 더 자주 복습해요.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)

@@ -4,12 +4,19 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Remove
 import com.chatlearn.domain.Lang
 import com.chatlearn.ui.theme.statusColors
 
@@ -54,7 +61,8 @@ fun InfoMessage(text: String, kind: MessageKind = MessageKind.INFO, modifier: Mo
         MessageKind.SUCCESS -> MaterialTheme.statusColors.success
         MessageKind.ERROR -> MaterialTheme.colorScheme.error
     }
-    Text(text, modifier, color = color, style = MaterialTheme.typography.bodyMedium)
+    // 결과 문구는 스크린리더가 바로 읽어 준다.
+    Text(text, modifier.semantics { liveRegion = androidx.compose.ui.semantics.LiveRegionMode.Polite }, color = color, style = MaterialTheme.typography.bodyMedium)
 }
 
 /** 제목 + 설명 + 스위치. 행 전체를 눌러도 토글되고 스크린리더는 스위치로 읽는다. */
@@ -74,13 +82,12 @@ fun SwitchRow(title: String, description: String?, checked: Boolean, onCheckedCh
     }
 }
 
-/** 제목이 있는 카드 묶음. */
+/** 제목이 있는 묶음. 강조는 오늘 화면의 말풍선에 맡기고, 여기는 옅은 바탕에 제목만 둔다. */
 @Composable
 fun SectionCard(title: String, modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
-    Card(modifier.fillMaxWidth()) {
+    Surface(modifier.fillMaxWidth(), color = MaterialTheme.colorScheme.surfaceContainerLow, shape = MaterialTheme.shapes.large) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text(title, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
-            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+            Text(title, style = MaterialTheme.typography.titleMedium, modifier = Modifier.semantics { heading() })
             content()
         }
     }
@@ -112,3 +119,30 @@ fun StatRow(label: String, value: String, modifier: Modifier = Modifier, showDiv
         if (showDivider) HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
     }
 }
+
+/** 숫자 설정의 범위와 한 번에 바뀌는 양. [zeroLabel]은 0일 때 숫자 대신 보일 말(예: "끔"). */
+data class StepperSpec(val range: IntRange, val step: Int = 1, val zeroLabel: String? = null)
+
+/** 숫자 설정: − 값 + . 누를 때마다 바로 저장한다(키보드로 숫자를 칠 필요가 없다). */
+@Composable
+fun Stepper(label: String, saved: Int, onChange: (Int) -> Unit, spec: StepperSpec) {
+    // 저장이 끝나기 전에 여러 번 눌러도 누른 만큼 바뀌게 화면 값을 따로 들고 있는다.
+    var value by androidx.compose.runtime.remember(saved) { androidx.compose.runtime.mutableIntStateOf(saved) }
+    val (range, step, zeroLabel) = spec
+    fun set(v: Int) { value = v.coerceIn(range); onChange(value) }
+    Row(Modifier.fillMaxWidth().heightIn(min = 56.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text(label, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
+        FilledTonalIconButton(onClick = { set(value - step) }, enabled = value > range.first) {
+            Icon(androidx.compose.material.icons.Icons.Default.Remove, contentDescription = "$label 줄이기")
+        }
+        Text(
+            if (value == 0 && zeroLabel != null) zeroLabel else "$value",
+            style = MaterialTheme.typography.titleLarge.copy(fontFamily = com.chatlearn.ui.theme.Rounded),
+            textAlign = TextAlign.Center, modifier = Modifier.widthIn(min = 56.dp),
+        )
+        FilledTonalIconButton(onClick = { set(value + step) }, enabled = value < range.last) {
+            Icon(androidx.compose.material.icons.Icons.Default.Add, contentDescription = "$label 늘리기")
+        }
+    }
+}
+

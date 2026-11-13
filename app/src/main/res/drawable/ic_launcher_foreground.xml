@@ -19,11 +19,11 @@
                 android:pathData="M32,52L29,66L43,57Z" />
         </group>
         <path
-            android:fillColor="#7EE2C5"
+            android:fillColor="#5EEAC0"
             android:fillType="evenOdd"
             android:pathData="M53,46h18a9,9 0 0 1 9,9v10a9,9 0 0 1 -9,9h-18a9,9 0 0 1 -9,-9v-10a9,9 0 0 1 9,-9z M52,54h20a2,2 0 0 1 0,4h-20a2,2 0 0 1 0,-4z M52,62h13a2,2 0 0 1 0,4h-13a2,2 0 0 1 0,-4z" />
         <path
-            android:fillColor="#7EE2C5"
+            android:fillColor="#5EEAC0"
             android:pathData="M74,70L77,80L64,73Z" />
     </group>
 </vector>

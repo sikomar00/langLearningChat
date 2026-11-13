@@ -95,6 +95,9 @@ class ReviewSession(
 
     private fun dayStart(): Long = startOfDay(clock())
 
+    /** 연속 학습일(전체 통계 없이 복습 시각만으로). */
+    suspend fun streak(): Int = com.chatlearn.stats.StatsCalculator.streak(repo.reviewTimes(), clock(), java.time.ZoneId.systemDefault())
+
     /** 오늘 복습한 카드 수와 하루 목표. */
     suspend fun todayProgress(): GoalProgress = GoalProgress(repo.cardsReviewedSince(dayStart()), dailyGoal())
 

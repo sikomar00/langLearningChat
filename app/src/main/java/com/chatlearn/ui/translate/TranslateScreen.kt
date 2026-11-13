@@ -30,6 +30,7 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -200,8 +201,8 @@ fun TranslateScreen(vm: TranslateViewModel, onSpeak: (String, Lang) -> Unit = { 
         }
 
         s.received?.let { r ->
-            Card(Modifier.fillMaxWidth()) {
-                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            // 친구가 보낸 말은 받은 말풍선으로, 그 아래에 뜻과 저장. 단어를 누르면 그 자리에서 뜻을 본다.
+            com.chatlearn.ui.components.ChatBubble(outgoing = false) {
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
                         textChunks(s.source).forEach { chunk ->
                             // 글자는 작아도 누를 영역은 48dp 이상으로 확보한다.
@@ -211,7 +212,14 @@ fun TranslateScreen(vm: TranslateViewModel, onSpeak: (String, Lang) -> Unit = { 
                             ) { Text(chunk, style = MaterialTheme.typography.bodyLarge) }
                         }
                     }
-                    Text("단어를 누르면 이 문장에서의 뜻을 볼 수 있어요.", style = MaterialTheme.typography.bodySmall)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("단어를 누르면 이 문장에서의 뜻을 볼 수 있어요.", style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
+                        r.detectedLang?.let { l ->
+                            IconButton(onClick = { onSpeak(s.source, l) }) { Icon(Icons.AutoMirrored.Filled.VolumeUp, contentDescription = "원문 듣기") }
+                        }
+                    }
+            }
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     s.lookup?.let { l ->
                         Card(Modifier.fillMaxWidth()) {
                             Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -234,10 +242,9 @@ fun TranslateScreen(vm: TranslateViewModel, onSpeak: (String, Lang) -> Unit = { 
                             }
                         }
                     }
-                    r.detectedLang?.let { l -> TextButton(onClick = { onSpeak(s.source, l) }) { Text("원문 듣기") } }
                     SelectionContainer {
                         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Text(r.koTranslation, style = MaterialTheme.typography.titleMedium)
+                            Text(r.koTranslation, style = MaterialTheme.typography.titleLarge)
                             Text(r.note, style = MaterialTheme.typography.bodyMedium)
                         }
                     }
@@ -246,8 +253,7 @@ fun TranslateScreen(vm: TranslateViewModel, onSpeak: (String, Lang) -> Unit = { 
                         label = { Text("핵심 표현(고칠 수 있어요)") },
                         supportingText = { Text("복습의 빈칸 채우기에서 이 표현을 맞히게 돼요.") },
                     )
-                    Button(onClick = { vm.saveReceived() }) { Text("저장") }
-                }
+                    Button(onClick = { vm.saveReceived() }, modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp)) { Text("저장") }
             }
         }
         s.correction?.let { c -> CorrectionCard(c, s.source, onSpeak = { onSpeak(c.corrected, c.detectedLang ?: Lang.EN) }, onCopy = ::copy) {

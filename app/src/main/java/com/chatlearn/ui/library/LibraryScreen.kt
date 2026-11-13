@@ -10,6 +10,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Book
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.SearchOff
 import androidx.compose.foundation.background
 import com.chatlearn.ui.theme.statusColors
@@ -139,7 +140,12 @@ fun LibraryScreen(
         val activeFilters = listOf(lang != null, tag != null, statusFilter != StatusFilter.ALL, sort != LibrarySort.RECENT).count { it }
 
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-            OutlinedTextField(value = query, onValueChange = { vm.query.value = it }, modifier = Modifier.weight(1f), singleLine = true, label = { Text("검색") })
+            OutlinedTextField(
+                value = query, onValueChange = { vm.query.value = it }, modifier = Modifier.weight(1f), singleLine = true,
+                placeholder = { Text("문장 검색") }, shape = MaterialTheme.shapes.extraLarge,
+                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                trailingIcon = if (query.isNotEmpty()) ({ IconButton(onClick = { vm.query.value = "" }) { Icon(Icons.Default.Close, contentDescription = "검색어 지우기") } }) else null,
+            )
             TextButton(onClick = { showFilters = !showFilters }) { Text(if (activeFilters > 0) "필터 · $activeFilters" else "필터") }
             if (tags.isNotEmpty() || unexpanded > 0 || missingKeys > 0) {
                 Box {

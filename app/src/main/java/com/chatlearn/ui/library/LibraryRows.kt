@@ -3,6 +3,11 @@ package com.chatlearn.ui.library
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.ui.semantics.CustomAccessibilityAction
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.customActions
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.rememberScrollState
@@ -75,7 +80,7 @@ internal fun EntryCard(
     item: LibraryItem, badge: String?, badgeAccent: Boolean, state: EntryState, folderName: String?,
     selectionMode: Boolean, checked: Boolean, onClick: () -> Unit, onLongClick: () -> Unit,
 ) {
-    Card(Modifier.fillMaxWidth().combinedClickable(onClick = onClick, onLongClick = onLongClick)) {
+    Card(Modifier.fillMaxWidth().entryClick(selectionMode, checked, onClick, onLongClick)) {
         // 왼쪽 색 막대: 복습할 차례=보라, 새 문장=회색, 나중에 복습(이미 복습함)=초록
         val barColor = when (state) {
             EntryState.DUE -> MaterialTheme.colorScheme.primary
@@ -122,7 +127,7 @@ internal fun CompactRow(
         EntryState.NEW -> MaterialTheme.colorScheme.outline
         EntryState.LATER -> MaterialTheme.statusColors.success
     }
-    Column(Modifier.fillMaxWidth().combinedClickable(onClick = onClick, onLongClick = onLongClick)) {
+    Column(Modifier.fillMaxWidth().entryClick(selectionMode, checked, onClick, onLongClick)) {
         Row(Modifier.height(IntrinsicSize.Min).heightIn(min = 56.dp), verticalAlignment = Alignment.CenterVertically) {
             Box(Modifier.width(4.dp).fillMaxHeight().padding(vertical = 6.dp).background(barColor, MaterialTheme.shapes.extraSmall))
             if (selectionMode) Checkbox(checked = checked, onCheckedChange = null, modifier = Modifier.padding(start = 8.dp))
@@ -158,6 +163,13 @@ internal fun SwipeRow(enabled: Boolean, onMove: () -> Unit, onDelete: () -> Unit
     })
     SwipeToDismissBox(
         state = state, enableDismissFromStartToEnd = enabled, enableDismissFromEndToStart = enabled,
+        // 밀기 동작을 할 수 없는 사용자(스크린리더)도 같은 일을 메뉴로 할 수 있게.
+        modifier = if (enabled) Modifier.semantics {
+            customActions = listOf(
+                CustomAccessibilityAction("폴더로 옮기기") { onMove(); true },
+                CustomAccessibilityAction("삭제") { onDelete(); true },
+            )
+        } else Modifier,
         backgroundContent = {
             val toRight = state.dismissDirection == SwipeToDismissBoxValue.StartToEnd
             val toLeft = state.dismissDirection == SwipeToDismissBoxValue.EndToStart
@@ -182,3 +194,10 @@ internal fun SwipeRow(enabled: Boolean, onMove: () -> Unit, onDelete: () -> Unit
         Surface(color = MaterialTheme.colorScheme.background) { content() }
     }
 }
+
+/** 선택 모드에서는 체크 상자처럼(스크린리더가 "선택됨"을 읽는다), 평소에는 누르기·길게 누르기. */
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
+private fun Modifier.entryClick(selectionMode: Boolean, checked: Boolean, onClick: () -> Unit, onLongClick: () -> Unit): Modifier =
+    if (selectionMode) toggleable(value = checked, role = Role.Checkbox, onValueChange = { onClick() })
+    else combinedClickable(onClickLabel = "자세히 보기", onLongClickLabel = "여러 개 선택", onClick = onClick, onLongClick = onLongClick)
+

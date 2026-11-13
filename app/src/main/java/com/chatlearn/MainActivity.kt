@@ -9,8 +9,6 @@ import androidx.activity.SystemBarStyle
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.layout.consumeWindowInsets
-import androidx.compose.foundation.layout.padding
 import com.chatlearn.ui.theme.AppTheme
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -39,12 +37,26 @@ import com.chatlearn.ui.settings.SettingsScreen
 import com.chatlearn.ui.settings.SettingsViewModel
 import com.chatlearn.ui.translate.TranslateScreen
 import com.chatlearn.ui.translate.TranslateViewModel
+import com.chatlearn.ui.today.TodayScreen
+import com.chatlearn.ui.today.TodayViewModel
+import com.chatlearn.stats.StatsScreen
+import androidx.compose.foundation.layout.*
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.outlined.Bookmarks
+import androidx.compose.material.icons.outlined.Forum
+import androidx.compose.material.icons.outlined.Insights
+import androidx.compose.material.icons.outlined.WbSunny
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.unit.dp
 
 // androidx.activity의 enableEdgeToEdge 기본 내비게이션 바 스크림과 같은 값.
 private val LIGHT_NAV_SCRIM = android.graphics.Color.argb(0xe6, 0xFF, 0xFF, 0xFF)
 private val DARK_NAV_SCRIM = android.graphics.Color.argb(0x80, 0x1b, 0x1b, 0x1b)
 
-private enum class Tab(val label: String) { TRANSLATE("번역"), LIBRARY("라이브러리"), REVIEW("복습"), SETTINGS("설정") }
+private enum class Tab(val label: String) { TODAY("오늘"), TRANSLATE("번역"), LIBRARY("라이브러리"), GROWTH("성장") }
+
+/** 탭 위에 전체 화면으로 덮어 여는 곳. 뒤로가기로 닫으면 보던 탭으로 돌아간다. */
+private enum class Overlay { REVIEW, SETTINGS }
 
 class MainActivity : ComponentActivity() {
     // 공유·선택 메뉴로 넘어온 문장이나 알림·바로가기·위젯이 시킨 일. 화면이 처리하면 비운다.
@@ -98,6 +110,7 @@ class MainActivity : ComponentActivity() {
                 ReviewViewModel::class.java -> ReviewViewModel(c.reviewSession())
                 SettingsViewModel::class.java -> SettingsViewModel(c.settings, c.repo, c.ai, onReminderChanged = { on, hour -> c.reminders.apply(on, hour) })
                 StatsViewModel::class.java -> StatsViewModel(c.repo)
+                TodayViewModel::class.java -> TodayViewModel(c.reviewSession(), c.repo)
                 else -> error("unknown ViewModel")
             } as T
         }
@@ -115,20 +128,23 @@ class MainActivity : ComponentActivity() {
             }
             LaunchedEffect(themeMode) { themeMode?.let(::applyNightMode) }
             AppTheme(darkTheme = dark, dynamicColor = settings?.dynamicColor ?: false) {
-                // 회전·프로세스 재생성 뒤에도 보던 탭을 유지한다.
-                var tab by rememberSaveable { mutableStateOf<Tab?>(null) }
-                // 키가 없으면 첫 화면을 설정으로 안내한다
+                // 회전·프로세스 재생성 뒤에도 보던 탭과 덮어 연 화면을 유지한다.
+                var tab by rememberSaveable { mutableStateOf(Tab.TODAY) }
+                var overlay by rememberSaveable { mutableStateOf<Overlay?>(null) }
+                var firstRunChecked by rememberSaveable { mutableStateOf(false) }
                 val reviewVm: ReviewViewModel = viewModel(factory = factory)
                 val translateVm: TranslateViewModel = viewModel(factory = factory)
+                val todayVm: TodayViewModel = viewModel(factory = factory)
                 val windowInfo = androidx.compose.ui.platform.LocalWindowInfo.current
                 val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
+                fun openReview(start: () -> Unit) { start(); overlay = Overlay.REVIEW }
                 LaunchedEffect(pendingLaunch) {
                     when (val r = pendingLaunch ?: return@LaunchedEffect) {
-                        is LaunchRequest.Shared -> { translateVm.receiveShared(r.text); tab = Tab.TRANSLATE }
-                        LaunchRequest.Review -> { reviewVm.refresh(force = true); tab = Tab.REVIEW }
-                        is LaunchRequest.Compose -> { translateVm.setMode(r.mode); tab = Tab.TRANSLATE }
+                        is LaunchRequest.Shared -> { translateVm.receiveShared(r.text); overlay = null; tab = Tab.TRANSLATE }
+                        LaunchRequest.Review -> openReview { reviewVm.open() }
+                        is LaunchRequest.Compose -> { translateVm.setMode(r.mode); overlay = null; tab = Tab.TRANSLATE }
                         LaunchRequest.PasteTranslate -> {
-                            tab = Tab.TRANSLATE
+                            overlay = null; tab = Tab.TRANSLATE
                             translateVm.setMode(com.chatlearn.ui.translate.TranslateMode.RECEIVED)
                             // Android 10부터는 창이 포커스를 얻은 뒤에만 클립보드를 읽을 수 있다.
                             snapshotFlow { windowInfo.isWindowFocused }.first { it }
@@ -137,53 +153,79 @@ class MainActivity : ComponentActivity() {
                     }
                     pendingLaunch = null
                 }
-                // 첫 탭은 설정을 읽은 뒤 한 번만 정한다. 키를 저장하는 순간 탭이 바뀌거나, 읽기 전에 번역 탭이 잠깐 보이지 않게.
+                // 키가 없으면 처음 한 번만 설정을 연다. 공유·알림으로 열려 이미 다른 화면을 띄웠으면 그 화면을 덮지 않는다.
+                // 설정을 읽기 전에는 아무것도 그리지 않아 화면이 튀지 않는다.
                 LaunchedEffect(settings == null) {
-                    if (tab == null) settings?.let { tab = if (it.apiKey.isBlank()) Tab.SETTINGS else Tab.TRANSLATE }
+                    if (firstRunChecked) return@LaunchedEffect
+                    settings?.let {
+                        if (it.apiKey.isBlank() && tab == Tab.TODAY && overlay == null && pendingLaunch == null) overlay = Overlay.SETTINGS
+                        firstRunChecked = true
+                    }
                 }
-                val current = tab ?: return@AppTheme
+                if (!firstRunChecked) return@AppTheme
                 // 탭을 오갈 때 스크롤·필터·선택 같은 화면 상태를 탭마다 따로 보관한다.
                 val tabStates = rememberSaveableStateHolder()
-                // 첫 화면이 아닌 탭에서 뒤로가기를 누르면 앱을 끝내지 않고 번역 탭으로 돌아간다.
-                BackHandler(enabled = current != Tab.TRANSLATE) { tab = Tab.TRANSLATE }
-                Scaffold(
-                    bottomBar = {
-                        NavigationBar {
-                            Tab.entries.forEach { t ->
-                                NavigationBarItem(
-                                    selected = current == t, onClick = { tab = t }, label = { Text(t.label) },
-                                    icon = {
-                                        Icon(
-                                            when (t) {
-                                                Tab.TRANSLATE -> Icons.Default.Translate
-                                                Tab.LIBRARY -> Icons.Default.Book
-                                                Tab.REVIEW -> Icons.Default.Repeat
-                                                Tab.SETTINGS -> Icons.Default.Settings
-                                            }, null,
-                                        )
-                                    },
-                                )
+                val closeOverlay = { overlay = null; todayVm.refresh(); Unit }
+                when (overlay) {
+                    Overlay.REVIEW -> Surface(Modifier.fillMaxSize()) { ReviewScreen(reviewVm, settings?.voice() ?: VoicePrefs(), onClose = closeOverlay) }
+                    Overlay.SETTINGS -> Surface(Modifier.fillMaxSize()) {
+                        BackHandler(onBack = closeOverlay)
+                        Column(Modifier.fillMaxSize().systemBarsPadding()) {
+                            Row(Modifier.fillMaxWidth().heightIn(min = 56.dp), verticalAlignment = Alignment.CenterVertically) {
+                                IconButton(onClick = closeOverlay) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "뒤로") }
+                                Text("설정", style = MaterialTheme.typography.titleLarge)
                             }
+                            SettingsScreen(viewModel(factory = factory), onPreviewVoice = { lang -> c.tts.speak(voiceSample(lang), lang, false) })
                         }
-                    },
-                ) { pad ->
-                    Surface(Modifier.padding(pad).consumeWindowInsets(pad)) {
-                        Crossfade(targetState = current, animationSpec = tween(200), label = "tab") { shown ->
-                          tabStates.SaveableStateProvider(shown.name) {
-                            when (shown) {
-                                Tab.TRANSLATE -> TranslateScreen(translateVm, onSpeak = { text, lang -> c.tts.speak(text, lang, false) }, onOpenSettings = { tab = Tab.SETTINGS })
-                                Tab.LIBRARY -> LibraryScreen(
-                                    viewModel(factory = factory), onGoTranslate = { tab = Tab.TRANSLATE },
-                                    showGestureHint = settings?.libraryHintDismissed == false,
-                                    onDismissGestureHint = { lifecycleScope.launch { c.settings.dismissLibraryHint() } },
-                                ) { ids, lang ->
-                                    reviewVm.startWith(ids, lang)
-                                    tab = Tab.REVIEW
+                    }
+                    null -> {
+                        // 첫 화면(오늘)이 아닌 탭에서 뒤로가기를 누르면 앱을 끝내지 않고 오늘 탭으로 돌아간다.
+                        BackHandler(enabled = tab != Tab.TODAY) { tab = Tab.TODAY }
+                        val due = todayVm.ui.collectAsStateWithLifecycle().value?.due ?: 0
+                        Scaffold(
+                            bottomBar = {
+                                NavigationBar {
+                                    Tab.entries.forEach { t ->
+                                        NavigationBarItem(
+                                            selected = tab == t, onClick = { tab = t }, label = { Text(t.label) },
+                                            icon = {
+                                                val icon = when (t) {
+                                                    Tab.TODAY -> if (tab == t) Icons.Filled.WbSunny else Icons.Outlined.WbSunny
+                                                    Tab.TRANSLATE -> if (tab == t) Icons.Filled.Forum else Icons.Outlined.Forum
+                                                    Tab.LIBRARY -> if (tab == t) Icons.Filled.Bookmarks else Icons.Outlined.Bookmarks
+                                                    Tab.GROWTH -> if (tab == t) Icons.Filled.Insights else Icons.Outlined.Insights
+                                                }
+                                                if (t == Tab.TODAY && due > 0) BadgedBox(badge = { Badge { Text("$due") } }) { Icon(icon, contentDescription = "복습할 카드 ${due}장") }
+                                                else Icon(icon, contentDescription = null)
+                                            },
+                                        )
+                                    }
                                 }
-                                Tab.REVIEW -> ReviewScreen(reviewVm, viewModel(factory = factory), settings?.voice() ?: VoicePrefs())
-                                Tab.SETTINGS -> SettingsScreen(viewModel(factory = factory), onPreviewVoice = { lang -> c.tts.speak(voiceSample(lang), lang, false) })
+                            },
+                        ) { pad ->
+                            Surface(Modifier.padding(pad).consumeWindowInsets(pad)) {
+                                Crossfade(targetState = tab, animationSpec = tween(200), label = "tab") { shown ->
+                                    tabStates.SaveableStateProvider(shown.name) {
+                                        when (shown) {
+                                            Tab.TODAY -> TodayScreen(
+                                                todayVm,
+                                                onStartReview = { openReview { reviewVm.open() } },
+                                                onLearnMore = { openReview { reviewVm.learnMore(5) } },
+                                                onGoTranslate = { tab = Tab.TRANSLATE },
+                                                onOpenLibrary = { tab = Tab.LIBRARY },
+                                                onOpenSettings = { overlay = Overlay.SETTINGS },
+                                            )
+                                            Tab.TRANSLATE -> TranslateScreen(translateVm, onSpeak = { text, lang -> c.tts.speak(text, lang, false) }, onOpenSettings = { overlay = Overlay.SETTINGS })
+                                            Tab.LIBRARY -> LibraryScreen(
+                                                viewModel(factory = factory), onGoTranslate = { tab = Tab.TRANSLATE },
+                                                showGestureHint = settings?.libraryHintDismissed == false,
+                                                onDismissGestureHint = { lifecycleScope.launch { c.settings.dismissLibraryHint() } },
+                                            ) { ids, lang -> openReview { reviewVm.startWith(ids, lang) } }
+                                            Tab.GROWTH -> Box(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) { StatsScreen(viewModel(factory = factory)) }
+                                        }
+                                    }
+                                }
                             }
-                          }
                         }
                     }
                 }
