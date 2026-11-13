@@ -48,13 +48,16 @@ class LibraryViewModel(
     val sort = MutableStateFlow(LibrarySort.RECENT)
     val statusFilter = MutableStateFlow(StatusFilter.ALL)
 
-    private val all = repo.observeLibrary()
+    // 라이브러리와 통계 재료를 한 번씩만 구독해 아래 여러 상태가 나눠 쓴다. 따로 구독하면 바뀔 때마다 같은 전체 조회가 여러 번 돈다.
+    // 복습 기록만 바뀔 때는 라이브러리 목록을 다시 만들지 않는다.
+    private val all = repo.observeLibrary().shareIn(viewModelScope, SharingStarted.WhileSubscribed(5000), replay = 1)
+    private val source = repo.observeStatsInput(all).shareIn(viewModelScope, SharingStarted.WhileSubscribed(5000), replay = 1)
     private val _pendingDelete = MutableStateFlow<Long?>(null)
     /** 삭제를 눌렀지만 되돌릴 수 있는 문장. 목록에서는 이미 숨긴다. */
     val pendingDelete: StateFlow<Long?> = _pendingDelete.asStateFlow()
 
     /** 문장별 복습 상태(새 카드, 복습할 차례, N일 후)와 틀린 횟수. */
-    val progress: StateFlow<Map<Long, EntryProgress>> = repo.observeStatsInput()
+    val progress: StateFlow<Map<Long, EntryProgress>> = source
         .map { si -> val now = clock(); si.cards.groupBy { it.entryId }.mapValues { progressOf(it.value, now) } }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
 
@@ -80,10 +83,10 @@ class LibraryViewModel(
 
     /** 문장별 통계(복습 횟수, 기억 비율 등)를 계산할 재료. 상세 창에서 쓴다. */
     val statsInput: StateFlow<StatsInput?> =
-        repo.observeStatsInput().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
+        source.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
     /** 반대 언어 카드까지 가진(=확장된) 문장의 id. 텍스트만 있고 카드가 없는 문장은 포함되지 않는다. */
-    val expandedIds: StateFlow<Set<Long>> = repo.observeStatsInput()
+    val expandedIds: StateFlow<Set<Long>> = source
         .map { si -> si.cards.groupingBy { it.entryId }.eachCount().filterValues { it >= 2 }.keys }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptySet())
 

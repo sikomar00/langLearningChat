@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 30분마다 다시 그려 날짜가 바뀌거나 기한이 된 카드를 반영한다(시스템 최소 간격). -->
+<!-- 1시간마다 다시 그려 날짜가 바뀌거나 기한이 된 카드를 반영한다. 앱을 나갈 때와 알림 시각에도 바로 갱신한다. -->
 <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
     android:description="@string/widget_description"
     android:initialLayout="@layout/glance_default_loading_layout"
@@ -11,5 +11,5 @@
     android:targetCellWidth="3"
     android:targetCellHeight="2"
     android:resizeMode="horizontal|vertical"
-    android:updatePeriodMillis="1800000"
+    android:updatePeriodMillis="3600000"
     android:widgetCategory="home_screen" />

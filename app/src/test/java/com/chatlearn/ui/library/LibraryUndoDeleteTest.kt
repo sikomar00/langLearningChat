@@ -5,7 +5,9 @@ import com.chatlearn.data.*
 import com.chatlearn.domain.Direction
 import com.chatlearn.domain.Lang
 import com.chatlearn.expansion.ExpansionService
+import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
@@ -35,7 +37,12 @@ class LibraryUndoDeleteTest {
         db = inMemoryDb(); repo = EntryRepository(db)
         vm = LibraryViewModel(repo, ExpansionService(repo, FakeAiService(), { 1L }), undoWindowMs = 5_000)
     }
-    @After fun tearDown() { Dispatchers.resetMain(); db.close() }
+    @After fun tearDown() {
+        // 화면 흐름(Room 구독)이 다른 스레드에서 Main을 쓰는 중에 되돌리면 경합으로 가끔 실패한다: 먼저 멈춘다.
+        vm.viewModelScope.cancel()
+        db.close()
+        Dispatchers.resetMain()
+    }
 
     private suspend fun save(text: String) =
         (repo.saveEntry(EntryDraft(Direction.RECEIVED, Lang.EN, text, "한", "", null, emptyList()), 1) as SaveResult.Saved).id

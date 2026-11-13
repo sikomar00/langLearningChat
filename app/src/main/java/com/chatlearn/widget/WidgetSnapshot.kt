@@ -3,7 +3,6 @@ package com.chatlearn.widget
 import com.chatlearn.data.EntryRepository
 import com.chatlearn.review.ReviewSession
 import com.chatlearn.stats.StatsCalculator
-import kotlinx.coroutines.flow.first
 import java.time.ZoneId
 
 /** 홈 화면 위젯에 보여 줄 오늘 상태. [due]는 복습 탭의 "오늘 복습할 카드"와 같은 수다. */
@@ -12,9 +11,9 @@ data class WidgetSnapshot(val cards: Int, val due: Int, val goalDone: Int, val g
 suspend fun loadWidgetSnapshot(session: ReviewSession, repo: EntryRepository, now: Long, zone: ZoneId): WidgetSnapshot {
     val due = session.loadQueue().size
     val goal = session.todayProgress()
-    val input = repo.observeStatsInput().first()
-    val streak = StatsCalculator.compute(input.logs, input.cards, input.items, now, zone).streak
-    return WidgetSnapshot(input.cards.size, due, goal.done, goal.goal, streak)
+    // 전체 통계 대신 필요한 숫자만 읽는다(위젯은 자주 다시 그려진다).
+    val streak = StatsCalculator.streak(repo.reviewTimes(), now, zone)
+    return WidgetSnapshot(repo.countCards(), due, goal.done, goal.goal, streak)
 }
 
 fun widgetHeadline(s: WidgetSnapshot): String = when {

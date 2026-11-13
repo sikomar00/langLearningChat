@@ -41,12 +41,22 @@ class AppContainer(context: Context) {
         apiKey = { settings.currentApiKey() },
         model = { settings.currentModel() },
         onCall = { appScope.launch { settings.recordAiCall() } },
-        onHttpError = { code, body -> android.util.Log.w("GeminiAi", "HTTP $code: $body") },
+        // 응답 본문에는 번역한 대화가 들어 있을 수 있어 디버그 빌드에서만 남긴다.
+        onHttpError = { code, body -> if (debuggable) android.util.Log.w("GeminiAi", "HTTP $code: $body") },
     )
 
     // 설정한 억양·빠르기를 TTS가 매번 읽어 간다.
     @Volatile private var voicePrefs = com.chatlearn.settings.VoicePrefs()
-    val tts: Tts = AndroidTts(context) { voicePrefs }
+    // 음성 엔진은 화면을 열 때 연결한다. 알림·위젯·부팅 때 뜨는 프로세스는 쓰지 않는 엔진을 띄우지 않는다.
+    private val androidTts by lazy { AndroidTts(context) { voicePrefs } }
+    val tts: Tts = object : Tts {
+        override fun isAvailable(lang: com.chatlearn.domain.Lang) = androidTts.isAvailable(lang)
+        override fun speak(text: String, lang: com.chatlearn.domain.Lang, slow: Boolean) = androidTts.speak(text, lang, slow)
+        override fun stop() = androidTts.stop()
+    }
+
+    /** 첫 복습 카드 전에 엔진 초기화가 끝나 있도록 화면을 열 때 미리 연결한다. */
+    fun warmUpTts() { androidTts }
     val reminders = com.chatlearn.reminder.ReminderScheduler(context)
     val expansion = ExpansionService(repo, ai, System::currentTimeMillis)
     val keyPhrases = com.chatlearn.expansion.KeyPhraseService(repo, ai)

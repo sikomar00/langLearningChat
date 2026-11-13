@@ -2,7 +2,9 @@ package com.chatlearn.stats
 
 import com.chatlearn.data.*
 import com.chatlearn.domain.*
+import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
@@ -55,5 +57,7 @@ class StatsViewModelTest {
         assertEquals(Retention(2, 1), s.today)
         assertEquals(Retention(2, 1), s.byTag["Alex"])
         assertEquals(1, s.weakest.size)
+        // 계산이 다른 스레드에서 돌므로 Main을 되돌리기 전에 멈춘다(경합 방지).
+        vm.viewModelScope.cancel()
     }
 }
