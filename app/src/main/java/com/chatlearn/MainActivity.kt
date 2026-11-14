@@ -1,10 +1,9 @@
 package com.chatlearn
 
+import androidx.compose.material.icons.outlined.Settings
 import com.chatlearn.ui.library.LibrarySelectionBar
-import com.chatlearn.ui.library.LibrarySelectionTopBar
 import com.chatlearn.ui.library.LibraryDrawer
 import kotlinx.coroutines.flow.map
-import com.chatlearn.ui.components.BoardSearchBar
 import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -40,8 +39,6 @@ import com.chatlearn.ui.review.ReviewScreen
 import com.chatlearn.ui.review.ReviewViewModel
 import com.chatlearn.ui.settings.SettingsScreen
 import com.chatlearn.ui.settings.SettingsViewModel
-import com.chatlearn.ui.components.BoardTopBar
-import com.chatlearn.ui.components.BoardLabel
 import com.chatlearn.ui.theme.statusColors
 import com.chatlearn.ui.translate.TranslateScreen
 import com.chatlearn.ui.translate.TranslateViewModel
@@ -52,7 +49,6 @@ import com.chatlearn.ui.onboarding.OnboardingScreen
 import com.chatlearn.ui.today.TodayViewModel
 import com.chatlearn.stats.StatsScreen
 import androidx.compose.foundation.layout.*
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.outlined.Bookmarks
 import androidx.compose.material.icons.outlined.Forum
 import androidx.compose.material.icons.outlined.Insights
@@ -64,10 +60,10 @@ import androidx.compose.ui.unit.dp
 private val LIGHT_NAV_SCRIM = android.graphics.Color.argb(0xe6, 0xFF, 0xFF, 0xFF)
 private val DARK_NAV_SCRIM = android.graphics.Color.argb(0x80, 0x1b, 0x1b, 0x1b)
 
-private enum class Tab(val label: String) { TODAY("오늘"), TRANSLATE("번역"), LIBRARY("라이브러리"), GROWTH("성장") }
+private enum class Tab(val label: String) { TODAY("오늘"), TRANSLATE("번역"), LIBRARY("라이브러리"), GROWTH("성장"), SETTINGS("설정") }
 
 /** 탭 위에 전체 화면으로 덮어 여는 곳. 뒤로가기로 닫으면 보던 탭으로 돌아간다. */
-private enum class Overlay { REVIEW, SETTINGS, ONBOARDING }
+private enum class Overlay { REVIEW, ONBOARDING }
 
 class MainActivity : ComponentActivity() {
     // 공유·선택 메뉴로 넘어온 문장이나 알림·바로가기·위젯이 시킨 일. 화면이 처리하면 비운다.
@@ -146,8 +142,8 @@ class MainActivity : ComponentActivity() {
                 // 회전·프로세스 재생성 뒤에도 보던 탭과 덮어 연 화면을 유지한다.
                 var tab by rememberSaveable { mutableStateOf(Tab.TODAY) }
                 var overlay by rememberSaveable { mutableStateOf<Overlay?>(null) }
-                // 검은 안내판 막대가 맨 위에 있는 동안(탭·설정·복습) 상태 표시줄 아이콘은 흰색, 첫 안내 화면만 앱 밝기를 따른다.
-                val boardOnTop = overlay != Overlay.ONBOARDING
+                // 복습은 맨 위가 검은 안내판 띠라 상태 표시줄 아이콘이 흰색, 나머지(탭·첫 안내)는 앱 밝기를 따른다.
+                val boardOnTop = overlay == Overlay.REVIEW
                 DisposableEffect(dark, boardOnTop, overlay == null) {
                     enableEdgeToEdge(
                         statusBarStyle = if (boardOnTop) SystemBarStyle.dark(android.graphics.Color.TRANSPARENT)
@@ -210,15 +206,6 @@ class MainActivity : ComponentActivity() {
                             if (tryExample) { tab = Tab.TRANSLATE; translateVm.receiveShared(ONBOARDING_EXAMPLE) }
                         }
                     }
-                    Overlay.SETTINGS -> Surface(Modifier.fillMaxSize()) {
-                        BackHandler(onBack = closeOverlay)
-                        Column(Modifier.fillMaxSize().navigationBarsPadding().imePadding()) { // 노션 토큰·API 키 칸이 키보드에 가리지 않게
-                            BoardTopBar("설정", navigationIcon = {
-                                IconButton(onClick = closeOverlay) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "뒤로") }
-                            })
-                            SettingsScreen(viewModel(factory = factory), onPreviewVoice = { lang -> c.tts.speak(voiceSample(lang), lang, false) })
-                        }
-                    }
                     null -> {
                         // 첫 화면(오늘)이 아닌 탭에서 뒤로가기를 누르면 앱을 끝내지 않고 오늘 탭으로 돌아간다.
                         BackHandler(enabled = tab != Tab.TODAY) { tab = Tab.TODAY }
@@ -245,15 +232,6 @@ class MainActivity : ComponentActivity() {
                         val librarySelection by libraryVm.selection.collectAsStateWithLifecycle()
                         val selecting = tab == Tab.LIBRARY && librarySelection != null
                         Scaffold(
-                            topBar = {
-                                val query by libraryVm.query.collectAsStateWithLifecycle()
-                                if (selecting) LibrarySelectionTopBar(libraryVm)
-                                else if (tab == Tab.LIBRARY) BoardSearchBar(query, { libraryVm.query.value = it }) {
-                                    IconButton(onClick = { overlay = Overlay.SETTINGS }) { Icon(Icons.Default.Settings, contentDescription = "설정") }
-                                } else BoardTopBar(tab.label) {
-                                    IconButton(onClick = { overlay = Overlay.SETTINGS }) { Icon(Icons.Default.Settings, contentDescription = "설정") }
-                                }
-                            },
                             bottomBar = {
                                 // 라이브러리에서 고르는 동안은 아래 탭 자리가 행동 막대가 된다.
                                 if (selecting) LibrarySelectionBar(libraryVm) { ids, lang -> openReview { reviewVm.startWith(ids, lang) } }
@@ -267,6 +245,7 @@ class MainActivity : ComponentActivity() {
                                                     Tab.TRANSLATE -> if (tab == t) Icons.Filled.Forum else Icons.Outlined.Forum
                                                     Tab.LIBRARY -> if (tab == t) Icons.Filled.Bookmarks else Icons.Outlined.Bookmarks
                                                     Tab.GROWTH -> if (tab == t) Icons.Filled.Insights else Icons.Outlined.Insights
+                                                    Tab.SETTINGS -> if (tab == t) Icons.Filled.Settings else Icons.Outlined.Settings
                                                 }
                                                 if (t == Tab.TODAY && due > 0 && tab != Tab.TODAY) BadgedBox(badge = { Badge(containerColor = world.flap, contentColor = world.onFlap) { Text("$due") } }) { Icon(icon, contentDescription = "복습할 카드 ${due}장") }
                                                 else Icon(icon, contentDescription = null)
@@ -290,7 +269,7 @@ class MainActivity : ComponentActivity() {
                                                 onOpenSentence = { id -> libraryVm.open(id); tab = Tab.LIBRARY },
                                             )
                                             Tab.TRANSLATE -> TranslateScreen(
-                                                translateVm, onSpeak = { text, lang -> c.tts.speak(text, lang, false) }, onOpenSettings = { overlay = Overlay.SETTINGS },
+                                                translateVm, onSpeak = { text, lang -> c.tts.speak(text, lang, false) }, onOpenSettings = { tab = Tab.SETTINGS },
                                                 onOpenLibrary = { q -> libraryVm.showOnly(q); tab = Tab.LIBRARY },
                                                 onReplace = if (returnsText) { text -> setResult(RESULT_OK, Intent().putExtra(Intent.EXTRA_PROCESS_TEXT, text)); finish() } else null,
                                             )
@@ -300,6 +279,9 @@ class MainActivity : ComponentActivity() {
                                                 onDismissGestureHint = { lifecycleScope.launch { c.settings.dismissLibraryHint() } },
                                             ) { ids, lang -> openReview { reviewVm.startWith(ids, lang) } }
                                             Tab.GROWTH -> Box(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) { StatsScreen(viewModel(factory = factory), onPractice = practice, onOpenSentence = { id -> libraryVm.open(id); tab = Tab.LIBRARY }) }
+                                            Tab.SETTINGS -> Column(Modifier.fillMaxSize().imePadding()) { // 노션 토큰·API 키 칸이 키보드에 가리지 않게
+                                                SettingsScreen(viewModel(factory = factory), onPreviewVoice = { lang -> c.tts.speak(voiceSample(lang), lang, false) })
+                                            }
                                         }
                                     }
                                 }

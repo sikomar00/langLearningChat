@@ -1,5 +1,6 @@
 package com.chatlearn.ui.library
 
+import com.chatlearn.ui.components.FloatingSearchBar
 import com.chatlearn.ui.components.bleed
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
@@ -116,6 +117,7 @@ fun LibraryScreen(
     LaunchedEffect(newFolderRequest) { if (newFolderRequest) { folderDialog = FolderDialogKind.Create; vm.newFolderRequest.value = false } }
     Box(Modifier.fillMaxSize()) {
     Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        if (picked != null) LibrarySelectionHeader(vm)
         val unexpanded by vm.unexpanded.collectAsStateWithLifecycle()
         val missingKeys by vm.missingKeyPhrases.collectAsStateWithLifecycle()
         val expanding by vm.expanding.collectAsStateWithLifecycle()
@@ -329,8 +331,10 @@ fun LibraryScreen(
             }
         }
         if (compact && items.isNotEmpty() && picked == null) BoardColumns()
+        // 아래 떠 있는 검색 막대가 마지막 줄을 가리지 않게 여백을 둔다.
         LazyColumn(
             state = listState, verticalArrangement = Arrangement.spacedBy(if (compact) 0.dp else 8.dp),
+            contentPadding = PaddingValues(bottom = if (picked == null) 72.dp else 0.dp),
         ) {
             groups.forEach { g ->
                 if (g.title != null) stickyHeader(key = "header-${g.key}") { GroupHeader(g.title, g.items.size) }
@@ -355,7 +359,11 @@ fun LibraryScreen(
         }
     }
 
-    SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter))
+    if (picked == null) FloatingSearchBar(
+        query, { vm.query.value = it },
+        Modifier.align(Alignment.BottomCenter).imePadding().padding(horizontal = 16.dp, vertical = 8.dp).fillMaxWidth(),
+    )
+    SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter).padding(bottom = 64.dp))
     }
     selected?.let { item -> DetailDialog(item, item.entry.id in expandedIds, recentTags, folders, vm, onReview = { onStartReview(setOf(item.entry.id), null); selectedId = null }) { selectedId = null } }
     if (managingTags) TagManagerDialog(tags, vm) { managingTags = false }

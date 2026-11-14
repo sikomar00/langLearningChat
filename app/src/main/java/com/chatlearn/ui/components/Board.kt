@@ -1,5 +1,6 @@
 package com.chatlearn.ui.components
 
+import androidx.compose.material3.Surface
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.TextField
@@ -55,30 +56,27 @@ fun BoardTopBar(title: String, navigationIcon: @Composable () -> Unit = {}, acti
 
 /** 안내판 막대 안의 검색칸: 검은 판 위 한 단 밝은 칸. 라이브러리 탭의 맨 위. */
 @OptIn(ExperimentalMaterial3Api::class)
+/** 라이브러리 아래에 떠 있는 검색 막대: 엄지가 닿는 자리, 검은 판 8dp. 키보드가 올라오면 함께 올라온다. */
 @Composable
-fun BoardSearchBar(query: String, onQueryChange: (String) -> Unit, actions: @Composable RowScope.() -> Unit = {}) {
+fun FloatingSearchBar(query: String, onQueryChange: (String) -> Unit, modifier: Modifier = Modifier) {
     val c = MaterialTheme.statusColors
-    TopAppBar(
-        title = {
-            TextField(
-                query, onQueryChange, Modifier.fillMaxWidth().padding(end = 4.dp), singleLine = true,
-                placeholder = { Text("문장, 뜻, 친구 이름 검색") },
-                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
-                trailingIcon = if (query.isNotEmpty()) ({ IconButton(onClick = { onQueryChange("") }) { Icon(Icons.Default.Close, contentDescription = "검색어 지우기") } }) else null,
-                shape = MaterialTheme.shapes.extraLarge,
-                colors = TextFieldDefaults.colors(
-                    focusedContainerColor = c.boardRaised, unfocusedContainerColor = c.boardRaised,
-                    focusedTextColor = c.onBoard, unfocusedTextColor = c.onBoard, cursorColor = c.flap,
-                    focusedPlaceholderColor = c.onBoardMuted, unfocusedPlaceholderColor = c.onBoardMuted,
-                    focusedLeadingIconColor = c.onBoardMuted, unfocusedLeadingIconColor = c.onBoardMuted,
-                    focusedTrailingIconColor = c.onBoard, unfocusedTrailingIconColor = c.onBoard,
-                    focusedIndicatorColor = Color.Transparent, unfocusedIndicatorColor = Color.Transparent,
-                ),
-            )
-        },
-        actions = actions,
-        colors = TopAppBarDefaults.topAppBarColors(containerColor = c.board, actionIconContentColor = c.onBoard),
-    )
+    Surface(color = c.board, contentColor = c.onBoard, shape = MaterialTheme.shapes.medium, modifier = modifier) {
+        TextField(
+            query, onQueryChange, Modifier.fillMaxWidth(), singleLine = true,
+            placeholder = { Text("문장, 뜻, 친구 이름 검색") },
+            leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+            trailingIcon = if (query.isNotEmpty()) ({ IconButton(onClick = { onQueryChange("") }) { Icon(Icons.Default.Close, contentDescription = "검색어 지우기") } }) else null,
+            shape = MaterialTheme.shapes.medium,
+            colors = TextFieldDefaults.colors(
+                focusedContainerColor = c.board, unfocusedContainerColor = c.board,
+                focusedTextColor = c.onBoard, unfocusedTextColor = c.onBoard, cursorColor = c.flap,
+                focusedPlaceholderColor = c.onBoardMuted, unfocusedPlaceholderColor = c.onBoardMuted,
+                focusedLeadingIconColor = c.onBoardMuted, unfocusedLeadingIconColor = c.onBoardMuted,
+                focusedTrailingIconColor = c.onBoard, unfocusedTrailingIconColor = c.onBoard,
+                focusedIndicatorColor = Color.Transparent, unfocusedIndicatorColor = Color.Transparent,
+            ),
+        )
+    }
 }
 
 /** 출발 안내판의 플랩처럼 글자가 바뀔 때 위에서 넘어 들어온다(짧게, 상태가 바뀔 때만). */
