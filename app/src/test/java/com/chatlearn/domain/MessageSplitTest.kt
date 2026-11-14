@@ -36,4 +36,10 @@ class MessageSplitTest {
         assertEquals(listOf("Lucia: Hola" to false, "Qué tal" to true, "Bien" to false), contextLines(ctx))
         assertEquals(listOf("just a reply\nsecond line" to false), contextLines("just a reply\nsecond line"))
     }
+
+    @Test fun countryChoicesPutTheSentenceLanguageFirst() {
+        assertEquals(listOf("스페인", "멕시코"), countryChoicesFor(Lang.ES).take(2))
+        assertEquals("미국", countryChoicesFor(Lang.EN).first())
+        assertEquals(COUNTRY_CHOICES, countryChoicesFor(null))
+    }
 }

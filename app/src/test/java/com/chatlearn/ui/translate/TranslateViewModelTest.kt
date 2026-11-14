@@ -17,6 +17,7 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import kotlinx.coroutines.withTimeout
 import kotlin.test.*
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -585,5 +586,14 @@ class TranslateViewModelTest {
         vm.setMode(TranslateMode.SENT); vm.setTarget(Lang.ES)
         repeat(2) { vm.setInput("너 오면 좋겠다"); vm.translate().join(); vm.onCandidateCopied(vm.state.value.candidates.single()).join() }
         assertEquals(1, db.dao().allGrammarEvents().size)
+    }
+
+    @Test fun pickingAFriendAlsoPicksTheCountryLastUsedWithThem() = runBlocking {
+        repo.saveEntry(EntryDraft(Direction.RECEIVED, Lang.ES, "Hola", "안녕", "", null, emptyList(), people = listOf("Lucia"), countries = listOf("스페인")), 500)
+        vm.togglePerson("Lucia")
+        withTimeout(5_000) { vm.state.first { "스페인" in it.countries } }
+        // 이미 고른 나라가 있으면 바꾸지 않는다.
+        vm.togglePerson("Lucia"); vm.toggleCountry("멕시코"); vm.togglePerson("Lucia")
+        assertEquals(setOf("멕시코"), vm.state.value.countries - "스페인")
     }
 }

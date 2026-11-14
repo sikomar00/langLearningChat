@@ -190,6 +190,7 @@ class EntryRepository(internal val db: AppDatabase) {
 
     /** [kind] 종류의 태그만 최근 사용 순으로. 저장할 때 사람·나라 칩에 쓴다. */
     fun observeRecentTags(kind: TagKind): Flow<List<String>> = dao.observeTagsByRecency(kind)
+    suspend fun lastCountryWith(person: String): String? = dao.lastCountryWith(person)
 
     suspend fun queue(now: Long, dayStart: Long, newPerDay: Int, maxReviews: Int = Scheduler.DEFAULT_MAX_REVIEWS, extraNew: Int = 0): List<DueCard> {
         val reviews = dao.dueReviewed(now, maxReviews)

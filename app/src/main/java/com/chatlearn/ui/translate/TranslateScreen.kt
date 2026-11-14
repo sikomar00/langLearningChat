@@ -1,5 +1,9 @@
 package com.chatlearn.ui.translate
 
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.ExpandLess
 import com.chatlearn.ui.components.ChoiceChip
 import com.chatlearn.ui.components.SecondaryButton
 import com.chatlearn.domain.langLabel
@@ -54,7 +58,10 @@ fun TranslateScreen(
         if (android.os.Build.VERSION.SDK_INT < 33) android.widget.Toast.makeText(ctx, "복사했어요", android.widget.Toast.LENGTH_SHORT).show()
     }
 
-    Column(Modifier.fillMaxSize().imePadding().padding(16.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+    // 받은 말을 번역한 뒤에는 저장이 화면 밖으로 밀리지 않게 아래에 붙인다.
+    val showSaveBar = s.mode == TranslateMode.RECEIVED && s.received != null
+    Column(Modifier.fillMaxSize().imePadding()) {
+    Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
             TranslateMode.entries.forEachIndexed { i, m ->
                 SegmentedButton(
@@ -81,7 +88,9 @@ fun TranslateScreen(
             )
         }
         OutlinedTextField(
-            value = s.input, onValueChange = vm::setInput, modifier = Modifier.fillMaxWidth(), minLines = if (s.mode == TranslateMode.CORRECT) 2 else 3,
+            value = s.input, onValueChange = vm::setInput, modifier = Modifier.fillMaxWidth(),
+            // 결과가 나오면 입력은 한 줄로 접는다(결과와 저장이 먼저 보이게).
+            minLines = if (showSaveBar) 1 else if (s.mode == TranslateMode.CORRECT) 2 else 3, maxLines = if (showSaveBar) 1 else Int.MAX_VALUE,
             label = {
                 Text(when (s.mode) {
                     TranslateMode.RECEIVED -> "친구가 보낸 메시지를 붙여넣기"
@@ -103,7 +112,8 @@ fun TranslateScreen(
             },
         )
         // 저장할 때 함께 붙는 정보(친구·나라·태그·알게 된 날): 입력칸과 확인 사이를 막지 않게 결과 탑승권의 떼는 칸에 둔다.
-        val details: @Composable () -> Unit = {
+        @Composable
+        fun detailsBody(withPeople: Boolean) {
           Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             var tagFocused by remember { mutableStateOf(false) }
             var showTag by rememberSaveable { mutableStateOf(false) }
@@ -122,7 +132,7 @@ fun TranslateScreen(
                     }
                 }
             }
-            PeopleCountryPicker(vm)
+            PeopleCountryPicker(vm, showPeople = withPeople, lang = s.received?.detectedLang ?: s.targetLang.takeIf { s.mode != TranslateMode.RECEIVED })
             // 알게 된 날: 지난 대화를 옮겨 적을 때 그날로 기록한다. 고른 날짜는 저장 뒤에도 남는다.
             var pickingDate by remember { mutableStateOf(false) }
             val today = remember { java.time.LocalDate.now() }
@@ -145,9 +155,15 @@ fun TranslateScreen(
             )
           }
         }
+        val details: @Composable () -> Unit = { detailsBody(true) }
         // 키보드가 결과와 저장 버튼을 가리지 않게 번역을 누르면 내린다.
         val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
-        Button(shape = MaterialTheme.shapes.medium, onClick = { focusManager.clearFocus(); vm.translate() }, enabled = s.input.isNotBlank() && !s.loading, modifier = Modifier.fillMaxWidth()) {
+        if (showSaveBar) {
+            // 이미 번역했으면 다시 하는 일은 보조: 주 버튼은 아래 "저장" 하나.
+            TextButton(onClick = { focusManager.clearFocus(); vm.translate() }, enabled = s.input.isNotBlank() && !s.loading, modifier = Modifier.align(Alignment.End)) {
+                if (s.loading) ButtonSpinner() else Text("다시 번역")
+            }
+        } else Button(shape = MaterialTheme.shapes.medium, onClick = { focusManager.clearFocus(); vm.translate() }, enabled = s.input.isNotBlank() && !s.loading, modifier = Modifier.fillMaxWidth()) {
             val lineCount = if (s.mode == TranslateMode.RECEIVED) splitMessages(s.input).size else 0
             if (s.loading) ButtonSpinner()
             else Text(if (lineCount >= 2) "문장별로 번역 (${lineCount}개)" else if (s.mode == TranslateMode.CORRECT) "확인" else "번역")
@@ -225,13 +241,33 @@ fun TranslateScreen(
             // 친구가 보낸 말 → 한국어 탑승권: 머리띠에 경로, 맨 위 FROM 칸에 원문(단어를 누르면 그 자리에서 뜻), 그 아래 뜻,
             // 절취선 아래 핵심 표현과 저장.
             Ticket(route = "${r.detectedLang?.let(::langLabel) ?: "외국어"} → 한국어", stub = {
-                details()
-                OutlinedTextField(
-                    s.keyPhrase, vm::setKeyPhrase, modifier = Modifier.fillMaxWidth(), singleLine = true,
-                    label = { Text("핵심 표현(고칠 수 있어요)") },
-                    supportingText = { Text("복습의 빈칸 채우기에서 이 표현을 맞히게 돼요.") },
-                )
-                Button(shape = MaterialTheme.shapes.medium, onClick = { vm.saveReceived() }, modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp)) { Text("저장") }
+                // 친구는 늘 보이고, 나라·태그·날짜·핵심 표현은 요약 한 줄로 접어 둔다.
+                PeopleCountryPicker(vm, showCountries = false)
+                var more by rememberSaveable { mutableStateOf(false) }
+                val today = remember { java.time.LocalDate.now() }
+                val summary = listOf(
+                    s.countries.joinToString(", ").ifEmpty { "나라 없음" },
+                    learnedLabel(s.learnedOn, today),
+                    s.tag.takeIf { it.isNotBlank() }?.let { "#$it" },
+                    s.keyPhrase.takeIf { it.isNotBlank() }?.let { "핵심 $it" },
+                ).filterNotNull().joinToString(" · ")
+                Row(
+                    Modifier.fillMaxWidth().heightIn(min = 48.dp)
+                        .clickable(role = Role.Button, onClickLabel = if (more) "접기" else "나라·날짜·태그·핵심 표현 고치기") { more = !more }
+                        .semantics { stateDescription = if (more) "펼쳐짐" else "접힘" },
+                    verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Text(summary, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2)
+                    Icon(if (more) Icons.Default.ExpandLess else Icons.Default.ExpandMore, contentDescription = null)
+                }
+                if (more) {
+                    detailsBody(withPeople = false)
+                    OutlinedTextField(
+                        s.keyPhrase, vm::setKeyPhrase, modifier = Modifier.fillMaxWidth(), singleLine = true,
+                        label = { Text("핵심 표현(고칠 수 있어요)") },
+                        supportingText = { Text("복습의 빈칸 채우기에서 이 표현을 맞히게 돼요.") },
+                    )
+                }
             }) {
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
                     textChunks(s.source).forEach { chunk ->
@@ -305,6 +341,14 @@ fun TranslateScreen(
                     }
             }
         }
+    }
+    if (showSaveBar) {
+        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+        Button(
+            shape = MaterialTheme.shapes.medium, onClick = { vm.saveReceived() },
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp).heightIn(min = 52.dp),
+        ) { Text("저장") }
+    }
     }
 }
 

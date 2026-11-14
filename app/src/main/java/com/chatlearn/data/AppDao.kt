@@ -51,6 +51,13 @@ interface AppDao {
     @Query("SELECT id FROM tag WHERE name = :name") suspend fun findTagId(name: String): Long?
     @Query("SELECT * FROM tag WHERE name = :name") suspend fun findTag(name: String): TagEntity?
     @Query("UPDATE tag SET kind = :kind WHERE id = :id") suspend fun setTagKind(id: Long, kind: com.chatlearn.domain.TagKind)
+    /** [person] 태그가 붙은 가장 최근 문장에 함께 붙은 나라 태그. */
+    @Query(
+        "SELECT c.name FROM tag p JOIN entry_tag ep ON ep.tagId = p.id JOIN entry e ON e.id = ep.entryId " +
+            "JOIN entry_tag ec ON ec.entryId = e.id JOIN tag c ON c.id = ec.tagId " +
+            "WHERE p.name = :person AND c.kind = 'COUNTRY' ORDER BY e.createdAt DESC, e.id DESC LIMIT 1"
+    )
+    suspend fun lastCountryWith(person: String): String?
     @Query("SELECT name FROM tag WHERE kind = :kind AND id IN (SELECT tagId FROM entry_tag) ORDER BY lastUsedAt DESC, id DESC")
     fun observeTagsByRecency(kind: com.chatlearn.domain.TagKind): Flow<List<String>>
     @Query("UPDATE tag SET lastUsedAt = :at WHERE id = :id") suspend fun touchTag(id: Long, at: Long)

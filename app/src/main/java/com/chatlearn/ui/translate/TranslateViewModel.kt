@@ -114,7 +114,19 @@ class TranslateViewModel(
     // 대화에서 자동으로 골라 둔 친구. 다음 대화를 붙여 넣으면 이 사람만 빼고 새로 고른다(직접 고른 사람은 남긴다).
     private var autoPicked: String? = null
 
-    fun togglePerson(name: String) = _state.update { it.copy(people = it.people.toggle(name.trim())) }
+    fun togglePerson(name: String) {
+        _state.update { it.copy(people = it.people.toggle(name.trim())) }
+        fillCountryFor(name.trim())
+    }
+
+    /** 나라를 아직 안 골랐으면, 그 친구와 마지막으로 붙였던 나라를 고른다(같은 친구는 대개 같은 나라). */
+    private fun fillCountryFor(person: String) {
+        if (person !in _state.value.people || _state.value.countries.isNotEmpty()) return
+        viewModelScope.launch {
+            val country = repo.lastCountryWith(person) ?: return@launch
+            _state.update { if (person in it.people && it.countries.isEmpty()) it.copy(countries = setOf(country)) else it }
+        }
+    }
     fun toggleCountry(name: String) = _state.update { it.copy(countries = it.countries.toggle(name.trim())) }
     private fun Set<String>.toggle(x: String) = if (x.isEmpty()) this else if (x in this) this - x else this + x
 
@@ -235,6 +247,7 @@ class TranslateViewModel(
                 st.copy(speakers = speakers, people = friend?.let { kept + it } ?: kept)
             }
             autoPicked = friend
+            friend?.let(::fillCountryFor)
         }
         if (lines.size >= 2) {
             _state.update { it.copy(truncated = parsed!!.truncated) }
