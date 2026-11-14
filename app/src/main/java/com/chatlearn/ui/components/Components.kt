@@ -83,13 +83,21 @@ fun SwitchRow(title: String, description: String?, checked: Boolean, onCheckedCh
     }
 }
 
-/** 제목이 있는 묶음: 가는 구분선 아래 제목과 내용(바탕을 칠하지 않는다). */
+/**
+ * 제목이 있는 묶음: 대합실 바탕 위에 흰 탑승권 용지 판 하나(1dp 테두리, 8dp 모서리). 판과 판 사이의 회색 틈이 구역을 나눈다.
+ * 선 하나로만 나누면 구역이 이어져 보여서(사용자 지적) 판으로 바꿨다.
+ */
 @Composable
 fun SectionCard(title: String, modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
-    Column(modifier.fillMaxWidth()) {
-        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-        Column(Modifier.padding(vertical = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text(title, style = MaterialTheme.typography.titleMedium, modifier = Modifier.semantics { heading() })
+    Surface(
+        modifier.fillMaxWidth(), color = MaterialTheme.colorScheme.surfaceContainerLowest, shape = MaterialTheme.shapes.medium,
+        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+    ) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Text(
+                title, style = MaterialTheme.typography.titleMedium, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
+                modifier = Modifier.semantics { heading() },
+            )
             content()
         }
     }

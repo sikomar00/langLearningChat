@@ -14,6 +14,7 @@ import androidx.compose.material.icons.filled.SearchOff
 import com.chatlearn.ui.components.EmptyState
 import com.chatlearn.ui.components.LoadingBox
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.FolderOpen
@@ -97,6 +98,15 @@ fun LibraryScreen(
     val visibleIds = items.map { it.entry.id }.toSet()
     val chosen = picked?.intersect(visibleIds).orEmpty()
 
+    val drawer = rememberDrawerState(DrawerValue.Closed)
+    val drawerScope = rememberCoroutineScope()
+    BackHandler(enabled = drawer.isOpen) { drawerScope.launch { drawer.close() } }
+    // 서랍은 버튼으로만 연다(문장 줄의 오른쪽 밀기 = 폴더 이동과 겹치지 않게). 열린 뒤에는 밀어서 닫을 수 있다.
+    ModalNavigationDrawer(
+        drawerState = drawer, gesturesEnabled = drawer.isOpen,
+        drawerContent = { LibraryDrawer(vm, onNewFolder = { folderDialog = FolderDialogKind.Create }, close = { drawerScope.launch { drawer.close() } }) },
+    ) {
+    Box(Modifier.fillMaxSize()) {
     Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         if (picked != null) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -133,27 +143,23 @@ fun LibraryScreen(
         var groupBy by remember { mutableStateOf(GroupBy.entries.firstOrNull { it.name == uiPrefs.getString("library_group", null) } ?: GroupBy.STATE) }
         var compact by remember { mutableStateOf(uiPrefs.getBoolean("library_compact", true)) }
         var menuOpen by remember { mutableStateOf(false) }
-        // 상태는 늘 보이는 칩 줄에 있으니 접힌 필터 수에는 세지 않는다.
-        val activeFilters = listOf(lang != null, tag != null, sort != LibrarySort.RECENT).count { it }
+        // 폴더·친구·상태는 서랍에서 고르니 필터 수에는 언어·주제 태그·정렬만 센다.
+        val activeFilters = listOf(lang != null, tag != null && tag !in people, sort != LibrarySort.RECENT).count { it }
 
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-            // 폴더: 전체 / 폴더 없음 / 각 폴더 / 새 폴더
-            LazyRow(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                item { FilterChip(selected = folderFilter == null, onClick = { vm.folderFilter.value = null }, label = { Text("전체") }) }
-                if (folders.isNotEmpty() && (folderCounts[FOLDER_UNFILED] ?: 0) > 0) item {
-                    FilterChip(
-                        selected = folderFilter == FOLDER_UNFILED, onClick = { vm.folderFilter.value = if (folderFilter == FOLDER_UNFILED) null else FOLDER_UNFILED },
-                        label = { Text("폴더 없음 ${folderCounts[FOLDER_UNFILED] ?: 0}") },
-                    )
-                }
-                items(folders, key = { it.id }) { f ->
-                    FilterChip(
-                        selected = folderFilter == f.id, onClick = { vm.folderFilter.value = if (folderFilter == f.id) null else f.id },
-                        leadingIcon = { Icon(if (folderFilter == f.id) Icons.Default.FolderOpen else Icons.Default.Folder, contentDescription = null, Modifier.size(18.dp)) },
-                        label = { Text("${f.name} ${folderCounts[f.id] ?: 0}") },
-                    )
-                }
-                item { AssistChip(onClick = { folderDialog = FolderDialogKind.Create }, label = { Text("새 폴더") }, leadingIcon = { Icon(Icons.Default.CreateNewFolder, contentDescription = null, Modifier.size(18.dp)) }) }
+            IconButton(onClick = { drawerScope.launch { drawer.open() } }) { Icon(Icons.Default.Menu, contentDescription = "폴더·친구·상태 고르기") }
+            // 지금 보는 곳: 폴더 · 친구 · 상태와 문장 수(안내판 숫자). 누르면 서랍이 열린다.
+            val where = listOfNotNull(
+                folders.firstOrNull { it.id == folderFilter }?.name ?: if (folderFilter == FOLDER_UNFILED) "폴더 없음" else "전체",
+                tag?.takeIf { it in people },
+                statusFilter.takeIf { it != StatusFilter.ALL }?.label,
+            ).joinToString(" · ")
+            Row(
+                Modifier.weight(1f).clickable(onClickLabel = "폴더·친구·상태 고르기") { drawerScope.launch { drawer.open() } },
+                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Text(where, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+                Text("${items.size}", style = MaterialTheme.typography.titleMedium.board(), color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             TextButton(onClick = { showFilters = !showFilters }) { Text(if (activeFilters > 0) "필터 · $activeFilters" else "필터") }
             if (tags.isNotEmpty() || unexpanded > 0 || missingKeys > 0) {
@@ -192,20 +198,6 @@ fun LibraryScreen(
                 TextButton(onClick = { folderDialog = FolderDialogKind.Delete(f) }) { Text("폴더 삭제", color = MaterialTheme.colorScheme.error) }
             }
         }
-        // 익힌 단계와 자동 묶음: 수가 있는 칩만, 수는 안내판 숫자로. 위 폴더 줄에 "전체"가 있어 여기서는 다시 누르면 풀린다.
-        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            items(StatusFilter.entries.filter { it != StatusFilter.ALL && (it == statusFilter || (statusCounts[it] ?: 0) > 0) }) { f ->
-                FilterChip(
-                    selected = statusFilter == f, onClick = { vm.statusFilter.value = if (statusFilter == f) StatusFilter.ALL else f },
-                    label = {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(f.label)
-                            Text(" ${statusCounts[f] ?: 0}", style = MaterialTheme.typography.labelLarge.board())
-                        }
-                    },
-                )
-            }
-        }
         if (showFilters) {
             LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                 item { Text("언어·태그", style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(end = 4.dp)) }
@@ -216,22 +208,13 @@ fun LibraryScreen(
                     FilterChip(selected = tag == t, onClick = { vm.tagFilter.value = if (tag == t) null else t }, label = { Text(t) })
                 }
             }
-            if (people.isNotEmpty()) LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                item { Text("친구", style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(end = 4.dp)) }
-                items(people) { t ->
-                    FilterChip(
-                        selected = tag == t, onClick = { vm.tagFilter.value = if (tag == t) null else t }, label = { Text(t) },
-                        leadingIcon = { Icon(Icons.Default.Person, contentDescription = null, Modifier.size(18.dp)) },
-                    )
-                }
-            }
             LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                 items(LibrarySort.entries.toList()) { o ->
                     FilterChip(selected = sort == o, onClick = { vm.sort.value = o }, label = { Text(o.label) })
                 }
                 if (activeFilters > 0) item {
                     TextButton(onClick = {
-                        vm.langFilter.value = null; vm.tagFilter.value = null
+                        vm.langFilter.value = null; if (tag !in people) vm.tagFilter.value = null
                         vm.sort.value = LibrarySort.RECENT
                     }) { Text("초기화") }
                 }
@@ -371,7 +354,9 @@ fun LibraryScreen(
         }
     }
 
-    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.BottomCenter) { SnackbarHost(snackbar) }
+    SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter))
+    }
+    }
     selected?.let { item -> DetailDialog(item, item.entry.id in expandedIds, recentTags, folders, vm, onReview = { onStartReview(setOf(item.entry.id), null); selectedId = null }) { selectedId = null } }
     if (managingTags) TagManagerDialog(tags, vm) { managingTags = false }
 }
