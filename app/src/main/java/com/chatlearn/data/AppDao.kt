@@ -112,6 +112,7 @@ interface AppDao {
     @Query("DELETE FROM folder") suspend fun deleteAllFolders()
 
     @Query("UPDATE entry SET note = :note WHERE id = :id") suspend fun updateNote(id: Long, note: String)
+    @Query("UPDATE entry SET notionPageId = :pageId WHERE id = :id") suspend fun setNotionPageId(id: Long, pageId: String?)
     @Query("DELETE FROM entry WHERE id = :id") suspend fun deleteEntry(id: Long)
 
     @Query("SELECT * FROM entry") suspend fun allEntries(): List<EntryEntity>

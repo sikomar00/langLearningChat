@@ -114,8 +114,11 @@ fun LibraryScreen(
                 }
                 TextButton(onClick = { picked = null }) { Text("취소") }
             }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            val sendingToNotion by vm.sendingToNotion.collectAsStateWithLifecycle()
+            @OptIn(ExperimentalLayoutApi::class)
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Button(enabled = chosen.isNotEmpty(), onClick = { onStartReview(chosen, lang); picked = null }) { Text("선택 복습") }
+                OutlinedButton(enabled = chosen.isNotEmpty() && !sendingToNotion, onClick = { vm.sendToNotion(chosen) }) { Text(if (sendingToNotion) "보내는 중…" else "노션") }
                 OutlinedButton(enabled = chosen.isNotEmpty(), onClick = { moveTargets = chosen }) {
                     Icon(Icons.Default.Folder, contentDescription = null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("폴더로")
                 }
@@ -247,6 +250,8 @@ fun LibraryScreen(
         }
         // 결과 안내는 잠시 보여 주고 저절로 지운다. 다시 해 볼 일이 남은 안내는 누를 때까지 둔다.
         val a11y = androidx.compose.ui.platform.LocalAccessibilityManager.current
+        val notionReport by vm.notionReport.collectAsStateWithLifecycle()
+        LaunchedEffect(notionReport) { notionReport?.let { notice = notionNotice(it); vm.notionReported() } }
         LaunchedEffect(notice) {
             val n = notice ?: return@LaunchedEffect
             if (n.sticky) return@LaunchedEffect

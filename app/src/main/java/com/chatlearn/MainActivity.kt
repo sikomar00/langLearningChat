@@ -99,6 +99,7 @@ class MainActivity : ComponentActivity() {
         if (savedInstanceState == null) pendingLaunch = launchRequestOf(intent)
         val c = (application as ChatLearnApp).container
         c.warmUpTts()
+        if (savedInstanceState == null) c.runAutoBackupIfDue()
         // 예약이 사라졌을 수 있으니(강제 종료, 설정 변경) 앱을 열 때마다 설정대로 다시 맞춘다.
         lifecycleScope.launch { c.settings.settings.first().let { c.reminders.apply(it.reminderEnabled, it.reminderHour) } }
         val factory = object : ViewModelProvider.Factory {
@@ -112,9 +113,12 @@ class MainActivity : ComponentActivity() {
                         savedTarget = { if (c.settings.settings.first().sentTarget == "ES") com.chatlearn.domain.Lang.ES else com.chatlearn.domain.Lang.EN },
                         rememberTarget = { c.settings.setSentTarget(it.name) },
                     )
-                LibraryViewModel::class.java -> LibraryViewModel(c.repo, c.expansion, keyPhraseService = c.keyPhrases)
+                LibraryViewModel::class.java -> LibraryViewModel(c.repo, c.expansion, keyPhraseService = c.keyPhrases, notion = c.notion)
                 ReviewViewModel::class.java -> ReviewViewModel(c.reviewSession())
-                SettingsViewModel::class.java -> SettingsViewModel(c.settings, c.repo, c.ai, onReminderChanged = { on, hour -> c.reminders.apply(on, hour) })
+                SettingsViewModel::class.java -> SettingsViewModel(
+                    c.settings, c.repo, c.ai, onReminderChanged = { on, hour -> c.reminders.apply(on, hour) },
+                    notionTokenStore = c.notionToken, notion = c.notionClient,
+                )
                 StatsViewModel::class.java -> StatsViewModel(c.repo)
                 TodayViewModel::class.java -> TodayViewModel(c.reviewSession(), c.repo)
                 else -> error("unknown ViewModel")

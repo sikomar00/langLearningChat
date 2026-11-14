@@ -11,6 +11,7 @@ import com.chatlearn.settings.AppSettings
 import com.chatlearn.settings.SettingsRepository
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -18,6 +19,8 @@ import kotlinx.coroutines.launch
 class SettingsViewModel(private val settings: SettingsRepository, private val repo: EntryRepository, private val ai: AiService,
     private val onReminderChanged: (Boolean, Int) -> Unit = { _, _ -> },
     private val clock: () -> Long = System::currentTimeMillis,
+    private val notionTokenStore: com.chatlearn.settings.SecretStore? = null,
+    private val notion: com.chatlearn.notion.NotionClient? = null,
 ) : ViewModel() {
     val state: StateFlow<AppSettings> =
         settings.settings.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), AppSettings("", "", 10, 0))
@@ -26,6 +29,20 @@ class SettingsViewModel(private val settings: SettingsRepository, private val re
     /** 저장이 끝난 뒤 바로 연결을 확인할 때. */
     suspend fun saveKeyNow(k: String) = settings.setApiKey(k)
     fun finishOnboarding() = viewModelScope.launch { settings.finishOnboarding() }
+
+    fun notionToken(): String = notionTokenStore?.get().orEmpty()
+    suspend fun saveNotion(token: String, link: String) {
+        // 공백·줄바꿈은 HTTP 헤더를 깨뜨리므로 인쇄 가능한 글자만 남긴다.
+        notionTokenStore?.set(token.filter { it.code in 33..126 })
+        settings.setNotionDatabase(link)
+    }
+
+    /** [link] 데이터베이스에 저장한 토큰으로 연결해 본다. 성공하면 찾은 속성 수. */
+    suspend fun checkNotion(link: String): Result<Int> {
+        val id = com.chatlearn.notion.notionIdOf(link)
+            ?: return Result.failure(com.chatlearn.notion.NotionException(com.chatlearn.notion.NotionError.NOT_SHARED))
+        return notion?.connect(id)?.map { it.properties.size } ?: Result.failure(IllegalStateException("notion"))
+    }
     fun saveModel(m: String) = viewModelScope.launch { settings.setModel(m) }
     fun saveNewPerDay(n: Int) = viewModelScope.launch { settings.setNewPerDay(n) }
     fun saveReminder(enabled: Boolean, hour: Int) = viewModelScope.launch {
@@ -58,5 +75,6 @@ class SettingsViewModel(private val settings: SettingsRepository, private val re
     }
 
     fun now(): Long = clock()
+    fun saveAutoBackupFolder(uri: String) = viewModelScope.launch { settings.setAutoBackupFolder(uri) }
     suspend fun importJson(s: String): Result<Unit> = runCatching { repo.importAll(Backup.decode(s)) }
 }

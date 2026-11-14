@@ -296,6 +296,7 @@ class EntryRepository(internal val db: AppDatabase) {
     /** 문장들을 폴더로 옮긴다. [folderId]가 null이면 폴더에서 꺼낸다. */
     suspend fun moveToFolder(ids: Collection<Long>, folderId: Long?) { if (ids.isNotEmpty()) dao.setFolder(ids.toList(), folderId) }
     suspend fun updateNote(id: Long, note: String) = dao.updateNote(id, note)
+    suspend fun setNotionPageId(id: Long, pageId: String?) = dao.setNotionPageId(id, pageId)
 
     suspend fun exportAll(): BackupData = db.withTransaction {
         BackupData(

@@ -37,6 +37,10 @@ data class AppSettings(
     val sentTarget: String = "EN",
     /** 첫 실행 안내를 끝냈거나 건너뛰었다. */
     val onboardingDone: Boolean = false,
+    /** 문장을 보낼 노션 데이터베이스 링크(또는 id). */
+    val notionDatabase: String = "",
+    /** 매주 자동 백업 파일을 둘 폴더(저장소 트리 URI). 비어 있으면 끔. */
+    val autoBackupFolder: String = "",
 )
 
 interface SecretStore {
@@ -44,15 +48,16 @@ interface SecretStore {
     fun set(v: String)
 }
 
-class EncryptedSecretStore(context: Context) : SecretStore {
+/** 기기 암호화 저장소의 비밀 값 하나([key]: Gemini 키, 노션 토큰…). */
+class EncryptedSecretStore(context: Context, private val key: String = "api_key") : SecretStore {
     private val prefs = EncryptedSharedPreferences.create(
         context, "secrets",
         MasterKey.Builder(context).setKeyScheme(MasterKey.KeyScheme.AES256_GCM).build(),
         EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
         EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM,
     )
-    override fun get() = prefs.getString("api_key", "").orEmpty()
-    override fun set(v: String) { prefs.edit().putString("api_key", v).apply() }
+    override fun get() = prefs.getString(key, "").orEmpty()
+    override fun set(v: String) { prefs.edit().putString(key, v).apply() }
 }
 
 interface SettingsRepository {
@@ -79,6 +84,8 @@ interface SettingsRepository {
     suspend fun setMaxReviews(n: Int) {}
     suspend fun setSentTarget(code: String) {}
     suspend fun finishOnboarding() {}
+    suspend fun setNotionDatabase(link: String) {}
+    suspend fun setAutoBackupFolder(uri: String) {}
     suspend fun recordAiCall()
 }
 
@@ -111,6 +118,8 @@ class DataStoreSettingsRepository(
     private val MAX_REVIEWS = intPreferencesKey("max_reviews")
     private val SENT_TARGET = stringPreferencesKey("sent_target")
     private val ONBOARDING_DONE = booleanPreferencesKey("onboarding_done")
+    private val NOTION_DATABASE = stringPreferencesKey("notion_database")
+    private val AUTO_BACKUP_FOLDER = stringPreferencesKey("auto_backup_folder")
 
     private fun today() = Instant.ofEpochMilli(clock()).atZone(ZoneId.systemDefault()).toLocalDate().toString()
 
@@ -125,6 +134,8 @@ class DataStoreSettingsRepository(
             maxReviews = p[MAX_REVIEWS] ?: com.chatlearn.domain.Scheduler.DEFAULT_MAX_REVIEWS,
             sentTarget = p[SENT_TARGET] ?: "EN",
             onboardingDone = p[ONBOARDING_DONE] ?: false,
+            notionDatabase = p[NOTION_DATABASE] ?: "",
+            autoBackupFolder = p[AUTO_BACKUP_FOLDER] ?: "",
         )
     }
 
@@ -164,6 +175,8 @@ class DataStoreSettingsRepository(
     override suspend fun setRetention(r: Double) { store.edit { it[RETENTION] = r.coerceIn(com.chatlearn.domain.Scheduler.RETENTION_RANGE) } }
     override suspend fun setSentTarget(code: String) { store.edit { it[SENT_TARGET] = code } }
     override suspend fun finishOnboarding() { store.edit { it[ONBOARDING_DONE] = true } }
+    override suspend fun setNotionDatabase(link: String) { store.edit { it[NOTION_DATABASE] = link.trim() } }
+    override suspend fun setAutoBackupFolder(uri: String) { store.edit { it[AUTO_BACKUP_FOLDER] = uri } }
     override suspend fun setMaxReviews(n: Int) { store.edit { it[MAX_REVIEWS] = n.coerceIn(10, 1000) } }
 
     override suspend fun recordAiCall() {

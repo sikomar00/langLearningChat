@@ -227,12 +227,15 @@ fun SettingsScreen(vm: SettingsViewModel, onPreviewVoice: (com.chatlearn.domain.
 
         Text("백업", style = MaterialTheme.typography.titleMedium)
         Text(com.chatlearn.settings.backupStatus(s.lastBackupAt, vm.now(), java.time.ZoneId.systemDefault()), style = MaterialTheme.typography.bodyMedium)
-        if (backupDue) InfoMessage("앱 데이터는 휴대폰 백업에 들어가지 않아요. 폰을 바꾸거나 앱을 지우면 문장 ${entryCount}개가 사라지니 내보내기로 파일을 보관해 두세요.", MessageKind.ERROR)
+        if (backupDue) InfoMessage("휴대폰의 구글 백업이 꺼져 있거나 앱을 지우면 문장 ${entryCount}개가 사라질 수 있어요. 자동 백업 폴더를 고르거나 내보내기로 파일을 보관해 두세요.", MessageKind.ERROR)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             OutlinedButton(onClick = { exportLauncher.launch("chatlearn-backup.json") }) { Text("내보내기") }
             OutlinedButton(onClick = { importLauncher.launch(arrayOf("application/json", "*/*")) }) { Text("가져오기") }
         }
         Text("가져오면 지금 있는 데이터가 백업 파일의 내용으로 바뀝니다.", style = MaterialTheme.typography.bodySmall)
+        AutoBackupFolder(s.autoBackupFolder, vm)
+        HorizontalDivider()
+        NotionSettings(vm)
     }
         message?.let { InfoMessage(it, if (it.contains("못했") || it.contains("꺼져")) MessageKind.ERROR else MessageKind.SUCCESS) }
     }
@@ -267,3 +270,29 @@ internal fun connectionMessage(e: com.chatlearn.ai.AiError) = when (e) {
     com.chatlearn.ai.AiError.OVERLOADED -> "지금 이 모델에 요청이 몰려 있어요. 다른 모델로 바꿔 보세요."
     com.chatlearn.ai.AiError.BAD_FORMAT, com.chatlearn.ai.AiError.SERVER -> "AI 서버 응답에 문제가 있어요. 잠시 후 다시 시도해 주세요."
 }
+
+/** 매주 자동 백업 폴더: 고르면 앱을 열 때 7일이 지났으면 그 폴더에 백업 파일을 만든다(최근 4개만 남김). */
+@Composable
+private fun AutoBackupFolder(folder: String, vm: SettingsViewModel) {
+    val ctx = LocalContext.current
+    val pick = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
+        if (uri != null) {
+            val flags = android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION or android.content.Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+            // 앱을 다시 켜도 이 폴더에 쓸 수 있게 권한을 붙잡아 둔다. 붙잡을 수 없는 폴더면 저장하지 않고 알린다.
+            val kept = runCatching { ctx.contentResolver.takePersistableUriPermission(uri, flags) }.isSuccess
+            if (kept) vm.saveAutoBackupFolder(uri.toString())
+            else android.widget.Toast.makeText(ctx, "이 폴더에는 자동으로 쓸 수 없어요. 다른 폴더를 골라 주세요.", android.widget.Toast.LENGTH_LONG).show()
+        }
+    }
+    Text("매주 자동 백업", style = MaterialTheme.typography.titleSmall)
+    Text(
+        if (folder.isBlank()) "폴더를 고르면 앱을 열 때 7일마다 그 폴더에 백업 파일을 만들어요(최근 4개만 남겨요). 폰을 잃어버리면 폴더도 함께 잃으니, 가끔 파일을 다른 곳에 옮겨 두세요."
+        else "자동 백업 켜짐: ${android.net.Uri.decode(folder.substringAfterLast('/'))}",
+        style = MaterialTheme.typography.bodySmall,
+    )
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        OutlinedButton(onClick = { pick.launch(null) }) { Text(if (folder.isBlank()) "폴더 고르기" else "폴더 바꾸기") }
+        if (folder.isNotBlank()) TextButton(onClick = { vm.saveAutoBackupFolder("") }) { Text("끄기") }
+    }
+}
+

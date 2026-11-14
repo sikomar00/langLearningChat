@@ -120,6 +120,9 @@ internal fun DetailDialog(item: LibraryItem, hasAltCard: Boolean, recentTags: Li
                     }
                 }
                 item.entry.contextText?.let { ctx -> SectionCard("대화") { com.chatlearn.ui.review.ContextFold(ctx) } }
+                OutlinedButton(onClick = { vm.sendToNotion(listOf(item.entry.id)); onClose() }, modifier = Modifier.fillMaxWidth()) {
+                    Text(if (item.entry.notionPageId == null) "노션에 보내기" else "노션에 다시 보내기")
+                }
                 if (item.entry.direction == com.chatlearn.domain.Direction.RECEIVED && item.entry.kind == com.chatlearn.domain.EntryKind.SENTENCE) {
                     FilledTonalButton(onClick = { vm.replyRequest.value = item.texts[item.entry.chatLang].orEmpty() to item.entry.chatLang; onClose() }, modifier = Modifier.fillMaxWidth()) {
                         Text("이 말에 답장 써 보기")

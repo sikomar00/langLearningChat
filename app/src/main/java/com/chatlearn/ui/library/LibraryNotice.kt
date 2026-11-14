@@ -21,3 +21,13 @@ fun keyPhraseNotice(filled: Int, none: Int, failedBatches: Int): LibraryNotice =
     else LibraryNotice("핵심 표현 ${filled}개를 찾았어요." + retryHint(failedBatches), sticky = failedBatches > 0)
 
 private fun retryHint(failedBatches: Int) = if (failedBatches > 0) " (실패한 묶음 ${failedBatches}개는 다시 눌러 보세요)" else ""
+
+/** 노션 보내기 결과. 토큰·데이터베이스 문제는 고칠 곳(설정)을 알려 주고 누를 때까지 둔다. */
+fun notionNotice(r: com.chatlearn.notion.NotionReport): LibraryNotice = when (r.error) {
+    com.chatlearn.notion.NotionError.BAD_TOKEN, com.chatlearn.notion.NotionError.NOT_SHARED ->
+        LibraryNotice("노션에 보내지 못했어요. 오늘 > 톱니 > 백업 > 노션에서 토큰과 데이터베이스 링크를 확인해 주세요.", sticky = true)
+    com.chatlearn.notion.NotionError.OFFLINE -> LibraryNotice("인터넷에 연결되어 있지 않아 노션에 보내지 못했어요.", sticky = true)
+    com.chatlearn.notion.NotionError.RATE_LIMIT -> LibraryNotice("노션 요청 한도에 걸렸어요. ${r.sent}개는 보냈고, 잠시 뒤 다시 눌러 주세요.", sticky = true)
+    else -> LibraryNotice("노션에 ${r.sent}개를 보냈어요." + if (r.failed > 0) " (${r.failed}개는 실패, 다시 눌러 보세요)" else "", sticky = r.failed > 0)
+}
+

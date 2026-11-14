@@ -59,12 +59,40 @@ class AppContainer(context: Context) {
     fun warmUpTts() { androidTts }
     val reminders = com.chatlearn.reminder.ReminderScheduler(context)
     val expansion = ExpansionService(repo, ai, System::currentTimeMillis)
+
+    // 노션 토큰도 Gemini 키처럼 기기 암호화 저장소에만 둔다.
+    val notionToken: com.chatlearn.settings.SecretStore by lazy { EncryptedSecretStore(context, "notion_token") }
+    val notionClient = com.chatlearn.notion.NotionClient(geminiHttpClient(), token = { notionToken.get() })
+    val notion = com.chatlearn.notion.NotionExporter(repo, notionClient) { settings.settings.first().notionDatabase }
     val keyPhrases = com.chatlearn.expansion.KeyPhraseService(repo, ai)
 
     private val appContext: Context = context.applicationContext
 
     init {
         appScope.launch { settings.settings.collect { voicePrefs = it.voice() } }
+    }
+
+    /**
+     * 앱을 열 때: 자동 백업 폴더를 골라 두었고 마지막 백업에서 7일이 지났으면 백업 파일을 쓴다.
+     * 폴더 권한이 사라졌거나 쓰기에 실패하면 조용히 건너뛰고(다음에 다시), 설정의 "마지막 백업"이 오래됐다고 알린다.
+     */
+    fun runAutoBackupIfDue() {
+        appScope.launch(Dispatchers.IO) {
+            val s = settings.settings.first()
+            val now = System.currentTimeMillis()
+            if (!com.chatlearn.settings.autoBackupDue(s.autoBackupFolder.isNotBlank(), s.lastBackupAt, now)) return@launch
+            // 새 폰으로 복원하면 설정은 오지만 폴더 권한은 오지 않는다. 쓸 수 없으면 꺼서 설정 화면이 "켜짐"으로 속이지 않게 한다.
+            val uri = android.net.Uri.parse(s.autoBackupFolder)
+            if (appContext.contentResolver.persistedUriPermissions.none { it.uri == uri && it.isWritePermission }) {
+                settings.setAutoBackupFolder("")
+                return@launch
+            }
+            runCatching {
+                val json = com.chatlearn.data.Backup.encode(repo.exportAll())
+                com.chatlearn.settings.writeAutoBackup(appContext, uri, java.time.LocalDate.now(), json)
+                settings.setLastBackupAt(now)
+            }.onFailure { android.util.Log.w("AutoBackup", "auto backup failed", it) }
+        }
     }
 
     /** 홈 화면 위젯을 다시 그린다(앱을 나갈 때, 알림 시각에). */

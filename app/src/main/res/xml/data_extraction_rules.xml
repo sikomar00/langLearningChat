@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android 12 이상: 문장 DB와 설정은 구글 백업·기기 이전에 함께 간다.
+     암호화된 키 파일(Gemini 키·노션 토큰)은 새 기기에서 풀 수 없어 뺀다(새 기기에서 다시 넣는다). -->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="sharedpref" path="secrets.xml" />
+        <exclude domain="file" path="ai_base_url.txt" />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="sharedpref" path="secrets.xml" />
+        <exclude domain="file" path="ai_base_url.txt" />
+    </device-transfer>
+</data-extraction-rules>

@@ -38,6 +38,7 @@ class LibraryViewModel(
     private val clock: () -> Long = System::currentTimeMillis,
     private val undoWindowMs: Long = 5_000,
     private val keyPhraseService: KeyPhraseService? = null,
+    private val notion: com.chatlearn.notion.NotionExporter? = null,
 ) : ViewModel() {
     val query = MutableStateFlow("")
     val langFilter = MutableStateFlow<Lang?>(null)
@@ -154,6 +155,22 @@ class LibraryViewModel(
                 if (cur != null && cur != FOLDER_UNFILED && fs.none { it.id == cur }) folderFilter.value = null
             }
         }
+    }
+
+    private val _sendingToNotion = MutableStateFlow(false)
+    val sendingToNotion: StateFlow<Boolean> = _sendingToNotion.asStateFlow()
+
+    private val _notionReport = MutableStateFlow<com.chatlearn.notion.NotionReport?>(null)
+    /** 마지막 노션 보내기 결과. 화면이 안내로 보여 준 뒤 [notionReported]로 비운다. */
+    val notionReport: StateFlow<com.chatlearn.notion.NotionReport?> = _notionReport.asStateFlow()
+    fun notionReported() { _notionReport.value = null }
+
+    /** 고른 문장을 노션에 보낸다. 이미 보낸 문장은 같은 페이지를 고친다. */
+    fun sendToNotion(ids: Collection<Long>): Job = viewModelScope.launch {
+        val n = notion ?: return@launch
+        if (_sendingToNotion.value || ids.isEmpty()) return@launch
+        _sendingToNotion.value = true
+        try { _notionReport.value = n.export(ids) } finally { _sendingToNotion.value = false }
     }
 
     /** 상세에서 "답장 연습"을 누른 친구의 말. 앱이 써 보기로 옮겨 가며 비운다. */
