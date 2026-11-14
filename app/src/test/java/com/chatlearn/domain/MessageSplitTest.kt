@@ -30,4 +30,10 @@ class MessageSplitTest {
         assertEquals(20, splitMessages(many).size)
         assertEquals("line 1", splitMessages(many).first())
     }
+
+    @Test fun contextLinesRoundTripTheSavedMarker() {
+        val ctx = contextAround(listOf(ChatLine("Hola", "Lucia"), ChatLine("Qué tal"), ChatLine("Bien")), 1)!!
+        assertEquals(listOf("Lucia: Hola" to false, "Qué tal" to true, "Bien" to false), contextLines(ctx))
+        assertEquals(listOf("just a reply" to false), contextLines("just a reply"))
+    }
 }

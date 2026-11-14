@@ -106,6 +106,7 @@ internal fun DetailDialog(item: LibraryItem, hasAltCard: Boolean, recentTags: Li
                 }
                 Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 SentenceTicket(item, vm)
+                item.entry.contextText?.let { ContextBubbles(it) }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     if (item.entry.direction == com.chatlearn.domain.Direction.RECEIVED && item.entry.kind == com.chatlearn.domain.EntryKind.SENTENCE) {
                         Button(shape = MaterialTheme.shapes.medium, onClick = { saveAll(); vm.replyRequest.value = item.texts[item.entry.chatLang].orEmpty() to item.entry.chatLang; onClose() }, modifier = Modifier.weight(1f)) {
@@ -116,6 +117,7 @@ internal fun DetailDialog(item: LibraryItem, hasAltCard: Boolean, recentTags: Li
                         Text(if (item.entry.notionPageId == null) "노션에 보내기" else "노션에 다시 보내기")
                     }
                 }
+                ReviewHistory(item.entry.id, vm)
                 SectionCard("뜻 고치기") {
                     OutlinedTextField(ko, { ko = it }, label = { Text("한국어 뜻") }, modifier = Modifier.fillMaxWidth())
                     if (hasAltCard && altText != null) {
@@ -135,7 +137,6 @@ internal fun DetailDialog(item: LibraryItem, hasAltCard: Boolean, recentTags: Li
                         if (failed) Text("만들지 못했어요. 잠시 후 다시 시도해 주세요.", color = MaterialTheme.colorScheme.error)
                     }
                 }
-                item.entry.contextText?.let { ctx -> SectionCard("대화") { com.chatlearn.ui.review.ContextFold(ctx) } }
                 SectionCard("핵심 표현") {
                     Text("빈칸 채우기에서 이 표현이 빈칸이 돼요. 문장 안에 있는 그대로 적어야 해요.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     OutlinedTextField(
