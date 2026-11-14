@@ -32,22 +32,22 @@ class NotionExporterTest {
 
     private fun ok(body: String) = MockResponse().setResponseCode(200).setBody(body)
     private fun connect() {
-        server.enqueue(ok("""{"data_sources":[{"id":"ds1"}]}"""))
+        server.enqueue(ok("""{"data_sources":[{"id":"55555555555555555555555555555555"}]}"""))
         server.enqueue(ok("""{"properties":{"문장":{"type":"title"},"뜻":{"type":"rich_text"},"사람":{"type":"multi_select"},"문법":{"type":"multi_select"}}}"""))
     }
 
     @Test fun sendsSelectedSentencesAndRemembersTheirPagesSoTheNextSendUpdates() = runBlocking {
         val id = (repo.saveEntry(EntryDraft(Direction.RECEIVED, Lang.ES, "Estoy cansado", "피곤해", "", null, emptyList(),
             people = listOf("Ana"), grammar = listOf("es.ser_estar")), 1_000, expand = false) as SaveResult.Saved).id
-        connect(); server.enqueue(ok("""{"id":"page1"}"""))
+        connect(); server.enqueue(ok("""{"id":"11111111111111111111111111111111"}"""))
         assertEquals(NotionReport(sent = 1, failed = 0, error = null), exporter.export(listOf(id)))
-        assertEquals("page1", db.dao().getEntry(id)!!.notionPageId)
+        assertEquals("11111111111111111111111111111111", db.dao().getEntry(id)!!.notionPageId)
         server.takeRequest(); server.takeRequest()
         val body = Json.parseToJsonElement(server.takeRequest().body.readUtf8()).jsonObject["properties"]!!.jsonObject
         assertEquals("ser / estar", body["문법"]!!.jsonObject["multi_select"]!!.jsonArray[0].jsonObject["name"]!!.jsonPrimitive.content)
         assertEquals("Ana", body["사람"]!!.jsonObject["multi_select"]!!.jsonArray[0].jsonObject["name"]!!.jsonPrimitive.content)
 
-        connect(); server.enqueue(ok("""{"id":"page1"}"""))
+        connect(); server.enqueue(ok("""{"id":"11111111111111111111111111111111"}"""))
         exporter.export(listOf(id))
         server.takeRequest(); server.takeRequest()
         assertEquals("PATCH", server.takeRequest().method)
@@ -55,10 +55,10 @@ class NotionExporterTest {
 
     @Test fun aPageDeletedInNotionIsCreatedAgain() = runBlocking {
         val id = (repo.saveEntry(EntryDraft(Direction.RECEIVED, Lang.EN, "Hi", "안녕", "", null, emptyList()), 1_000, expand = false) as SaveResult.Saved).id
-        repo.setNotionPageId(id, "gone")
-        connect(); server.enqueue(MockResponse().setResponseCode(404)); server.enqueue(ok("""{"id":"page2"}"""))
+        repo.setNotionPageId(id, "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee")
+        connect(); server.enqueue(MockResponse().setResponseCode(404)); server.enqueue(ok("""{"id":"22222222222222222222222222222222"}"""))
         assertEquals(1, exporter.export(listOf(id)).sent)
-        assertEquals("page2", db.dao().getEntry(id)!!.notionPageId)
+        assertEquals("22222222222222222222222222222222", db.dao().getEntry(id)!!.notionPageId)
     }
 
     @Test fun aBadTokenStopsAndIsReported() = runBlocking {

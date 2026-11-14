@@ -24,8 +24,8 @@ class NotionClientTest {
     private fun json(body: String) = MockResponse().setResponseCode(200).setBody(body)
 
     private fun connectResponses() {
-        server.enqueue(json("""{"object":"database","id":"db1","data_sources":[{"id":"ds1","name":"문장"}]}"""))
-        server.enqueue(json("""{"object":"data_source","id":"ds1","properties":{
+        server.enqueue(json("""{"object":"database","id":"dddddddddddddddddddddddddddddddd","data_sources":[{"id":"55555555555555555555555555555555","name":"문장"}]}"""))
+        server.enqueue(json("""{"object":"data_source","id":"55555555555555555555555555555555","properties":{
             "Name":{"type":"title"},"뜻":{"type":"rich_text"},"언어":{"type":"select"},"사람":{"type":"multi_select"},
             "저장일":{"type":"date"},"문법":{"type":"rich_text"}}}"""))
     }
@@ -47,11 +47,11 @@ class NotionClientTest {
 
     @Test fun connectFindsTheDataSourceAndItsProperties() = runBlocking {
         connectResponses()
-        val t = client.connect("db1").getOrThrow()
-        assertEquals("ds1", t.dataSourceId)
+        val t = client.connect("dddddddddddddddddddddddddddddddd").getOrThrow()
+        assertEquals("55555555555555555555555555555555", t.dataSourceId)
         assertEquals("Name", t.titleProperty)
         val first = server.takeRequest()
-        assertEquals("/v1/databases/db1", first.path)
+        assertEquals("/v1/databases/dddddddddddddddddddddddddddddddd", first.path)
         assertEquals("Bearer secret-token", first.getHeader("Authorization"))
         assertNotNull(first.getHeader("Notion-Version"))
         Unit
@@ -59,14 +59,14 @@ class NotionClientTest {
 
     @Test fun aNewPageGoesToTheDataSourceWithOnlyMatchingProperties() = runBlocking {
         connectResponses()
-        val t = client.connect("db1").getOrThrow()
+        val t = client.connect("dddddddddddddddddddddddddddddddd").getOrThrow()
         server.takeRequest(); server.takeRequest()
-        server.enqueue(json("""{"object":"page","id":"page9"}"""))
-        assertEquals("page9", client.upsert(t, null, page).getOrThrow())
+        server.enqueue(json("""{"object":"page","id":"99999999999999999999999999999999"}"""))
+        assertEquals("99999999999999999999999999999999", client.upsert(t, null, page).getOrThrow())
         val req = server.takeRequest()
         assertEquals("POST", req.method)
         val body = Json.parseToJsonElement(req.body.readUtf8()).jsonObject
-        assertEquals("ds1", body["parent"]!!.jsonObject["data_source_id"]!!.jsonPrimitive.content)
+        assertEquals("55555555555555555555555555555555", body["parent"]!!.jsonObject["data_source_id"]!!.jsonPrimitive.content)
         val props = body["properties"]!!.jsonObject
         assertEquals("Estoy cansado", props["Name"]!!.jsonObject["title"]!!.jsonArray[0].jsonObject["text"]!!.jsonObject["content"]!!.jsonPrimitive.content)
         assertEquals("Ana", props["사람"]!!.jsonObject["multi_select"]!!.jsonArray[0].jsonObject["name"]!!.jsonPrimitive.content)
@@ -77,24 +77,33 @@ class NotionClientTest {
 
     @Test fun aSentPageIsUpdatedInsteadOfDuplicated() = runBlocking {
         connectResponses()
-        val t = client.connect("db1").getOrThrow()
+        val t = client.connect("dddddddddddddddddddddddddddddddd").getOrThrow()
         server.takeRequest(); server.takeRequest()
-        server.enqueue(json("""{"object":"page","id":"page9"}"""))
-        client.upsert(t, "page9", page).getOrThrow()
+        server.enqueue(json("""{"object":"page","id":"99999999999999999999999999999999"}"""))
+        client.upsert(t, "99999999999999999999999999999999", page).getOrThrow()
         val req = server.takeRequest()
         assertEquals("PATCH", req.method)
-        assertEquals("/v1/pages/page9", req.path)
+        assertEquals("/v1/pages/99999999999999999999999999999999", req.path)
+    }
+
+    @Test fun aStoredPageIdThatIsNotANotionIdNeverReachesTheUrl() = runBlocking {
+        val t = NotionTarget("0123456789abcdef0123456789abcdef", "Name", mapOf("Name" to "title"))
+        server.enqueue(json("""{"id":"new"}"""))
+        assertEquals("new", client.upsert(t, "../users/me", page).getOrThrow())
+        val req = server.takeRequest()
+        assertEquals("POST", req.method)
+        assertEquals("/v1/pages", req.path)
     }
 
     @Test fun aGarbledReplyIsAServerProblemNotABadToken() = runBlocking {
         server.enqueue(MockResponse().setResponseCode(200).setBody("<html>login</html>"))
-        assertEquals(NotionError.SERVER, (client.connect("db1").exceptionOrNull() as NotionException).kind)
+        assertEquals(NotionError.SERVER, (client.connect("dddddddddddddddddddddddddddddddd").exceptionOrNull() as NotionException).kind)
     }
 
     @Test fun errorsAreNamed() = runBlocking {
         server.enqueue(MockResponse().setResponseCode(401))
-        assertEquals(NotionError.BAD_TOKEN, (client.connect("db1").exceptionOrNull() as NotionException).kind)
+        assertEquals(NotionError.BAD_TOKEN, (client.connect("dddddddddddddddddddddddddddddddd").exceptionOrNull() as NotionException).kind)
         server.enqueue(MockResponse().setResponseCode(404))
-        assertEquals(NotionError.NOT_SHARED, (client.connect("db1").exceptionOrNull() as NotionException).kind)
+        assertEquals(NotionError.NOT_SHARED, (client.connect("dddddddddddddddddddddddddddddddd").exceptionOrNull() as NotionException).kind)
     }
 }
