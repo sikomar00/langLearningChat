@@ -1,5 +1,6 @@
 package com.chatlearn.ui.components
 
+import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.role
 import com.chatlearn.ui.theme.board
 import androidx.compose.foundation.layout.*
@@ -180,7 +181,7 @@ fun Stepper(label: String, saved: Int, onChange: (Int) -> Unit, spec: StepperSpe
         Text(
             if (value == 0 && zeroLabel != null) zeroLabel else "$value",
             style = MaterialTheme.typography.titleLarge.board(),
-            textAlign = TextAlign.Center, modifier = Modifier.widthIn(min = 56.dp),
+            textAlign = TextAlign.Center, modifier = Modifier.widthIn(min = 56.dp).semantics { liveRegion = LiveRegionMode.Polite },
         )
         OutlinedIconButton(onClick = { set(value + step) }, enabled = value < range.last, shape = MaterialTheme.shapes.medium) {
             Icon(androidx.compose.material.icons.Icons.Default.Add, contentDescription = "$label 늘리기")

@@ -4,7 +4,7 @@ import com.chatlearn.domain.Lang
 
 /** 밝게/어둡게: 휴대폰 설정을 따르거나 앱에서 고정한다. */
 enum class ThemeMode(val label: String) {
-    SYSTEM("휴대폰 설정"), LIGHT("밝게"), DARK("어둡게");
+    SYSTEM("기기 설정"), LIGHT("밝게"), DARK("어둡게");
 
     fun isDark(systemDark: Boolean): Boolean = when (this) {
         SYSTEM -> systemDark

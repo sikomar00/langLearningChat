@@ -1,5 +1,6 @@
 package com.chatlearn.ui.library
 
+import androidx.compose.ui.semantics.heading
 import com.chatlearn.stats.EntryProgress
 import com.chatlearn.stats.EntryState
 import com.chatlearn.domain.MAX_STAGE
@@ -55,7 +56,10 @@ internal fun boardTitle(s: EntryState): String = when (s) {
 @Composable
 internal fun GroupHeader(title: String, count: Int) {
     Surface(color = MaterialTheme.colorScheme.background, modifier = Modifier.fillMaxWidth()) {
-        Row(Modifier.padding(top = 16.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(
+            Modifier.padding(top = 16.dp, bottom = 8.dp).clearAndSetSemantics { heading(); contentDescription = "$title, ${count}개" },
+            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
             Text(title, style = MaterialTheme.typography.titleSmall)
             Text("$count", style = MaterialTheme.typography.titleSmall.board(), color = MaterialTheme.colorScheme.onSurfaceVariant)
         }

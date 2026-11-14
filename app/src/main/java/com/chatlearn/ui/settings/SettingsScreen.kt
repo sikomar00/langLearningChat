@@ -1,5 +1,7 @@
 package com.chatlearn.ui.settings
 
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.contentDescription
 import com.chatlearn.ui.components.ChoiceChip
 import com.chatlearn.ui.components.SecondaryButton
 import com.chatlearn.ui.theme.board
@@ -61,10 +63,10 @@ fun SettingsScreen(vm: SettingsViewModel, onPreviewVoice: (com.chatlearn.domain.
     var tab by rememberSaveable { mutableIntStateOf(0) }
     val tabs = listOf("AI", "복습", "문장", "화면", "백업")
     Column(Modifier.fillMaxSize()) {
-    TabRow(selectedTabIndex = tab) {
+    PrimaryTabRow(selectedTabIndex = tab) {
         tabs.forEachIndexed { i, t ->
             Tab(selected = tab == i, onClick = { tab = i }, text = {
-                if (i == 4 && backupDue) BadgedBox(badge = { Badge() }) { Text(t) } else Text(t)
+                if (i == 4 && backupDue) BadgedBox(badge = { Badge(Modifier.semantics { contentDescription = "백업 필요" }) }) { Text(t) } else Text(t)
             })
         }
     }

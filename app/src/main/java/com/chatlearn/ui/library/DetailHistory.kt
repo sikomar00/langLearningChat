@@ -1,5 +1,6 @@
 package com.chatlearn.ui.library
 
+import androidx.compose.ui.semantics.stateDescription
 import com.chatlearn.domain.stageName
 import com.chatlearn.domain.MAX_STAGE
 import androidx.compose.foundation.background
@@ -58,6 +59,7 @@ internal fun ContextBubbles(context: String) {
             // 흰 구역 판 안이라 받은 말은 회색 말풍선으로, 저장한 줄만 흰 바탕 + 굵은 테두리로 띄운다.
             ChatBubble(
                 outgoing = false,
+                modifier = if (saved) Modifier.semantics { stateDescription = "저장한 문장" } else Modifier,
                 color = if (saved) MaterialTheme.colorScheme.surfaceContainerLowest else MaterialTheme.colorScheme.surface,
                 border = if (saved) androidx.compose.foundation.BorderStroke(1.5.dp, MaterialTheme.colorScheme.onSurface) else null,
             ) {

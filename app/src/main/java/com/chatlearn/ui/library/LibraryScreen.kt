@@ -1,5 +1,7 @@
 package com.chatlearn.ui.library
 
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import com.chatlearn.ui.theme.statusColors
 import com.chatlearn.ui.components.ChoiceChip
 import com.chatlearn.ui.components.SecondaryButton
@@ -98,7 +100,7 @@ fun LibraryScreen(
     // 길게 눌러 들어가는 선택 모드. 필터가 바뀌어 사라진 항목은 선택에서 뺀다.
     var picked by rememberSaveable(stateSaver = PickedSaver) { mutableStateOf<Set<Long>?>(null) }
     BackHandler(enabled = picked != null) { picked = null }
-    val visibleIds = items.map { it.entry.id }.toSet()
+    val visibleIds = remember(items) { items.map { it.entry.id }.toSet() }
     val chosen = picked?.intersect(visibleIds).orEmpty()
 
     val newFolderRequest by vm.newFolderRequest.collectAsStateWithLifecycle()
@@ -145,7 +147,7 @@ fun LibraryScreen(
                 Text(where, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
                 Text("${items.size}", style = MaterialTheme.typography.titleMedium.board(), color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
-            TextButton(onClick = { showFilters = !showFilters }) { Text(if (activeFilters > 0) "필터 · $activeFilters" else "필터") }
+            TextButton(onClick = { showFilters = !showFilters }, modifier = Modifier.semantics { stateDescription = if (showFilters) "펼쳐짐" else "접힘" }) { Text(if (activeFilters > 0) "필터 · $activeFilters" else "필터") }
             if (tags.isNotEmpty() || unexpanded > 0 || missingKeys > 0) {
                 Box {
                     IconButton(onClick = { menuOpen = true }) { Icon(Icons.Default.MoreVert, contentDescription = "더 보기") }
@@ -314,7 +316,8 @@ fun LibraryScreen(
         }
         // 많이 틀린 순으로 볼 때는 순서 자체가 의미라서 묶지 않는다.
         val effective = if (sort == LibrarySort.LAPSES) GroupBy.NONE else groupBy
-        val now = System.currentTimeMillis()
+        // 남은 시간 표시는 분 단위면 충분하다: 그릴 때마다 새 시각을 넘기면 모든 줄이 다시 그려진다.
+        val now by produceState(System.currentTimeMillis()) { while (true) { kotlinx.coroutines.delay(60_000); value = System.currentTimeMillis() } }
         val today = java.time.LocalDate.now()
         val groups: List<LibGroup> = remember(effective, items, progress, today) {
             when (effective) {
