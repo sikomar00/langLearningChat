@@ -117,7 +117,7 @@ internal fun DetailDialog(item: LibraryItem, hasAltCard: Boolean, recentTags: Li
                         Text("이 문장 복습")
                     }
                 }
-                ReviewHistory(item.entry.id, vm)
+                ReviewHistory(item, vm)
                 SectionCard("뜻 고치기") {
                     OutlinedTextField(ko, { ko = it }, label = { Text("한국어 뜻") }, modifier = Modifier.fillMaxWidth())
                     if (hasAltCard && altText != null) {

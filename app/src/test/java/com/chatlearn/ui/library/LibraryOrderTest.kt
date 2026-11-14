@@ -184,4 +184,16 @@ class LibraryOrderTest {
         assertEquals(listOf("Lucia · 스페인", "Tom", "친구 없음"), g.map { it.first })
         assertEquals(listOf(1L, 3L), g[0].second.map { it.entry.id })
     }
+
+    @Test fun stageStepsUseTheTimeRememberedSinceThePreviousReviewOfThatCard() {
+        fun log(card: Long, at: Long, rating: com.chatlearn.domain.Rating) =
+            com.chatlearn.data.ReviewLogEntity(cardId = card, reviewedAt = at, promptLang = Lang.KO, userAnswer = "", aiVerdict = null, aiFeedback = null, rating = rating)
+        val g = com.chatlearn.domain.Rating.GOOD
+        val logs = listOf(
+            log(1, now + 10 * day, g), // 앞 복습에서 8일 → 4
+            log(1, now + 2 * day, g), // 저장부터 2일 → 2
+            log(2, now + 3 * day, com.chatlearn.domain.Rating.AGAIN), // 다시 → 1
+        )
+        assertEquals(listOf(2, 1, 4), stageSteps(logs, now))
+    }
 }

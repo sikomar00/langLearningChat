@@ -157,3 +157,15 @@ fun groupByPerson(items: List<LibraryItem>): List<Pair<String, List<LibraryItem>
     return titled + listOfNotNull(byPerson[null]?.let { NO_PERSON_TITLE to it })
 }
 
+/**
+ * 복습할 때마다의 익힌 단계(오래된 것부터). "다시"면 1, 아니면 같은 카드의 바로 앞 복습(처음이면 저장한 때)부터 지난 날로 [stageOf].
+ * shortcut: 기록에 복습 뒤 간격이 없어 "그때까지 기억한 기간"으로 어림한다. 줄의 단계(예정 간격)와 조금 다를 수 있다.
+ */
+fun stageSteps(logs: List<ReviewLogEntity>, createdAt: Long): List<Int> {
+    val prevOf = HashMap<Long, Long>()
+    return logs.sortedBy { it.reviewedAt }.map { l ->
+        val since = prevOf[l.cardId] ?: createdAt
+        prevOf[l.cardId] = l.reviewedAt
+        if (l.rating == Rating.AGAIN) 1 else stageOf((l.reviewedAt - since) / 86_400_000.0)
+    }
+}

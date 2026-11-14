@@ -9,6 +9,9 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
+import com.chatlearn.data.LibraryItem
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -48,9 +51,10 @@ internal fun ContextBubbles(context: String) {
     }
 }
 
-/** 탑승 기록: 복습할 때마다 날짜·방식·내 답·평가. 최근 10개만 먼저 보인다. */
+/** 탑승 기록: 단계 변화 계단과, 복습할 때마다 날짜·방식·내 답·평가. 최근 10개만 먼저 보인다. */
 @Composable
-internal fun ReviewHistory(entryId: Long, vm: LibraryViewModel) {
+internal fun ReviewHistory(item: LibraryItem, vm: LibraryViewModel) {
+    val entryId = item.entry.id
     val input by vm.statsInput.collectAsStateWithLifecycle()
     val logs = remember(entryId, input) {
         val si = input ?: return@remember emptyList()
@@ -61,6 +65,7 @@ internal fun ReviewHistory(entryId: Long, vm: LibraryViewModel) {
     var all by remember(entryId) { mutableStateOf(false) }
     val zone = ZoneId.systemDefault()
     SectionCard("탑승 기록") {
+        if (logs.size >= 2) StageSteps(remember(logs) { stageSteps(logs, item.entry.createdAt) })
         (if (all) logs else logs.take(HISTORY_PREVIEW)).forEach { log ->
             Row(Modifier.fillMaxWidth().semantics(mergeDescendants = true) {}, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(LOG_DATE.format(Instant.ofEpochMilli(log.reviewedAt).atZone(zone)), style = MaterialTheme.typography.bodyMedium.board())
@@ -76,6 +81,28 @@ internal fun ReviewHistory(entryId: Long, vm: LibraryViewModel) {
             Text(if (all) "접기" else "기록 ${logs.size}개 모두 보기")
         }
     }
+}
+
+private const val STEPS_SHOWN = 12
+
+/** 복습마다의 익힌 단계를 5칸 불빛 기둥으로 시간순(왼쪽이 오래된 것)에 늘어놓아 계단처럼 보이게 한다. */
+@Composable
+private fun StageSteps(steps: List<Int>) {
+    val shown = steps.takeLast(STEPS_SHOWN)
+    val c = MaterialTheme.statusColors
+    Row(
+        Modifier.clearAndSetSemantics { contentDescription = "복습할 때마다의 익힌 단계: " + shown.joinToString(", ") { stageName(it) } },
+        horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.Bottom,
+    ) {
+        shown.forEach { st ->
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                (MAX_STAGE downTo 1).forEach { lvl ->
+                    Box(Modifier.size(width = 14.dp, height = 5.dp).background(if (lvl <= st) c.flapGraphic else c.segmentOff, MaterialTheme.shapes.extraSmall))
+                }
+            }
+        }
+    }
+    Text("복습할 때까지 기억한 기간으로 매긴 단계예요.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
 }
 
 @Composable

@@ -1,5 +1,6 @@
 package com.chatlearn
 
+import kotlinx.coroutines.flow.map
 import com.chatlearn.ui.components.BoardSearchBar
 import android.content.Intent
 import android.os.Bundle
@@ -128,7 +129,7 @@ class MainActivity : ComponentActivity() {
                     c.settings, c.repo, c.ai, onReminderChanged = { on, hour -> c.reminders.apply(on, hour) },
                     notionTokenStore = c.notionToken, notion = c.notionClient,
                 )
-                StatsViewModel::class.java -> StatsViewModel(c.repo)
+                StatsViewModel::class.java -> StatsViewModel(c.repo, newPerDay = c.settings.settings.map { it.newPerDay })
                 TodayViewModel::class.java -> TodayViewModel(c.reviewSession(), c.repo)
                 else -> error("unknown ViewModel")
             } as T

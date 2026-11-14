@@ -25,7 +25,14 @@ data class Growth(
     val stages: List<Pair<String, Int>>,
     val monthDays: Int,
     val line: String,
+    /** 친구별 문장 수와 그중 익힌 수(문장이 많은 친구부터). */
+    val friends: List<FriendGrowth> = emptyList(),
 )
+
+data class FriendGrowth(val name: String, val sentences: Int, val mastered: Int)
+
+/** 앞으로의 하루: 복습할 카드 수와, 하루 새 카드 한도대로 들어올 새 카드 수. */
+data class OutlookDay(val date: java.time.LocalDate, val reviews: Int, val new: Int)
 
 object GrowthCalculator {
     private const val DAY = 86_400_000L
@@ -62,7 +69,31 @@ object GrowthCalculator {
             stages = STAGE_ORDER.map { it to (stageCounts[it] ?: 0) },
             monthDays = monthDays,
             line = factLine(masteredItems),
+            friends = friendsOf(items, stageOf),
         )
+    }
+
+    private const val FRIEND_LIMIT = 5
+
+    internal fun friendsOf(items: List<LibraryItem>, stageOf: Map<Long, Int>): List<FriendGrowth> =
+        items.flatMap { i -> i.tags.filter { i.tagKinds[it] == TagKind.PERSON }.distinct().map { it to i } }
+            .groupBy({ it.first }, { it.second })
+            .map { (name, list) -> FriendGrowth(name, list.size, list.count { stageOf[it.entry.id] == MAX_STAGE }) }
+            .sortedWith(compareByDescending<FriendGrowth> { it.sentences }.thenBy { it.name })
+            .take(FRIEND_LIMIT)
+
+    /**
+     * 앞으로 [days]일: 복습한 카드는 기한 날짜에(밀린 카드는 오늘), 아직 안 본 카드는 하루 [newPerDay]장씩 오늘부터.
+     * shortcut: 오늘 이미 시작한 새 카드 수는 빼지 않는다. 오늘 칸이 조금 많게 보일 수 있다.
+     */
+    fun outlook(cards: List<ReviewCardEntity>, now: Long, zone: ZoneId, newPerDay: Int, days: Int = 30): List<OutlookDay> {
+        val reviews = StatsCalculator.forecast(cards.filter { it.lastReviewedAt != null }.map { it.dueAt }, now, zone, days)
+        var waiting = cards.count { it.lastReviewedAt == null }
+        return reviews.map { d ->
+            val n = minOf(waiting, newPerDay.coerceAtLeast(0))
+            waiting -= n
+            OutlookDay(d.date, d.reviews, n)
+        }
     }
 
     /** 기록으로 뒷받침되는 사실만: 언어별로 익힌 문장 수와, 그중 가장 많이 나온 친구. */

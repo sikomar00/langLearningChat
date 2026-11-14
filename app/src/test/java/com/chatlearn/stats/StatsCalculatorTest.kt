@@ -237,4 +237,25 @@ class StatsCalculatorTest {
         assertEquals("스페인어 문장 3개, 영어 문장 1개를 익혔어요. 가장 많이 나온 친구는 Lucia, 2개예요.", GrowthCalculator.factLine(es + item(4, "e")))
         assertEquals("영어 문장 1개를 익혔어요.", GrowthCalculator.factLine(listOf(item(4, "e"))))
     }
+
+    @Test fun friendsAreRankedBySentencesWithTheirMasteredCount() {
+        val P = com.chatlearn.domain.TagKind.PERSON
+        fun withFriend(id: Long, name: String) = item(id, "s$id").copy(tags = listOf(name), tagKinds = mapOf(name to P))
+        val cards = listOf(card(1, 1, interval = 30.0), card(2, 2), card(3, 3), card(4, 4, interval = 25.0))
+        val items = listOf(withFriend(1, "Lucia"), withFriend(2, "Lucia"), withFriend(3, "Tom"), item(4, "s4"))
+        assertEquals(listOf(FriendGrowth("Lucia", 2, 1), FriendGrowth("Tom", 1, 0)), compute(emptyList(), cards, items).growth.friends)
+    }
+
+    @Test fun outlookPutsOverdueOnTodayAndSpreadsNewCardsByTheDailyLimit() {
+        val cards = listOf(
+            card(1, 1, due = now - 5 * 86_400_000L), card(2, 2, due = ms(today.plusDays(3), 9)),
+            card(3, 3, last = null), card(4, 4, last = null), card(5, 5, last = null),
+        )
+        val o = GrowthCalculator.outlook(cards, now, zone, newPerDay = 2)
+        assertEquals(30, o.size)
+        assertEquals(OutlookDay(today, 1, 2), o[0])
+        assertEquals(OutlookDay(today.plusDays(1), 0, 1), o[1])
+        assertEquals(1, o[3].reviews)
+        assertEquals(3, o.sumOf { it.new })
+    }
 }

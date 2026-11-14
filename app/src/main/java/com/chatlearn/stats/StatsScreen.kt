@@ -35,6 +35,7 @@ fun percent(r: Retention): String = r.rate?.let { String.format(Locale.US, "%d%%
 fun StatsScreen(vm: StatsViewModel, onPractice: (com.chatlearn.domain.GrammarPoint) -> Unit = {}, onOpenSentence: (Long) -> Unit = {}) {
     val stats by vm.stats.collectAsStateWithLifecycle()
     val grammar by vm.grammar.collectAsStateWithLifecycle()
+    val outlook by vm.outlook.collectAsStateWithLifecycle()
     val s = stats
     if (s == null) {
         LoadingBox()
@@ -54,8 +55,10 @@ fun StatsScreen(vm: StatsViewModel, onPractice: (com.chatlearn.domain.GrammarPoi
             BoardCell("7일 정답률", percent(g.week), null),
         ))
         Text(g.line, style = MaterialTheme.typography.bodyLarge)
+        if (g.friends.isNotEmpty()) SectionCard("친구별") { FriendBars(g.friends) }
         GrammarSection(grammar, onPractice)
         SectionCard("최근 7일") { com.chatlearn.ui.components.DayBars(s.last7, { "${it.date.monthValue}/${it.date.dayOfMonth}" }, s.last7.last().date) }
+        if (outlook.isNotEmpty()) SectionCard("앞으로 30일") { OutlookBars(outlook) }
         if (s.heatmap.isNotEmpty()) SectionCard("${StatsCalculator.HEATMAP_WEEKS}주 학습 기록") { Heatmap(s.heatmap, g.monthDays, s.streak) }
         SectionCard("익힌 정도") {
             MasteryBar(g.stages)
