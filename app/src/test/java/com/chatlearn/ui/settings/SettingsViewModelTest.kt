@@ -1,10 +1,10 @@
 package com.chatlearn.ui.settings
 
-import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import com.chatlearn.ai.FakeAiService
 import com.chatlearn.data.EntryRepository
 import com.chatlearn.data.inMemoryDb
 import com.chatlearn.settings.DataStoreSettingsRepository
+import com.chatlearn.settings.testDataStore
 import com.chatlearn.settings.SecretStore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
@@ -32,7 +32,7 @@ class SettingsViewModelTest {
     @Test fun backupTimeIsRecordedOnlyAfterTheFileIsWritten() = runBlocking {
         val db = inMemoryDb()
         val settings = DataStoreSettingsRepository(
-            PreferenceDataStoreFactory.create { tmp.newFile("s.preferences_pb") },
+            testDataStore(tmp.root),
             object : SecretStore {
                 private var v = ""
                 override fun get() = v

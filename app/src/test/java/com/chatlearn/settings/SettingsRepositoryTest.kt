@@ -1,6 +1,5 @@
 package com.chatlearn.settings
 
-import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
@@ -23,7 +22,7 @@ class SettingsRepositoryTest {
     }
 
     @Before fun setUp() {
-        val ds = PreferenceDataStoreFactory.create { tmp.newFile("s.preferences_pb") }
+        val ds = testDataStore(tmp.root)
         repo = DataStoreSettingsRepository(ds, MemSecret()) { now }
     }
 
