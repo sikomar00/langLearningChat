@@ -1,5 +1,9 @@
 package com.chatlearn.ui.review
 
+import androidx.compose.material3.Icon
+import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.ui.semantics.stateDescription
 import com.chatlearn.ui.components.SecondaryButton
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.spring
@@ -56,7 +60,8 @@ internal fun GradedBody(s: ReviewUi.Graded, vm: ReviewViewModel, canListen: Bool
         else Text(s.answer.ifBlank { "(모르겠어요)" }, style = MaterialTheme.typography.bodyLarge)
     }
     verdict?.let { VerdictBanner(it) }
-    ChatBubble(outgoing = false) {
+    // 정답이 나타나면 스크린리더가 읽는다(채점이 없는 "모르겠어요"·스스로 채점에서도).
+    ChatBubble(outgoing = false, modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }) {
         when (val o = s.outcome) {
             is GradeOutcome.Ai -> {
                 LabeledText("더 자연스러운 표현", o.result.corrected, valueColor = MaterialTheme.statusColors.success, valueStyle = MaterialTheme.typography.titleMedium)
@@ -143,7 +148,13 @@ private fun VerdictBanner(verdict: Verdict) {
 @Composable
 internal fun ContextFold(context: String) {
     var open by remember { mutableStateOf(false) }
-    TextButton(onClick = { open = !open }, contentPadding = PaddingValues(horizontal = 0.dp)) { Text(if (open) "대화 접기" else "어떤 대화였는지 보기") }
-    if (open) Text(context, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    TextButton(
+        onClick = { open = !open }, contentPadding = PaddingValues(horizontal = 0.dp),
+        modifier = Modifier.semantics { stateDescription = if (open) "펼쳐짐" else "접힘" },
+    ) {
+        Text(if (open) "대화 접기" else "어떤 대화였는지 보기")
+        Icon(if (open) Icons.Default.ExpandLess else Icons.Default.ExpandMore, contentDescription = null)
+    }
+    if (open) com.chatlearn.ui.library.ContextLines(context)
 }
 

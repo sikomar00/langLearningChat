@@ -44,7 +44,13 @@ private val SPEAKER = Regex("""^([^:]{1,24}): (.+)$""")
  */
 @Composable
 internal fun ContextBubbles(context: String) {
-    SectionCard("대화") {
+    SectionCard("대화") { ContextLines(context) }
+}
+
+/** 대화 줄들을 말풍선으로(구역 판 없이). 문장 상세와 복습 답 화면이 함께 쓴다. */
+@Composable
+internal fun ContextLines(context: String) {
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         var lastSpeaker: String? = null
         val lines = contextLines(context)
         // 이름을 떼는 건 대화 형식(저장한 줄 표시가 있는 맥락)일 때만.

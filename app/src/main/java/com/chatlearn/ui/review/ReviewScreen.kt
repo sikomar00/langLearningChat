@@ -1,5 +1,7 @@
 package com.chatlearn.ui.review
 
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import com.chatlearn.ui.components.SecondaryButton
 import com.chatlearn.domain.langLabel
 import com.chatlearn.ui.theme.board
@@ -113,7 +115,7 @@ fun ReviewScreen(vm: ReviewViewModel, voice: VoicePrefs, onClose: () -> Unit) {
             if (inSession) Row(Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                 if (custom != null) Text("선택 복습", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
                 if (goal.enabled) Text(
-                    if (goal.reached) "오늘 목표 달성" else "오늘 ${goal.done}/${goal.goal}",
+                    if (goal.reached) "오늘 목표 달성" else "오늘 목표 ${goal.done}/${goal.goal}",
                     style = MaterialTheme.typography.labelLarge,
                     color = if (goal.reached) MaterialTheme.statusColors.success else MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -187,12 +189,16 @@ fun ReviewScreen(vm: ReviewViewModel, voice: VoicePrefs, onClose: () -> Unit) {
                         maxItemsInEachRow = if (choices.size > 3) 2 else choices.size,
                     ) {
                         choices.forEach { r ->
-                            Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
-                                val label = ratingLabel(r)
-                                if (r == s.suggested) Button(shape = MaterialTheme.shapes.medium, onClick = { vm.rate(r) }, modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp)) { Text(label) }
-                                else SecondaryButton(shape = MaterialTheme.shapes.medium, onClick = { vm.rate(r) }, modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp)) { Text(label) }
-                                Text(s.previews[r].orEmpty(), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            // 평가와 다음 간격을 한 버튼 안에: 스크린리더가 "기억했어요 3일"로 한 번에 읽고, 추천이면 "추천"을 덧붙인다.
+                            val content: @Composable RowScope.() -> Unit = {
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Text(ratingLabel(r))
+                                    s.previews[r]?.let { Text(it, style = MaterialTheme.typography.labelSmall.board()) }
+                                }
                             }
+                            val m = Modifier.weight(1f).heightIn(min = 56.dp)
+                            if (r == s.suggested) Button(shape = MaterialTheme.shapes.medium, onClick = { vm.rate(r) }, modifier = m.semantics { stateDescription = "추천" }, content = content)
+                            else SecondaryButton(shape = MaterialTheme.shapes.medium, onClick = { vm.rate(r) }, modifier = m, content = content)
                         }
                     }
                 }

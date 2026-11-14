@@ -1,5 +1,6 @@
 package com.chatlearn.ui.library
 
+import com.chatlearn.stats.EntryState
 import com.chatlearn.ui.components.SwitchRow
 import com.chatlearn.ui.components.ChoiceChip
 import com.chatlearn.ui.components.SecondaryButton
@@ -112,9 +113,7 @@ internal fun DetailDialog(item: LibraryItem, hasAltCard: Boolean, recentTags: Li
     Dialog(onDismissRequest = close, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Surface(Modifier.fillMaxSize()) {
             Column(Modifier.fillMaxSize().navigationBarsPadding().imePadding()) {
-                BoardTopBar("문장", navigationIcon = { IconButton(onClick = close) { Icon(Icons.Default.Close, contentDescription = "닫기") } }) {
-                    TextButton(onClick = { saveAll(); onClose() }, colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.statusColors.onBoard)) { Text("저장") }
-                }
+                BoardTopBar("문장", navigationIcon = { IconButton(onClick = close) { Icon(Icons.Default.Close, contentDescription = "닫기") } })
                 Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 SentenceTicket(item, vm)
                 item.entry.contextText?.let { ContextBubbles(it) }
@@ -133,12 +132,24 @@ internal fun DetailDialog(item: LibraryItem, hasAltCard: Boolean, recentTags: Li
                     SwitchRow("이미 알아요", "오늘 복습·위젯·예보에 넣지 않아요. 익힌 정도에서는 익힘으로 세요.", item.entry.known, { vm.setKnown(item.entry.id, it) })
                     SwitchRow("통계에서 빼기", "정답률·익힌 정도·친구별 통계에 넣지 않아요. 복습과 복습한 날 기록은 그대로예요.", item.entry.excludeFromStats, { vm.setExcludeFromStats(item.entry.id, it) })
                 }
+                var editing by rememberSaveable(item.entry.id) { mutableStateOf(false) }
+                if (!editing) SectionCard("고치기") {
+                    LabeledText("한국어 뜻", ko.ifBlank { "없음" })
+                    if (hasAltCard && altText != null) LabeledText(if (altLang == Lang.ES) "스페인어로 하면" else "영어로 하면", alt)
+                    LabeledText("핵심 표현", chatKey.ifBlank { "없음" })
+                    if (note.isNotBlank()) LabeledText("설명", note)
+                    val folderName = folders.firstOrNull { it.id == item.entry.folderId }?.name ?: "폴더 없음"
+                    val learnedOn = Instant.ofEpochMilli(item.entry.createdAt).atZone(ZoneId.systemDefault()).format(DateTimeFormatter.ofPattern("MM/dd"))
+                    LabeledText("분류", "$folderName · 알게 된 날 $learnedOn")
+                    if (editedTags.isNotEmpty()) LabeledText("태그", editedTags.joinToString(", "))
+                    SecondaryButton(onClick = { editing = true }, modifier = Modifier.fillMaxWidth()) { Text("고치기") }
+                } else {
                 SectionCard("뜻 고치기") {
                     OutlinedTextField(ko, { ko = it }, label = { Text("한국어 뜻") }, modifier = Modifier.fillMaxWidth())
                     if (hasAltCard && altText != null) {
                         OutlinedTextField(
                             alt, { alt = it }, modifier = Modifier.fillMaxWidth(),
-                            label = { Text(if (altLang == Lang.ES) "스페인어 확장" else "영어 확장") },
+                            label = { Text(if (altLang == Lang.ES) "스페인어로 하면" else "영어로 하면") },
                             supportingText = { if (item.origins[altLang] == TextOrigin.AI) Text("AI 번역 · 고치면 내 문장으로 저장돼요") },
                         )
                     } else if (!hasAltCard) {
@@ -224,6 +235,7 @@ internal fun DetailDialog(item: LibraryItem, hasAltCard: Boolean, recentTags: Li
                         }
                     }
                 }
+                }
                     SecondaryButton(shape = MaterialTheme.shapes.medium, onClick = { saveAll(); vm.sendToNotion(listOf(item.entry.id)); onClose() }, modifier = Modifier.fillMaxWidth()) {
                         Text(if (item.entry.notionPageId == null) "노션에 보내기" else "노션에 다시 보내기")
                     }
@@ -231,6 +243,13 @@ internal fun DetailDialog(item: LibraryItem, hasAltCard: Boolean, recentTags: Li
                     TextButton(onClick = { vm.delete(item.entry.id); onClose() }) {
                         Text("이 문장 삭제", color = MaterialTheme.colorScheme.error)
                     }
+                }
+                if (dirty) {
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                    Button(
+                        shape = MaterialTheme.shapes.medium, onClick = { saveAll(); onClose() },
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp).heightIn(min = 52.dp),
+                    ) { Text("변경 저장") }
                 }
             }
         }
@@ -327,7 +346,7 @@ internal fun SentenceTicket(item: LibraryItem, vm: LibraryViewModel) {
             BoardLabel("${stageName(stage)} · $stage/$MAX_STAGE", color = MaterialTheme.colorScheme.onSurfaceVariant)
             SegmentBar(stage, MAX_STAGE, Modifier.weight(1f).height(8.dp))
         }
-        DistanceBar(p, now)
+        if (p != null && p.state != EntryState.NEW) DistanceBar(p, now)
     }
 }
 
