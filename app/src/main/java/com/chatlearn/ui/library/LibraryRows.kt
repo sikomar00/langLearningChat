@@ -1,5 +1,8 @@
 package com.chatlearn.ui.library
 
+import com.chatlearn.stats.EntryProgress
+import com.chatlearn.stats.EntryState
+import com.chatlearn.domain.MAX_STAGE
 import androidx.compose.ui.semantics.contentDescription
 import com.chatlearn.ui.components.SegmentBar
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -121,6 +124,7 @@ internal fun BoardColumns() {
 internal fun CompactRow(
     item: LibraryItem, progress: EntryProgress?, now: Long, folderName: String?,
     selectionMode: Boolean, checked: Boolean, onClick: () -> Unit, onLongClick: () -> Unit,
+    showPerson: Boolean = true,
 ) {
     val saved = Instant.ofEpochMilli(item.entry.createdAt).atZone(ZoneId.systemDefault())
     Column(Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceContainerLowest).entryClick(selectionMode, checked, onClick, onLongClick)) {
@@ -135,7 +139,7 @@ internal fun CompactRow(
                 Text(item.texts[Lang.KO].orEmpty(), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Row(Modifier.padding(top = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     FlightCode(item.entry.chatLang.code)
-                    Text(destinationOf(item, folderName), Modifier.weight(1f), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(destinationOf(item, folderName, showPerson), Modifier.weight(1f), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
                 DistanceBar(progress, now, Modifier.padding(top = 8.dp))
             }
@@ -154,9 +158,8 @@ private val HOUR = DateTimeFormatter.ofPattern("HH:mm")
 private val DAY = DateTimeFormatter.ofPattern("MM/dd")
 
 /** 목적지: 함께 대화한 친구와 그 나라. 없으면 폴더 이름, 그것도 없으면 빈칸. */
-internal fun destinationOf(item: LibraryItem, folderName: String?): String {
-    fun of(kind: TagKind) = item.tags.filter { (item.tagKinds[it] ?: TagKind.TOPIC) == kind }
-    return (of(TagKind.PERSON) + of(TagKind.COUNTRY)).joinToString(" · ").ifEmpty { folderName.orEmpty() }
+internal fun destinationOf(item: LibraryItem, folderName: String?, showPerson: Boolean = true): String {
+    return ((if (showPerson) item.tagsOf(TagKind.PERSON) else emptyList()) + item.tagsOf(TagKind.COUNTRY)).joinToString(" · ").ifEmpty { folderName.orEmpty() }
 }
 
 /** 상태 열: 지금 복습할 차례는 호박 알약, 예정은 초록 점과 남은 날, 새 문장은 테두리만. 바뀌면 플랩처럼 넘어간다. */

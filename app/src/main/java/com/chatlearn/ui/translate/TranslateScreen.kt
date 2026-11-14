@@ -1,8 +1,8 @@
 package com.chatlearn.ui.translate
 
+import com.chatlearn.domain.langLabel
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.foundation.background
-import com.chatlearn.ui.components.langLabel
 import com.chatlearn.ui.components.Ticket
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.selection.toggleable
@@ -84,7 +84,7 @@ fun TranslateScreen(
                 Text(when (s.mode) {
                     TranslateMode.RECEIVED -> "친구가 보낸 메시지를 붙여넣기"
                     TranslateMode.SENT -> "하고 싶은 말(한국어)"
-                    TranslateMode.CORRECT -> "${com.chatlearn.ui.components.langLabel(s.targetLang)}로 써 보기"
+                    TranslateMode.CORRECT -> "${langLabel(s.targetLang)}로 써 보기"
                 })
             },
             trailingIcon = {

@@ -1,9 +1,12 @@
 package com.chatlearn.ui.library
 
+import kotlinx.coroutines.joinAll
+import com.chatlearn.domain.langLabel
+import com.chatlearn.domain.stageName
+import com.chatlearn.domain.MAX_STAGE
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.foundation.text.selection.SelectionContainer
 import com.chatlearn.ui.theme.board
-import com.chatlearn.ui.components.langLabel
 import com.chatlearn.ui.components.SegmentBar
 import com.chatlearn.ui.components.FlightCode
 import com.chatlearn.ui.components.BoardLabel
@@ -82,14 +85,17 @@ internal fun DetailDialog(item: LibraryItem, hasAltCard: Boolean, recentTags: Li
     var confirmDiscard by remember { mutableStateOf(false) }
     val close = { if (dirty) confirmDiscard = true else onClose() }
     // 저장 버튼과, 문장을 밖으로 보내는 버튼(노션·답장)이 같은 저장을 쓴다: 고친 내용을 버리지 않고 반영한 뒤 보낸다.
-    val saveAll = {
-                        vm.saveText(item.entry.id, Lang.KO, ko); vm.saveNote(item.entry.id, note)
-                        if (hasAltCard && altText != null && alt.isNotBlank() && alt != altText) vm.saveText(item.entry.id, altLang, alt)
-                        // 입력창에 쓰다 만 태그도 잃지 않게 함께 저장한다.
-                        vm.saveTags(item.entry.id, (editedTags + parseTags(tagInput)).distinct())
-                        if (chatKey != item.keyPhrases[item.entry.chatLang].orEmpty()) vm.saveKeyPhrase(item.entry.id, item.entry.chatLang, chatKey)
-                        if (hasAltCard && altText != null && altKey != item.keyPhrases[altLang].orEmpty()) vm.saveKeyPhrase(item.entry.id, altLang, altKey)
+    val saveAll: () -> List<kotlinx.coroutines.Job> = {
+        listOfNotNull(
+            vm.saveText(item.entry.id, Lang.KO, ko), vm.saveNote(item.entry.id, note),
+            if (hasAltCard && altText != null && alt.isNotBlank() && alt != altText) vm.saveText(item.entry.id, altLang, alt) else null,
+            // 입력창에 쓰다 만 태그도 잃지 않게 함께 저장한다.
+            vm.saveTags(item.entry.id, (editedTags + parseTags(tagInput)).distinct()),
+            if (chatKey != item.keyPhrases[item.entry.chatLang].orEmpty()) vm.saveKeyPhrase(item.entry.id, item.entry.chatLang, chatKey) else null,
+            if (hasAltCard && altText != null && altKey != item.keyPhrases[altLang].orEmpty()) vm.saveKeyPhrase(item.entry.id, altLang, altKey) else null,
+        )
     }
+    val reviewScope = rememberCoroutineScope()
     if (confirmDiscard) AlertDialog(
         onDismissRequest = { confirmDiscard = false },
         title = { Text("고친 내용을 버릴까요?") },
@@ -113,7 +119,7 @@ internal fun DetailDialog(item: LibraryItem, hasAltCard: Boolean, recentTags: Li
                             Text("답장 써 보기")
                         }
                     }
-                    OutlinedButton(shape = MaterialTheme.shapes.medium, onClick = { saveAll(); onReview() }, modifier = Modifier.weight(1f)) {
+                    OutlinedButton(shape = MaterialTheme.shapes.medium, onClick = { val saving = saveAll(); reviewScope.launch { saving.joinAll(); onReview() } }, modifier = Modifier.weight(1f)) {
                         Text("이 문장 복습")
                     }
                 }
@@ -287,7 +293,7 @@ internal fun SentenceTicket(item: LibraryItem, vm: LibraryViewModel) {
     val stub: (@Composable ColumnScope.() -> Unit)? = st?.let { r -> {
         if (r.reviews == 0) Text("아직 복습하지 않았어요.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         else Row(Modifier.fillMaxWidth().semantics(mergeDescendants = true) {}) {
-            listOf(Triple("복습", r.reviews, false), Triple("기억", r.remembered, false), Triple("틀림", r.lapses, r.lapses > 0)).forEach { (label, n, bad) ->
+            listOf(Triple("복습", r.reviews, false), Triple("기억", r.remembered, false), Triple("틀림", r.reviews - r.remembered, r.reviews > r.remembered)).forEach { (label, n, bad) ->
                 Column(Modifier.weight(1f)) {
                     BoardLabel(label, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Text("$n", style = MaterialTheme.typography.headlineSmall.board(), color = if (bad) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface)

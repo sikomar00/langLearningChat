@@ -42,7 +42,7 @@ internal fun OutlookBars(days: List<OutlookDay>) {
     if (days.isEmpty()) return
     val reviews = days.sumOf { it.reviews }
     val new = days.sumOf { it.new }
-    Text("앞으로 ${days.size}일 복습 ${reviews}장 · 새 카드 ${new}장", style = MaterialTheme.typography.bodyMedium)
+    Text("앞으로 ${days.size}일 복습할 카드 ${reviews}장 · 새 카드 ${new}장", style = MaterialTheme.typography.bodyMedium)
     val max = days.maxOf { it.reviews + it.new }.coerceAtLeast(1)
     fun h(n: Int) = (BAR_MAX_DP * n / max).coerceAtLeast(2f).dp
     val outline = MaterialTheme.colorScheme.outline
@@ -65,9 +65,13 @@ internal fun OutlookBars(days: List<OutlookDay>) {
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
         days.forEachIndexed { i, d ->
             Box(Modifier.weight(1f)) {
-                if (i % 7 == 0) Text(
+                // 한 주에 한 번, 마지막 날은 오른쪽 끝에 맞춰 화면 밖으로 넘치지 않게.
+                val last = i == days.lastIndex
+                if (last || (i % 7 == 0 && i < days.lastIndex - 3)) Text(
                     "${d.date.monthValue}/${d.date.dayOfMonth}", style = MaterialTheme.typography.labelSmall.board(), softWrap = false,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.wrapContentWidth(Alignment.Start, unbounded = true),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.align(if (last) Alignment.CenterEnd else Alignment.CenterStart)
+                        .wrapContentWidth(if (last) Alignment.End else Alignment.Start, unbounded = true),
                 )
             }
         }
@@ -79,4 +83,5 @@ internal fun OutlookBars(days: List<OutlookDay>) {
         Box(Modifier.size(10.dp).border(1.dp, outline, MaterialTheme.shapes.extraSmall))
         Text("새 카드", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
+    Text("한 문장에 영어·스페인어 카드가 하나씩 있을 수 있어 문장 수와 다를 수 있어요.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
 }

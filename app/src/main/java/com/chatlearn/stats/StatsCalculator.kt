@@ -21,7 +21,6 @@ data class DayCount(val date: LocalDate, val reviews: Int)
 data class WeakItem(val entryId: Long, val text: String, val lapses: Int)
 
 data class Stats(
-    val today: Retention,
     val last7: List<DayCount>,
     val streak: Int,
     val growth: Growth,
@@ -93,7 +92,6 @@ object StatsCalculator {
         }
 
         return Stats(
-            today = retention(perDay[today].orEmpty()),
             last7 = last7,
             streak = streak,
             growth = GrowthCalculator.compute(logs, cards, items, now, zone),

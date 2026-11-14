@@ -1,6 +1,6 @@
 package com.chatlearn.ui.today
 
-import com.chatlearn.ui.library.progressOf
+import com.chatlearn.stats.progressOf
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.chatlearn.data.EntryRepository

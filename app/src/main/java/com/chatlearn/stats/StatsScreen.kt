@@ -1,11 +1,14 @@
 package com.chatlearn.stats
 
+import com.chatlearn.domain.langLabel
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.ui.semantics.semantics
 import com.chatlearn.ui.theme.statusColors
 import com.chatlearn.ui.theme.board
 import com.chatlearn.ui.components.BoardLabel
 import com.chatlearn.ui.components.FlightCode
+import com.chatlearn.ui.components.FlapText
+import androidx.compose.foundation.border
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -26,7 +29,6 @@ import com.chatlearn.domain.ExerciseKind
 import com.chatlearn.ui.components.LoadingBox
 import com.chatlearn.ui.components.SectionCard
 import com.chatlearn.ui.components.StatRow
-import com.chatlearn.ui.components.langLabel
 import java.util.Locale
 
 fun percent(r: Retention): String = r.rate?.let { String.format(Locale.US, "%d%%", Math.round(it * 100)) } ?: "-"
@@ -46,11 +48,12 @@ fun StatsScreen(vm: StatsViewModel, onPractice: (com.chatlearn.domain.GrammarPoi
         // 맨 위는 출석이 아니라 지난주의 나와 견준 수. 줄어도 빨간 손실 표시는 쓰지 않는다.
         val diff = g.weekReviews - g.prevWeekReviews
         BoardStrip(listOf(
-            BoardCell("익힌 문장", "${g.mastered}", "이번 주 +${g.newlyMastered}", up = g.newlyMastered > 0),
+            BoardCell("익힌 문장", "${g.mastered}", "전체 ${g.stages.sumOf { it.second }}문장 중"),
             BoardCell("7일 복습", "${g.weekReviews}회", when {
-                diff > 0 -> "지난 7일보다 ▲$diff"
-                diff < 0 -> "지난 7일보다 ▼${-diff}"
-                else -> "지난 7일과 같아요"
+                // "전주"는 그 앞 7일. 큰 글씨에서도 한 줄에 들어가게 짧게.
+                diff > 0 -> "전주보다 +$diff"
+                diff < 0 -> "전주보다 −${-diff}"
+                else -> "전주와 같음"
             }, up = diff > 0),
             BoardCell("7일 정답률", percent(g.week), null),
         ))
@@ -87,7 +90,7 @@ private fun AccuracySection(s: Stats) {
         val rows: List<Pair<String, Retention>> = when (by) {
             AccuracyBy.LANG -> s.byLang.entries.map { (lang, r) -> langLabel(lang) to r }
             AccuracyBy.EXERCISE -> s.byExercise.entries.map { (kind, r) ->
-                when (kind) { ExerciseKind.TRANSLATE -> "쓰기 번역"; ExerciseKind.CLOZE -> "빈칸 채우기"; ExerciseKind.DICTATION -> "듣고 받아쓰기" } to r
+                com.chatlearn.ui.library.exerciseName(kind) to r
             }
             AccuracyBy.TAG -> s.byTag.entries.sortedByDescending { it.value.reviews }.map { it.key to it.value }
         }
@@ -111,7 +114,8 @@ private fun Heatmap(days: List<DayCount>, monthDays: Int, streak: Int) {
     Text(
         // 연속일은 압박이 되지 않게 아래쪽, 이 줄 끝에 덧붙이기만 한다.
         if (active == 0) "아직 복습한 날이 없어요"
-        else "이번 달 ${monthDays}일 복습했어요" + (if (streak > 1) " · ${streak}일째 이어서" else ""),
+        else (if (monthDays > 0) "이번 달 ${monthDays}일 복습했어요" else "최근 ${StatsCalculator.HEATMAP_WEEKS}주 중 ${active}일 복습했어요") +
+            (if (streak > 1) " · ${streak}일째 이어서" else ""),
         style = MaterialTheme.typography.bodyMedium,
     )
     BoxWithConstraints(
@@ -210,9 +214,9 @@ private fun BoardStrip(cells: List<BoardCell>) {
                 if (i > 0) Box(Modifier.width(1.dp).fillMaxHeight().background(c.boardRaised))
                 Column(Modifier.weight(1f).padding(horizontal = 12.dp).semantics(mergeDescendants = true) {}) {
                     BoardLabel(cell.label, color = c.onBoardMuted)
-                    Text(cell.value, style = MaterialTheme.typography.headlineSmall.board(), color = c.onBoard)
-                    // 늘면 밝은 호박, 줄거나 같으면 흐리게(검은 판 위 초록은 작은 글씨 대비가 모자라다).
-                    cell.note?.let { Text(it, style = MaterialTheme.typography.labelSmall, color = if (cell.up) c.flap else c.onBoardMuted) }
+                    FlapText(cell.value, MaterialTheme.typography.headlineSmall.board(), color = c.onBoard)
+                    // 늘면 밝게, 줄거나 같으면 흐리게. 호박은 "지금·선택"에만 쓰고, 검은 판 위 초록은 작은 글씨 대비가 모자라다.
+                    cell.note?.let { Text(it, style = MaterialTheme.typography.labelSmall, color = if (cell.up) c.onBoard else c.onBoardMuted) }
                 }
             }
         }
@@ -224,22 +228,26 @@ private fun BoardStrip(cells: List<BoardCell>) {
 @Composable
 private fun MasteryBar(stages: List<Pair<String, Int>>) {
     val lamp = MaterialTheme.statusColors.flapGraphic
-    val colors = listOf(lamp, lamp.copy(alpha = 0.5f), MaterialTheme.colorScheme.onSurfaceVariant, MaterialTheme.colorScheme.outline)
+    val colors = listOf(lamp, MaterialTheme.colorScheme.surfaceContainerLowest, MaterialTheme.colorScheme.onSurfaceVariant, MaterialTheme.colorScheme.outline)
     val parts = stages.zip(colors) { (label, n), color -> Triple(label, n, color) }
+    // 둘째(거의)만 테두리 칸: 진한 호박 테두리 + 흰 속.
+    val shape = MaterialTheme.shapes.extraSmall
+    fun Modifier.part(i: Int, color: androidx.compose.ui.graphics.Color) =
+        background(color, shape).then(if (i == 1) Modifier.border(1.5.dp, lamp, shape) else Modifier)
     val total = parts.sumOf { it.second }
     Row(
         Modifier.fillMaxWidth().height(12.dp).clearAndSetSemantics { contentDescription = parts.joinToString(", ") { "${it.first} ${it.second}개" } },
         horizontalArrangement = Arrangement.spacedBy(3.dp),
     ) {
-        parts.filter { it.second > 0 }.forEach { (_, n, color) ->
-            Box(Modifier.weight(n.toFloat() / total).fillMaxHeight().background(color, MaterialTheme.shapes.extraSmall))
+        parts.forEachIndexed { i, (_, n, color) ->
+            if (n > 0) Box(Modifier.weight(n.toFloat() / total).fillMaxHeight().part(i, color))
         }
         if (total == 0) Box(Modifier.fillMaxWidth().fillMaxHeight().background(MaterialTheme.colorScheme.outlineVariant, MaterialTheme.shapes.extraSmall))
     }
     FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        parts.forEach { (label, n, color) ->
+        parts.forEachIndexed { i, (label, n, color) ->
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                Box(Modifier.size(10.dp).background(color, MaterialTheme.shapes.extraSmall))
+                Box(Modifier.size(10.dp).part(i, color))
                 Text(label, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Text("$n", style = MaterialTheme.typography.titleMedium.board())
             }

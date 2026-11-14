@@ -1,5 +1,10 @@
 package com.chatlearn.ui.library
 
+import com.chatlearn.stats.progressOf
+import com.chatlearn.stats.EntryProgress
+import com.chatlearn.stats.EntryState
+import com.chatlearn.domain.stageName
+import com.chatlearn.domain.stageOf
 import com.chatlearn.data.EntryEntity
 import com.chatlearn.data.LibraryItem
 import com.chatlearn.data.ReviewCardEntity
@@ -191,9 +196,9 @@ class LibraryOrderTest {
         val g = com.chatlearn.domain.Rating.GOOD
         val logs = listOf(
             log(1, now + 10 * day, g), // 앞 복습에서 8일 → 4
-            log(1, now + 2 * day, g), // 저장부터 2일 → 2
+            log(1, now + 2 * day, g), // 첫 복습 → 1
             log(2, now + 3 * day, com.chatlearn.domain.Rating.AGAIN), // 다시 → 1
         )
-        assertEquals(listOf(2, 1, 4), stageSteps(logs, now))
+        assertEquals(listOf(1, 1, 4), stageSteps(logs))
     }
 }

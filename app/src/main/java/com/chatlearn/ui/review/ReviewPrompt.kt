@@ -1,5 +1,6 @@
 package com.chatlearn.ui.review
 
+import com.chatlearn.domain.langLabel
 import androidx.compose.ui.Alignment
 import com.chatlearn.ui.components.Ticket
 import androidx.compose.foundation.layout.*
@@ -20,7 +21,6 @@ import androidx.compose.ui.unit.dp
 import com.chatlearn.domain.ExerciseKind
 import com.chatlearn.review.isLeech
 import com.chatlearn.settings.VoicePrefs
-import com.chatlearn.ui.components.langLabel
 
 /** 문제: 탑승권 머리띠에 문제 종류와 경로, 본문에 문제, 절취선 아래 칸에 답한다. */
 @Composable

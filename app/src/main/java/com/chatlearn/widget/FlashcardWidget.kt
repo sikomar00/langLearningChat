@@ -1,5 +1,6 @@
 package com.chatlearn.widget
 
+import com.chatlearn.domain.langLabel
 import android.content.Context
 import android.os.Build
 import androidx.compose.runtime.Composable
@@ -49,7 +50,6 @@ import com.chatlearn.ChatLearnApp
 import com.chatlearn.R
 import com.chatlearn.domain.Lang
 import com.chatlearn.domain.Rating
-import com.chatlearn.ui.components.langLabel
 import com.chatlearn.ui.theme.DarkScheme
 import com.chatlearn.ui.theme.LightScheme
 import kotlinx.coroutines.flow.first

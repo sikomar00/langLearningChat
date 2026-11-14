@@ -1,6 +1,6 @@
 package com.chatlearn.ui.today
 
-import com.chatlearn.ui.library.MAX_STAGE
+import com.chatlearn.domain.MAX_STAGE
 import com.chatlearn.ui.theme.board
 import com.chatlearn.ui.components.BoardLabel
 import androidx.compose.foundation.clickable

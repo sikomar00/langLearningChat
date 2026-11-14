@@ -1,5 +1,6 @@
 package com.chatlearn.ui.review
 
+import com.chatlearn.domain.langLabel
 import com.chatlearn.ui.theme.board
 import com.chatlearn.ui.components.SegmentBar
 import android.speech.RecognizerIntent
@@ -37,7 +38,6 @@ import com.chatlearn.ui.components.ButtonSpinner
 import com.chatlearn.ui.components.GoalBoard
 import com.chatlearn.ui.components.StreakBadge
 import com.chatlearn.ui.components.LoadingBox
-import com.chatlearn.ui.components.langLabel
 import com.chatlearn.ui.theme.statusColors
 
 /** 복습 세션 전체 화면: 위에 진행, 가운데 대화처럼 이어지는 문제와 채점, 아래에 손이 닿는 행동 버튼. */

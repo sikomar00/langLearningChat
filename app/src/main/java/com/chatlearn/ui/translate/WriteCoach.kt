@@ -1,7 +1,7 @@
 package com.chatlearn.ui.translate
 
+import com.chatlearn.domain.langLabel
 import androidx.compose.ui.semantics.contentDescription
-import com.chatlearn.ui.components.langLabel
 import com.chatlearn.ui.components.SegmentBar
 import com.chatlearn.ui.components.Ticket
 import androidx.compose.foundation.layout.*

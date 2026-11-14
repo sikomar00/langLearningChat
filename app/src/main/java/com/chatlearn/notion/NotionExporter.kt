@@ -47,13 +47,12 @@ class NotionExporter(
 
     private suspend fun pageOf(item: LibraryItem): NotionPage {
         val e = item.entry
-        fun tagsOf(kind: TagKind) = item.tags.filter { (item.tagKinds[it] ?: TagKind.TOPIC) == kind }
         return NotionPage(
             sentence = item.texts[e.chatLang].orEmpty(),
             meaning = item.texts[Lang.KO].orEmpty(),
             lang = if (e.chatLang == Lang.ES) "스페인어" else "영어",
             kind = when { e.kind == EntryKind.WORD -> "단어"; e.direction == Direction.SENT -> "보낸 말"; else -> "받은 말" },
-            people = tagsOf(TagKind.PERSON), countries = tagsOf(TagKind.COUNTRY), tags = tagsOf(TagKind.TOPIC),
+            people = item.tagsOf(TagKind.PERSON), countries = item.tagsOf(TagKind.COUNTRY), tags = item.tagsOf(TagKind.TOPIC),
             grammar = repo.entryGrammar(e.id).mapNotNull { grammarPoint(it)?.nameKo },
             note = e.note,
             savedOn = Instant.ofEpochMilli(e.createdAt).atZone(ZoneId.systemDefault()).toLocalDate(),

@@ -62,7 +62,10 @@ fun contextAround(lines: List<ChatLine>, index: Int): String? {
     }
 }
 
-/** [contextAround]가 만든 글을 줄로 되돌린다. 저장한 줄("> "로 시작)은 saved=true. 표시가 없는 맥락(답장한 말 등)은 모두 false. */
-fun contextLines(context: String): List<Pair<String, Boolean>> =
-    context.lines().filter { it.isNotBlank() }.map { if (it.startsWith("> ")) it.removePrefix("> ") to true else it to false }
+/** [contextAround]가 만든 글을 줄로 되돌린다. 저장한 줄("> "로 시작)은 saved=true. 표시가 없는 맥락(답장한 말 등)은 한 덩어리 그대로. */
+fun contextLines(context: String): List<Pair<String, Boolean>> {
+    val lines = context.lines().filter { it.isNotBlank() }
+    if (lines.none { it.startsWith("> ") }) return listOf(context.trim() to false)
+    return lines.map { if (it.startsWith("> ")) it.removePrefix("> ") to true else it to false }
+}
 

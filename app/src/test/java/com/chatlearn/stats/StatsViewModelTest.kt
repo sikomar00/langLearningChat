@@ -53,8 +53,8 @@ class StatsViewModelTest {
         saveAndReview("a", listOf("Alex"), Rating.GOOD)
         saveAndReview("b", listOf("Alex"), Rating.AGAIN)
         val vm = StatsViewModel(repo, { now }, ZoneOffset.UTC)
-        val s = withTimeout(5_000) { vm.stats.filterNotNull().first { it.today.reviews == 2 } }
-        assertEquals(Retention(2, 1), s.today)
+        val s = withTimeout(5_000) { vm.stats.filterNotNull().first { it.growth.weekReviews == 2 } }
+        assertEquals(Retention(2, 1), s.growth.week)
         assertEquals(Retention(2, 1), s.byTag["Alex"])
         assertEquals(1, s.weakest.size)
         // 계산이 다른 스레드에서 돌므로 Main을 되돌리기 전에 멈춘다(경합 방지).

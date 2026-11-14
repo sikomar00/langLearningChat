@@ -54,7 +54,10 @@ data class LibraryItem(
     val keyPhrases: Map<Lang, String> = emptyMap(),
     /** 태그 이름별 종류(사람·나라·주제). */
     val tagKinds: Map<String, TagKind> = emptyMap(),
-)
+) {
+    /** 이 종류의 태그. 종류를 모르는 태그는 주제로 본다. */
+    fun tagsOf(kind: TagKind): List<String> = tags.filter { (tagKinds[it] ?: TagKind.TOPIC) == kind }
+}
 
 internal fun <T> interleave(a: List<T>, b: List<T>): List<T> {
     if (b.isEmpty()) return a

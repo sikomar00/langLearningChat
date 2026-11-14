@@ -1,5 +1,6 @@
 package com.chatlearn.ui.library
 
+import com.chatlearn.stats.EntryState
 import androidx.compose.material.icons.filled.CreateNewFolder
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
@@ -205,7 +206,8 @@ fun LibraryScreen(
             }
         }
         if (showFilters) {
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                item { Text("언어·태그", style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(end = 4.dp)) }
                 items(listOf(Lang.EN to "영어", Lang.ES to "스페인어")) { (l, label) ->
                     FilterChip(selected = lang == l, onClick = { vm.langFilter.value = if (lang == l) null else l }, label = { Text(label) })
                 }
@@ -337,7 +339,7 @@ fun LibraryScreen(
         val groups: List<LibGroup> = remember(effective, items, progress, today) {
             when (effective) {
                 GroupBy.STATE -> groupByState(items, progress).map { (st, l) -> LibGroup("s-$st", boardTitle(st), l, st) }
-                GroupBy.PERSON -> groupByPerson(items).map { (t, l) -> LibGroup("p-$t", t, l, null) }
+                GroupBy.PERSON -> groupByPerson(items).mapIndexed { i, (t, l) -> LibGroup("p-$i", t, l, null) }
                 GroupBy.DATE -> groupByDate(items, ZoneId.systemDefault(), today).map { (t, l) -> LibGroup("d-$t", t, l, null) }
                 GroupBy.TAG -> groupByTag(items).map { (t, l) -> LibGroup("t-$t", t, l, null) }
                 GroupBy.NONE -> listOf(LibGroup("all", null, items, null))
@@ -360,7 +362,7 @@ fun LibraryScreen(
                         onMove = { moveTargets = setOf(id) },
                         onDelete = { if (selectedId == id) selectedId = null; vm.delete(id) },
                     ) {
-                        if (compact) CompactRow(item, p, now, folderName, picked != null, id in chosen, onClick, onLongClick)
+                        if (compact) CompactRow(item, p, now, folderName, picked != null, id in chosen, onClick, onLongClick, showPerson = effective != GroupBy.PERSON)
                         else EntryCard(item, badge, p?.state == EntryState.DUE, folderName, picked != null, id in chosen, onClick, onLongClick)
                     }
                 }

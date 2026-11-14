@@ -1,5 +1,7 @@
 package com.chatlearn.ui.library
 
+import com.chatlearn.domain.stageName
+import com.chatlearn.domain.MAX_STAGE
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
@@ -21,6 +23,7 @@ import com.chatlearn.domain.Rating
 import com.chatlearn.domain.contextLines
 import com.chatlearn.domain.ratingLabel
 import com.chatlearn.ui.components.BoardLabel
+import com.chatlearn.ui.components.ChatBubble
 import com.chatlearn.ui.components.SectionCard
 import com.chatlearn.ui.theme.board
 import com.chatlearn.ui.theme.statusColors
@@ -31,20 +34,36 @@ import java.time.format.DateTimeFormatter
 private const val HISTORY_PREVIEW = 10
 private val LOG_DATE = DateTimeFormatter.ofPattern("MM/dd")
 
-/** 저장할 때 함께 둔 앞뒤 대화를 말풍선으로. 저장한 줄만 또렷하게, 나머지는 흐리게. */
+// shortcut: "이름: 말" 꼴을 콜론으로 나눈다. 말 자체가 "Nota: ..."처럼 시작하면 이름으로 잘못 떼질 수 있다.
+private val SPEAKER = Regex("""^([^:]{1,24}): (.+)$""")
+
+/**
+ * 저장할 때 함께 둔 앞뒤 대화를 받은 말 말풍선으로. 누가 나인지 알 수 없어 모두 왼쪽에 두고,
+ * 말한 사람이 바뀔 때만 이름을 위에 작게. 저장한 줄은 굵은 테두리와 진한 글자, 나머지는 흐리게.
+ */
 @Composable
 internal fun ContextBubbles(context: String) {
     SectionCard("대화") {
-        contextLines(context).forEach { (line, saved) ->
-            Surface(
-                color = if (saved) MaterialTheme.statusColors.board else MaterialTheme.colorScheme.surfaceContainerHigh,
-                contentColor = if (saved) MaterialTheme.statusColors.onBoard else MaterialTheme.colorScheme.onSurfaceVariant,
-                shape = MaterialTheme.shapes.medium,
-                modifier = Modifier.widthIn(max = 320.dp),
+        var lastSpeaker: String? = null
+        val lines = contextLines(context)
+        // 이름을 떼는 건 대화 형식(저장한 줄 표시가 있는 맥락)일 때만.
+        val chat = lines.any { it.second }
+        lines.forEach { (line, saved) ->
+            val m = if (chat) SPEAKER.matchEntire(line) else null
+            val speaker = m?.groupValues?.get(1)
+            if (speaker != null && speaker != lastSpeaker) {
+                Text(speaker, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            lastSpeaker = speaker
+            ChatBubble(
+                outgoing = false,
+                border = androidx.compose.foundation.BorderStroke(
+                    if (saved) 1.5.dp else 1.dp, if (saved) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.outlineVariant,
+                ),
             ) {
                 Text(
-                    line, Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                    style = MaterialTheme.typography.bodyMedium, fontWeight = if (saved) FontWeight.Medium else null,
+                    m?.groupValues?.get(2) ?: line, style = MaterialTheme.typography.bodyMedium, fontWeight = if (saved) FontWeight.Medium else null,
+                    color = if (saved) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
         }
@@ -65,13 +84,13 @@ internal fun ReviewHistory(item: LibraryItem, vm: LibraryViewModel) {
     var all by remember(entryId) { mutableStateOf(false) }
     val zone = ZoneId.systemDefault()
     SectionCard("탑승 기록") {
-        if (logs.size >= 2) StageSteps(remember(logs) { stageSteps(logs, item.entry.createdAt) })
+        if (logs.size >= STEPS_MIN) StageSteps(remember(logs) { stageSteps(logs) })
         (if (all) logs else logs.take(HISTORY_PREVIEW)).forEach { log ->
             Row(Modifier.fillMaxWidth().semantics(mergeDescendants = true) {}, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(LOG_DATE.format(Instant.ofEpochMilli(log.reviewedAt).atZone(zone)), style = MaterialTheme.typography.bodyMedium.board())
-                BoardLabel(exerciseShort(log.exercise), Modifier.width(56.dp), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                BoardLabel(exerciseName(log.exercise), Modifier.width(88.dp), color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Text(
-                    log.userAnswer.ifBlank { "—" }, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium,
+                    log.userAnswer, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium,
                     maxLines = 1, overflow = TextOverflow.Ellipsis,
                 )
                 RatingMark(log.rating)
@@ -84,6 +103,7 @@ internal fun ReviewHistory(item: LibraryItem, vm: LibraryViewModel) {
 }
 
 private const val STEPS_SHOWN = 12
+private const val STEPS_MIN = 4
 
 /** 복습마다의 익힌 단계를 5칸 불빛 기둥으로 시간순(왼쪽이 오래된 것)에 늘어놓아 계단처럼 보이게 한다. */
 @Composable
@@ -92,8 +112,9 @@ private fun StageSteps(steps: List<Int>) {
     val c = MaterialTheme.statusColors
     Row(
         Modifier.clearAndSetSemantics { contentDescription = "복습할 때마다의 익힌 단계: " + shown.joinToString(", ") { stageName(it) } },
-        horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.Bottom,
+        horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.Top,
     ) {
+        BoardLabel(stageName(MAX_STAGE), color = MaterialTheme.colorScheme.onSurfaceVariant)
         shown.forEach { st ->
             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 (MAX_STAGE downTo 1).forEach { lvl ->
@@ -102,7 +123,6 @@ private fun StageSteps(steps: List<Int>) {
             }
         }
     }
-    Text("복습할 때까지 기억한 기간으로 매긴 단계예요.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
 }
 
 @Composable
@@ -120,8 +140,9 @@ private fun RatingMark(r: Rating) {
     }
 }
 
-private fun exerciseShort(k: ExerciseKind) = when (k) {
-    ExerciseKind.TRANSLATE -> "번역"
-    ExerciseKind.CLOZE -> "빈칸"
-    ExerciseKind.DICTATION -> "받아쓰기"
+/** 성장의 정답률(방식)과 같은 이름. */
+internal fun exerciseName(k: ExerciseKind) = when (k) {
+    ExerciseKind.TRANSLATE -> "쓰기 번역"
+    ExerciseKind.CLOZE -> "빈칸 채우기"
+    ExerciseKind.DICTATION -> "듣고 받아쓰기"
 }

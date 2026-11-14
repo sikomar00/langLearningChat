@@ -1,5 +1,6 @@
 package com.chatlearn.ui.review
 
+import com.chatlearn.domain.langLabel
 import android.content.Context
 import android.content.Intent
 import android.speech.RecognizerIntent
@@ -12,7 +13,6 @@ import com.chatlearn.domain.ExerciseKind
 import com.chatlearn.domain.Lang
 import com.chatlearn.review.speechLanguageTag
 import com.chatlearn.settings.VoicePrefs
-import com.chatlearn.ui.components.langLabel
 
 /** 음성 인식 결과를 어디에 쓸지: 답 입력칸 또는 따라 말하기(카드 id). */
 internal sealed interface SpeechTarget {

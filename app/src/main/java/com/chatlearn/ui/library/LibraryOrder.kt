@@ -1,5 +1,10 @@
 package com.chatlearn.ui.library
 
+import com.chatlearn.stats.EntryProgress
+import com.chatlearn.stats.EntryState
+import com.chatlearn.domain.stageName
+import com.chatlearn.domain.stageOf
+import com.chatlearn.domain.MAX_STAGE
 import com.chatlearn.data.LibraryItem
 import com.chatlearn.data.ReviewCardEntity
 import com.chatlearn.data.ReviewLogEntity
@@ -12,34 +17,7 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
-enum class EntryState { NEW, DUE, LATER }
-
-/**
- * 문장 하나의 복습 상태. 영어·스페인어 카드가 둘 다 있으면 둘을 합쳐서 본다.
- * [stage]는 익힌 단계 0~5: 가장 오래 기억한 카드의 간격으로 정한다(0 새 문장, 5 익힘 = 21일 이상).
- */
-data class EntryProgress(val state: EntryState, val nextDueAt: Long?, val lapses: Int, val stage: Int = 0, val recentMiss: Boolean = false)
-
-const val MAX_STAGE = 5
-
-/** 복습 간격(일) → 익힌 단계 1~5. */
-fun stageOf(intervalDays: Double): Int = when {
-    intervalDays < 1 -> 1
-    intervalDays < 3 -> 2
-    intervalDays < 7 -> 3
-    intervalDays < 21 -> 4
-    else -> MAX_STAGE
-}
-
 enum class LibrarySort(val label: String) { RECENT("최근 저장"), DUE("복습 기한"), LAPSES("많이 틀린 순") }
-/** 익힌 단계 0~5의 이름. 라이브러리 필터·문장 상세·성장이 같은 이름을 쓴다. */
-fun stageName(stage: Int): String = when {
-    stage <= 0 -> "새 문장"
-    stage <= 2 -> "익히는 중"
-    stage < MAX_STAGE -> "거의"
-    else -> "익힘"
-}
-
 enum class StatusFilter(val label: String) {
     ALL("전체"), UNREVIEWED(stageName(0)), LEARNING(stageName(1)), ALMOST(stageName(3)), MASTERED(stageName(MAX_STAGE)),
     RECENT_MISS("최근 틀림"), DUE_SOON("곧 복습"), STRUGGLING("자주 틀린 것"),
@@ -53,18 +31,6 @@ const val DUE_SOON_MS = 3 * 86_400_000L
 fun recentMissIds(logs: List<ReviewLogEntity>, cards: List<ReviewCardEntity>, since: Long): Set<Long> {
     val entryOf = cards.associate { it.id to it.entryId }
     return logs.filter { it.rating == Rating.AGAIN && it.reviewedAt >= since }.mapNotNull { entryOf[it.cardId] }.toSet()
-}
-
-fun progressOf(cards: List<ReviewCardEntity>, now: Long): EntryProgress {
-    val nextDue = cards.minOfOrNull { it.dueAt }
-    val lapses = cards.sumOf { it.lapses }
-    val state = when {
-        cards.none { it.lastReviewedAt != null } -> EntryState.NEW
-        cards.any { it.dueAt <= now } -> EntryState.DUE // 아직 안 한 짝 카드가 기한이어도 "복습할 차례"
-        else -> EntryState.LATER
-    }
-    val stage = cards.filter { it.lastReviewedAt != null }.maxOfOrNull { stageOf(it.intervalDays) } ?: 0
-    return EntryProgress(state, nextDue, lapses, stage)
 }
 
 fun dueBadge(p: EntryProgress, now: Long): String = when (p.state) {
@@ -147,25 +113,23 @@ const val NO_PERSON_TITLE = "친구 없음"
 
 /** 첫 번째 친구(사람 태그)로 묶는다. 제목은 "친구 · 가장 많이 붙은 나라". 친구가 없는 문장은 마지막 묶음. */
 fun groupByPerson(items: List<LibraryItem>): List<Pair<String, List<LibraryItem>>> {
-    fun LibraryItem.ofKind(kind: TagKind) = tags.filter { tagKinds[it] == kind }
-    val byPerson = items.groupBy { it.ofKind(TagKind.PERSON).firstOrNull() }
+    val byPerson = items.groupBy { it.tagsOf(TagKind.PERSON).firstOrNull() }
     val titled = byPerson.entries.mapNotNull { (person, list) ->
         person ?: return@mapNotNull null
-        val country = list.flatMap { it.ofKind(TagKind.COUNTRY) }.groupingBy { it }.eachCount().maxByOrNull { it.value }?.key
+        val country = list.flatMap { it.tagsOf(TagKind.COUNTRY) }.groupingBy { it }.eachCount().maxByOrNull { it.value }?.key
         listOfNotNull(person, country).joinToString(" · ") to list
     }
     return titled + listOfNotNull(byPerson[null]?.let { NO_PERSON_TITLE to it })
 }
 
 /**
- * 복습할 때마다의 익힌 단계(오래된 것부터). "다시"면 1, 아니면 같은 카드의 바로 앞 복습(처음이면 저장한 때)부터 지난 날로 [stageOf].
+ * 복습할 때마다의 익힌 단계(오래된 것부터). "다시"나 그 카드의 첫 복습이면 1, 아니면 같은 카드의 바로 앞 복습부터 지난 날로 [stageOf].
  * shortcut: 기록에 복습 뒤 간격이 없어 "그때까지 기억한 기간"으로 어림한다. 줄의 단계(예정 간격)와 조금 다를 수 있다.
  */
-fun stageSteps(logs: List<ReviewLogEntity>, createdAt: Long): List<Int> {
+fun stageSteps(logs: List<ReviewLogEntity>): List<Int> {
     val prevOf = HashMap<Long, Long>()
     return logs.sortedBy { it.reviewedAt }.map { l ->
-        val since = prevOf[l.cardId] ?: createdAt
-        prevOf[l.cardId] = l.reviewedAt
-        if (l.rating == Rating.AGAIN) 1 else stageOf((l.reviewedAt - since) / 86_400_000.0)
+        val since = prevOf.put(l.cardId, l.reviewedAt)
+        if (l.rating == Rating.AGAIN || since == null) 1 else stageOf((l.reviewedAt - since) / 86_400_000.0)
     }
 }

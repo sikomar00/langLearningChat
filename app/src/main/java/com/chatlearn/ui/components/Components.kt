@@ -95,7 +95,6 @@ fun SectionCard(title: String, modifier: Modifier = Modifier, content: @Composab
     }
 }
 
-fun langLabel(l: Lang): String = when (l) { Lang.KO -> "한국어"; Lang.EN -> "영어"; Lang.ES -> "스페인어" }
 
 /** 작은 라벨 + 값. 구역 안에서 항목끼리 구분이 되게 한다. */
 @Composable

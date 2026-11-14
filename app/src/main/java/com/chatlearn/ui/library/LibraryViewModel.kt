@@ -1,5 +1,7 @@
 package com.chatlearn.ui.library
 
+import com.chatlearn.stats.progressOf
+import com.chatlearn.stats.EntryProgress
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.chatlearn.data.EntryRepository
@@ -88,7 +90,7 @@ class LibraryViewModel(
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
     /** 친구(사람 태그) 이름. 필터의 친구 줄에 쓴다. */
     val people: StateFlow<List<String>> =
-        all.map { list -> list.flatMap { i -> i.tags.filter { i.tagKinds[it] == com.chatlearn.domain.TagKind.PERSON } }.distinct().sorted() }
+        all.map { list -> list.flatMap { it.tagsOf(com.chatlearn.domain.TagKind.PERSON) }.distinct().sorted() }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
     val allTags: StateFlow<List<String>> =
         all.map { list -> list.flatMap { it.tags }.distinct().sorted() }
