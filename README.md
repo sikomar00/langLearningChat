@@ -24,12 +24,15 @@
 2. 앱을 설치하고 설정 > AI에 키를 붙여넣습니다. 키는 기기의 암호화 저장소에만 저장되며 저장소에는 들어 있지 않습니다.
 
 ## 빌드와 테스트
-JDK 17 이상과 Android SDK(compileSdk 36)가 필요합니다.
+JDK 21과 Android SDK(compileSdk 37)가 필요합니다. JDK 25에서는 Robolectric 테스트가 돌지 않습니다.
 
 ```bash
 ./gradlew :app:assembleDebug
 ./gradlew :app:testDebugUnitTest
+./gradlew :app:assembleRelease   # 폰에 설치하는 출시 빌드
 ```
+
+**서명 키**: 출시 빌드도 디버그 키(`~/.android/debug.keystore`)로 서명합니다. 다른 키로 빌드한 앱은 폰의 앱을 지우지 않고는 업데이트할 수 없습니다(데이터가 지워짐). 키는 OneDrive `ChatLearn/chatlearn-signing.keystore`에 백업해 두었습니다. 새 PC에서는 빌드하기 전에 이 파일을 `~/.android/debug.keystore`로 복사하세요.
 
 `tools/fake_gemini.py`는 화면 흐름 시험용 가짜 Gemini 서버입니다(실제 AI가 아닙니다). 사용법은 파일 머리말을 보세요. 디버그 빌드만 이 서버 주소를 쓸 수 있습니다.
 
