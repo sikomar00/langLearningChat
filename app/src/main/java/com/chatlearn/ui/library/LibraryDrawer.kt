@@ -11,10 +11,11 @@ import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -32,11 +33,10 @@ internal fun LibraryDrawer(vm: LibraryViewModel, onNewFolder: () -> Unit, close:
     val folderCounts by vm.folderCounts.collectAsStateWithLifecycle()
     val folderFilter by vm.folderFilter.collectAsStateWithLifecycle()
     val people by vm.people.collectAsStateWithLifecycle()
-    val tag by vm.tagFilter.collectAsStateWithLifecycle()
+    val person by vm.personFilter.collectAsStateWithLifecycle()
     val statusFilter by vm.statusFilter.collectAsStateWithLifecycle()
     val statusCounts by vm.statusCounts.collectAsStateWithLifecycle()
-    val everything by vm.everything.collectAsStateWithLifecycle()
-    val personCounts = remember(everything, people) { people.associateWith { p -> everything.count { p in it.tags } } }
+    val personCounts by vm.personCounts.collectAsStateWithLifecycle()
     val c = MaterialTheme.statusColors
     val pick = { action: () -> Unit -> action(); close() }
 
@@ -58,7 +58,7 @@ internal fun LibraryDrawer(vm: LibraryViewModel, onNewFolder: () -> Unit, close:
             if (people.isNotEmpty()) {
                 item { DrawerHeading("친구") }
                 items(people) { p ->
-                    DrawerRow(p, personCounts[p] ?: 0, tag == p, Icons.Default.Person) { pick { vm.tagFilter.value = if (tag == p) null else p } }
+                    DrawerRow(p, personCounts[p] ?: 0, person == p, Icons.Default.Person) { pick { vm.personFilter.value = if (person == p) null else p } }
                 }
             }
             item { DrawerHeading("상태") }
@@ -83,10 +83,10 @@ private fun DrawerHeading(text: String) {
 private fun DrawerRow(label: String, count: Int?, selected: Boolean, icon: ImageVector?, onClick: () -> Unit) {
     val c = MaterialTheme.statusColors
     NavigationDrawerItem(
-        label = { Text(label, maxLines = 1) },
+        label = { Text(label, maxLines = 1, overflow = TextOverflow.Ellipsis) },
         selected = selected, onClick = onClick,
         icon = icon?.let { { Icon(it, contentDescription = null, Modifier.size(20.dp)) } },
-        badge = count?.let { { Text("$it", style = MaterialTheme.typography.labelLarge.board()) } },
+        badge = count?.let { { Text("$it", Modifier.semantics { contentDescription = "${it}개" }, style = MaterialTheme.typography.labelLarge.board()) } },
         shape = MaterialTheme.shapes.medium,
         colors = NavigationDrawerItemDefaults.colors(
             selectedContainerColor = c.flap, selectedTextColor = c.onFlap, selectedIconColor = c.onFlap, selectedBadgeColor = c.onFlap,

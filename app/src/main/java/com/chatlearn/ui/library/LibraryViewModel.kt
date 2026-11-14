@@ -26,10 +26,11 @@ import kotlinx.coroutines.launch
 /** 폴더 필터에서 "폴더 없음"을 뜻하는 값. */
 const val FOLDER_UNFILED = -1L
 
-fun filterLibrary(items: List<LibraryItem>, query: String, lang: Lang?, tag: String?, folder: Long? = null): List<LibraryItem> {
+fun filterLibrary(items: List<LibraryItem>, query: String, lang: Lang?, tag: String?, folder: Long? = null, person: String? = null): List<LibraryItem> {
     val q = query.trim()
     return items.filter { item ->
         (folder == null || (if (folder == FOLDER_UNFILED) item.entry.folderId == null else item.entry.folderId == folder)) &&
+            (person == null || person in item.tags) &&
             (lang == null || item.entry.chatLang == lang) &&
             (tag == null || tag in item.tags) &&
             (q.isEmpty() || item.texts.values.any { it.contains(q, ignoreCase = true) } || item.tags.any { it.contains(q, ignoreCase = true) })
@@ -47,6 +48,8 @@ class LibraryViewModel(
     val query = MutableStateFlow("")
     val langFilter = MutableStateFlow<Lang?>(null)
     val tagFilter = MutableStateFlow<String?>(null)
+    /** 서랍에서 고른 친구(사람 태그). 주제 태그 필터와 따로 걸린다. */
+    val personFilter = MutableStateFlow<String?>(null)
     /** null=전체, [FOLDER_UNFILED]=폴더 없는 문장, 그 외=그 폴더. */
     val folderFilter = MutableStateFlow<Long?>(null)
 
@@ -75,28 +78,33 @@ class LibraryViewModel(
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
 
-    private data class Filters(val q: String, val lang: Lang?, val tag: String?, val folder: Long?)
-    private val filters = combine(query, langFilter, tagFilter, folderFilter) { q, lang, tag, folder -> Filters(q, lang, tag, folder) }
+    private data class Filters(val q: String, val lang: Lang?, val tag: String?, val folder: Long?, val person: String?)
+    private val filters = combine(query, langFilter, tagFilter, folderFilter, personFilter) { q, lang, tag, folder, person -> Filters(q, lang, tag, folder, person) }
     private val searched = combine(all, filters, _pendingDelete) { l, f, pending ->
-        filterLibrary(l.filter { it.entry.id != pending }, f.q, f.lang, f.tag, f.folder)
+        filterLibrary(l.filter { it.entry.id != pending }, f.q, f.lang, f.tag, f.folder, f.person)
     }
 
     val folders: StateFlow<List<com.chatlearn.data.FolderEntity>> =
         repo.observeFolders().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    /** 폴더별 문장 수. 키가 [FOLDER_UNFILED]이면 폴더 없는 문장 수. 삭제 대기 중인 문장은 센다(되돌릴 수 있으므로). */
-    val folderCounts: StateFlow<Map<Long, Int>> = all
-        .map { l -> l.groupingBy { it.entry.folderId ?: FOLDER_UNFILED }.eachCount() }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
     /** 필터와 상관없는 전체 문장(삭제 대기 제외). 열린 상세 창이 필터 밖으로 나가도 닫히지 않게 여기서 찾는다. */
     val everything: StateFlow<List<LibraryItem>> = combine(all, _pendingDelete) { l, pending -> l.filter { it.entry.id != pending } }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    // 서랍의 수(폴더·친구·상태)는 모두 같은 기준으로 센다: 전체 문장, 삭제 대기 제외, 다른 선택과 상관없이.
+    /** 폴더별 문장 수. 키가 [FOLDER_UNFILED]이면 폴더 없는 문장 수. */
+    val folderCounts: StateFlow<Map<Long, Int>> = everything
+        .map { l -> l.groupingBy { it.entry.folderId ?: FOLDER_UNFILED }.eachCount() }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
+    /** 친구별 문장 수. */
+    val personCounts: StateFlow<Map<String, Int>> = everything
+        .map { l -> l.flatMap { it.tagsOf(com.chatlearn.domain.TagKind.PERSON).distinct() }.groupingBy { it }.eachCount() }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
     val items: StateFlow<List<LibraryItem>> =
         combine(searched, statusFilter, sort, progress) { l, sf, so, pr -> sortLibrary(filterByStatus(l, pr, sf, clock()), pr, so) }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
-    /** 상태 칩에 붙일 문장 수(검색·폴더·언어·태그 조건 안에서). */
+    /** 상태별 문장 수. */
     val statusCounts: StateFlow<Map<StatusFilter, Int>> =
-        combine(searched, progress) { l, pr -> statusCounts(l, pr, clock()) }
+        combine(everything, progress) { l, pr -> statusCounts(l, pr, clock()) }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
     /** 친구(사람 태그) 이름. 필터의 친구 줄에 쓴다. */
     val people: StateFlow<List<String>> =
@@ -202,7 +210,7 @@ class LibraryViewModel(
 
     /** 다른 화면에서 문장 하나를 보여 달라고 할 때: 걸려 있던 필터를 풀고 그 글자로 찾는다. */
     fun showOnly(text: String) {
-        langFilter.value = null; tagFilter.value = null; folderFilter.value = null; statusFilter.value = StatusFilter.ALL
+        langFilter.value = null; tagFilter.value = null; personFilter.value = null; folderFilter.value = null; statusFilter.value = StatusFilter.ALL
         query.value = text
     }
 
@@ -214,8 +222,8 @@ class LibraryViewModel(
     }
 
     internal fun dropStaleTagFilter(existing: List<String>) {
-        val current = tagFilter.value
-        if (current != null && current !in existing) tagFilter.value = null
+        if (tagFilter.value?.let { it !in existing } == true) tagFilter.value = null
+        if (personFilter.value?.let { it !in existing } == true) personFilter.value = null
     }
 
     fun saveTags(id: Long, tags: List<String>) = viewModelScope.launch { repo.setTags(id, tags, clock()) }
@@ -223,6 +231,7 @@ class LibraryViewModel(
     fun renameTag(old: String, new: String) = viewModelScope.async {
         repo.renameTag(old, new).also { r ->
             if (r != RenameResult.Unchanged && tagFilter.value == old) tagFilter.value = new.trim()
+            if (r != RenameResult.Unchanged && personFilter.value == old) personFilter.value = new.trim()
         }
     }
 

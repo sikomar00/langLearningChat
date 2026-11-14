@@ -26,4 +26,10 @@ class LibraryFilterTest {
     @Test fun tagFilter() = assertEquals(listOf(a), filterLibrary(listOf(a, b, c), "", null, "Alex"))
     @Test fun filtersCombine() = assertEquals(emptyList(), filterLibrary(listOf(a, b, c), "see", null, "Alex"))
     @Test fun blankQueryWithSpacesIsIgnored() = assertEquals(3, filterLibrary(listOf(a, b, c), "   ", null, null).size)
+
+    @Test fun friendAndTopicFiltersCombineInsteadOfReplacingEachOther() {
+        val d = item(4, Lang.EN, "Trip?", "여행?", listOf("Alex", "여행"))
+        assertEquals(listOf(d), filterLibrary(listOf(a, b, c, d), "", null, "여행", person = "Alex"))
+        assertEquals(listOf(a, d), filterLibrary(listOf(a, b, c, d), "", null, null, person = "Alex"))
+    }
 }

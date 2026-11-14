@@ -1,7 +1,6 @@
 package com.chatlearn.ui.library
 
 import com.chatlearn.stats.EntryState
-import androidx.compose.material.icons.filled.CreateNewFolder
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -18,7 +17,6 @@ import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.FolderOpen
-import androidx.compose.material.icons.filled.Person
 import com.chatlearn.ui.theme.board
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
@@ -50,6 +48,7 @@ fun LibraryScreen(
     val query by vm.query.collectAsStateWithLifecycle()
     val lang by vm.langFilter.collectAsStateWithLifecycle()
     val tag by vm.tagFilter.collectAsStateWithLifecycle()
+    val person by vm.personFilter.collectAsStateWithLifecycle()
     val tags by vm.allTags.collectAsStateWithLifecycle()
     val people by vm.people.collectAsStateWithLifecycle()
     val statusCounts by vm.statusCounts.collectAsStateWithLifecycle()
@@ -79,8 +78,8 @@ fun LibraryScreen(
     // 필터·정렬·검색을 바꾸면 목록 맨 위부터 보여 준다. 안 그러면 이전 위치에 남아 위쪽 항목이 사라진 것처럼 보인다.
     // 다른 탭에 다녀왔을 때는 필터가 그대로라 보던 위치를 유지한다.
     var lastFilterKey by rememberSaveable { mutableStateOf<String?>(null) }
-    LaunchedEffect(statusFilter, sort, lang, tag, query, folderFilter) {
-        val key = listOf(statusFilter, sort, lang, tag, query, folderFilter).toString()
+    LaunchedEffect(statusFilter, sort, lang, tag, person, query, folderFilter) {
+        val key = listOf(statusFilter, sort, lang, tag, person, query, folderFilter).toString()
         if (lastFilterKey != null && lastFilterKey != key) listState.scrollToItem(0)
         lastFilterKey = key
     }
@@ -144,14 +143,14 @@ fun LibraryScreen(
         var compact by remember { mutableStateOf(uiPrefs.getBoolean("library_compact", true)) }
         var menuOpen by remember { mutableStateOf(false) }
         // 폴더·친구·상태는 서랍에서 고르니 필터 수에는 언어·주제 태그·정렬만 센다.
-        val activeFilters = listOf(lang != null, tag != null && tag !in people, sort != LibrarySort.RECENT).count { it }
+        val activeFilters = listOf(lang != null, tag != null, sort != LibrarySort.RECENT).count { it }
 
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
             IconButton(onClick = { drawerScope.launch { drawer.open() } }) { Icon(Icons.Default.Menu, contentDescription = "폴더·친구·상태 고르기") }
             // 지금 보는 곳: 폴더 · 친구 · 상태와 문장 수(안내판 숫자). 누르면 서랍이 열린다.
             val where = listOfNotNull(
                 folders.firstOrNull { it.id == folderFilter }?.name ?: if (folderFilter == FOLDER_UNFILED) "폴더 없음" else "전체",
-                tag?.takeIf { it in people },
+                person,
                 statusFilter.takeIf { it != StatusFilter.ALL }?.label,
             ).joinToString(" · ")
             Row(
@@ -192,9 +191,8 @@ fun LibraryScreen(
             }
         }
         folders.firstOrNull { it.id == folderFilter }?.let { f ->
-            Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text("'${f.name}' 폴더", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary, modifier = Modifier.weight(1f))
-                TextButton(onClick = { folderDialog = FolderDialogKind.Rename(f) }) { Text("이름 변경") }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.End), verticalAlignment = Alignment.CenterVertically) {
+                TextButton(onClick = { folderDialog = FolderDialogKind.Rename(f) }) { Text("폴더 이름 변경") }
                 TextButton(onClick = { folderDialog = FolderDialogKind.Delete(f) }) { Text("폴더 삭제", color = MaterialTheme.colorScheme.error) }
             }
         }
@@ -214,7 +212,7 @@ fun LibraryScreen(
                 }
                 if (activeFilters > 0) item {
                     TextButton(onClick = {
-                        vm.langFilter.value = null; if (tag !in people) vm.tagFilter.value = null
+                        vm.langFilter.value = null; vm.tagFilter.value = null
                         vm.sort.value = LibrarySort.RECENT
                     }) { Text("초기화") }
                 }
@@ -305,9 +303,9 @@ fun LibraryScreen(
         LaunchedEffect(Unit) { kotlinx.coroutines.delay(350); settled = true }
         if (items.isEmpty()) {
             if (!settled) LoadingBox()
-            else if (folderFilter != null && statusFilter == StatusFilter.ALL && query.isBlank() && lang == null && tag == null) {
+            else if (folderFilter != null && statusFilter == StatusFilter.ALL && query.isBlank() && lang == null && tag == null && person == null) {
                 EmptyState("이 폴더는 비어 있어요.\n문장을 오른쪽으로 밀어 폴더에 넣어 보세요.", icon = Icons.Default.FolderOpen)
-            } else if (statusFilter != StatusFilter.ALL || query.isNotBlank() || lang != null || tag != null) {
+            } else if (statusFilter != StatusFilter.ALL || query.isNotBlank() || lang != null || tag != null || person != null) {
                 EmptyState("조건에 맞는 문장이 없어요.", icon = Icons.Default.SearchOff)
             } else EmptyState("저장된 문장이 없어요.\n번역 탭에서 문장을 저장해 보세요.", icon = Icons.Default.Book, actionLabel = "번역하러 가기", onAction = onGoTranslate)
         }

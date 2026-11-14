@@ -55,11 +55,11 @@ internal fun ContextBubbles(context: String) {
                 Text(speaker, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             lastSpeaker = speaker
+            // 흰 구역 판 안이라 받은 말은 회색 말풍선으로, 저장한 줄만 흰 바탕 + 굵은 테두리로 띄운다.
             ChatBubble(
                 outgoing = false,
-                border = androidx.compose.foundation.BorderStroke(
-                    if (saved) 1.5.dp else 1.dp, if (saved) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.outlineVariant,
-                ),
+                color = if (saved) MaterialTheme.colorScheme.surfaceContainerLowest else MaterialTheme.colorScheme.surface,
+                border = if (saved) androidx.compose.foundation.BorderStroke(1.5.dp, MaterialTheme.colorScheme.onSurface) else null,
             ) {
                 Text(
                     m?.groupValues?.get(2) ?: line, style = MaterialTheme.typography.bodyMedium, fontWeight = if (saved) FontWeight.Medium else null,
@@ -86,14 +86,16 @@ internal fun ReviewHistory(item: LibraryItem, vm: LibraryViewModel) {
     SectionCard("탑승 기록") {
         if (logs.size >= STEPS_MIN) StageSteps(remember(logs) { stageSteps(logs) })
         (if (all) logs else logs.take(HISTORY_PREVIEW)).forEach { log ->
-            Row(Modifier.fillMaxWidth().semantics(mergeDescendants = true) {}, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text(LOG_DATE.format(Instant.ofEpochMilli(log.reviewedAt).atZone(zone)), style = MaterialTheme.typography.bodyMedium.board())
-                BoardLabel(exerciseName(log.exercise), Modifier.width(88.dp), color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Text(
-                    log.userAnswer, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium,
-                    maxLines = 1, overflow = TextOverflow.Ellipsis,
+            Column(Modifier.fillMaxWidth().semantics(mergeDescendants = true) {}, verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text(LOG_DATE.format(Instant.ofEpochMilli(log.reviewedAt).atZone(zone)), style = MaterialTheme.typography.bodyMedium.board())
+                    BoardLabel(exerciseName(log.exercise), Modifier.weight(1f), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    RatingMark(log.rating)
+                }
+                if (log.userAnswer.isNotBlank()) Text(
+                    log.userAnswer, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 2, overflow = TextOverflow.Ellipsis,
                 )
-                RatingMark(log.rating)
             }
         }
         if (logs.size > HISTORY_PREVIEW) TextButton(onClick = { all = !all }, contentPadding = PaddingValues(horizontal = 0.dp)) {
@@ -102,7 +104,7 @@ internal fun ReviewHistory(item: LibraryItem, vm: LibraryViewModel) {
     }
 }
 
-private const val STEPS_SHOWN = 12
+private const val STEPS_SHOWN = 10
 private const val STEPS_MIN = 4
 
 /** 복습마다의 익힌 단계를 5칸 불빛 기둥으로 시간순(왼쪽이 오래된 것)에 늘어놓아 계단처럼 보이게 한다. */
