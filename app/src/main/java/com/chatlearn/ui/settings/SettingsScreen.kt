@@ -86,7 +86,8 @@ fun SettingsScreen(vm: SettingsViewModel, onPreviewVoice: (com.chatlearn.domain.
         )
         OutlinedTextField(model, { model = it }, Modifier.fillMaxWidth(), singleLine = true, label = { Text("모델 이름") })
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            listOf("gemini-flash-latest", "gemini-flash-lite-latest").forEach { preset ->
+            // -latest는 Google이 알린 뒤 최신으로 바꿔 준다. 번호가 붙은 것은 고정(종료되면 여기서 바꾼다).
+            listOf("gemini-flash-latest", "gemini-flash-lite-latest", "gemini-3.6-flash", "gemini-3.5-flash-lite").forEach { preset ->
                 FilterChip(selected = model == preset, onClick = { model = preset }, label = { Text(preset) })
             }
         }

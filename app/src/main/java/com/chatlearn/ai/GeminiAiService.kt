@@ -43,6 +43,8 @@ class GeminiAiService(
     private val retryDelayMs: Long = 1500,
 ) : AiService {
     private val json = Json { ignoreUnknownKeys = true }
+    // 생각 단계(thinkingLevel)를 거절한 모델. 다음 요청부터는 빼고 보낸다.
+    private val noThinkingLevel: MutableSet<String> = java.util.concurrent.ConcurrentHashMap.newKeySet()
 
     override suspend fun translateReceived(text: String): Result<ReceivedResult> = cached("received|$text") {
         generate(
@@ -243,8 +245,12 @@ class GeminiAiService(
     private suspend fun <T> attempt(user: String, schema: JsonObject, parse: (JsonObject) -> T): Result<T> {
         val retried = mutableSetOf<String>()
         while (true) {
+            val m = model()
+            // 번역·채점에는 깊은 생각이 필요 없다. Flash는 기본이 "중간"이라 느리니 낮춘다(Lite는 기본이 이미 최소, 2026-11 문서).
+            // shortcut: 생각 단계를 모르는 모델은 앱을 켤 때마다 첫 요청이 한 번 거절된 뒤 다시 간다. 그런 모델을 기본으로 쓰게 되면 모델별로 미리 정한다.
+            val lowThinking = !m.contains("lite") && m !in noThinkingLevel
             val r = try {
-                post(requestBody(user, schema))
+                post(m, requestBody(user, schema, lowThinking))
             } catch (e: IOException) {
                 // 인터넷이 아예 없을 때(주소 찾기·연결 실패)는 다시 해도 같으니 바로 알린다.
                 val transient = e !is InterruptedIOException && e !is java.net.UnknownHostException && e !is java.net.ConnectException
@@ -270,18 +276,15 @@ class GeminiAiService(
                     delay(retryDelayMs)
                 }
                 in 200..299 -> {
-                    val answer = runCatching { answerText(r.body) }.getOrNull()
-                    if (answer == BLOCKED) return fail(AiError.BLOCKED)
-                    // 길이 한도에서 잘린 답은 다시 물어도 같은 곳에서 잘린다.
-                    if (answer == TRUNCATED) return fail(AiError.BAD_FORMAT)
-                    val parsed = runCatching { parse(json.parseToJsonElement(answer!!).jsonObject) }
-                    if (parsed.isSuccess) return Result.success(parsed.getOrThrow())
+                    parsed(r.body, parse)?.let { return it }
                     if (!retried.add("format")) return fail(AiError.BAD_FORMAT)
                 }
                 401, 403 -> return fail(AiError.BAD_KEY)
                 else -> {
                     if (r.code == 400 && r.body.contains("API key", ignoreCase = true)) return fail(AiError.BAD_KEY)
                     onHttpError(r.code, r.body.take(1000)) // 진단용: 키는 요청 헤더에만 있고 응답에는 없다
+                    // 생각 단계를 모르는 모델(예: 2.5)이면 빼고 다시 묻는다.
+                    if (r.code == 400 && lowThinking && THINKING_LEVEL.containsMatchIn(r.body)) { noThinkingLevel.add(m); continue }
                     return fail(if (r.code == 404) AiError.BAD_MODEL else AiError.SERVER)
                 }
             }
@@ -290,10 +293,19 @@ class GeminiAiService(
 
     private fun <T> fail(kind: AiError): Result<T> = Result.failure(AiException(kind))
 
+    /** 성공 응답을 읽는다. 형식이 틀렸으면 null(한 번 다시 묻는다). */
+    private fun <T> parsed(body: String, parse: (JsonObject) -> T): Result<T>? {
+        val answer = runCatching { answerText(body) }.getOrNull()
+        if (answer == BLOCKED) return fail(AiError.BLOCKED)
+        // 길이 한도에서 잘린 답은 다시 물어도 같은 곳에서 잘린다.
+        if (answer == TRUNCATED) return fail(AiError.BAD_FORMAT)
+        return runCatching { parse(json.parseToJsonElement(answer!!).jsonObject) }.takeIf { it.isSuccess }
+    }
+
     /** 화면을 떠나 코루틴이 취소되면 HTTP 요청도 바로 끊는다(응답을 끝까지 기다리지 않게). */
-    private suspend fun post(body: JsonObject): HttpResult {
+    private suspend fun post(model: String, body: JsonObject): HttpResult {
         val req = Request.Builder()
-            .url("$baseUrl/v1beta/models/${model()}:generateContent")
+            .url("$baseUrl/v1beta/models/$model:generateContent")
             .header("x-goog-api-key", apiKey())
             .post(body.toString().toRequestBody("application/json".toMediaType()))
             .build()
@@ -311,7 +323,7 @@ class GeminiAiService(
         }
     }
 
-    private fun requestBody(user: String, schema: JsonObject) = buildJsonObject {
+    private fun requestBody(user: String, schema: JsonObject, lowThinking: Boolean) = buildJsonObject {
         putJsonObject("systemInstruction") {
             putJsonArray("parts") { addJsonObject { put("text", SYSTEM) } }
         }
@@ -325,6 +337,7 @@ class GeminiAiService(
             put("responseMimeType", "application/json")
             put("responseSchema", schema)
             put("temperature", 0.3)
+            if (lowThinking) putJsonObject("thinkingConfig") { put("thinkingLevel", "low") }
         }
     }
 
@@ -362,6 +375,8 @@ class GeminiAiService(
         // 정상 응답에는 나올 수 없는 표시값(널 문자로 시작).
         const val BLOCKED = "\u0000blocked"
         const val TRUNCATED = "\u0000truncated"
+        // "thinkingLevel", "thinking_level", "Thinking level" 처럼 생각 단계를 문제 삼는 오류만.
+        val THINKING_LEVEL = Regex("thinking[ _]?level", RegexOption.IGNORE_CASE)
         const val SYSTEM = "You are a language-learning assistant for a Korean native speaker who chats with " +
             "friends in English and Spanish. Write every explanation in Korean. Reply only with JSON matching the schema."
     }

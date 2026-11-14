@@ -434,4 +434,31 @@ class GeminiAiServiceTest {
         server.enqueue(ok("""{"ko":"내일 비가 오면 집에 있을 거야"}"""))
         assertEquals("내일 비가 오면 집에 있을 거야", ai.practicePrompt(com.chatlearn.domain.grammarPoint("en.conditionals")!!).getOrThrow())
     }
+
+    private fun thinkingOf(model: String, vararg responses: MockResponse): List<String?> = runBlocking {
+        val m = GeminiAiService(OkHttpClient(), server.url("/").toString().trimEnd('/'), apiKey = { "k" }, model = { model }, retryDelayMs = 0)
+        responses.forEach(server::enqueue)
+        assertTrue(m.translateReceived("hola").isSuccess); assertTrue(m.translateReceived("adiós").isSuccess)
+        List(server.requestCount) {
+            Json.parseToJsonElement(server.takeRequest().body.readUtf8()).jsonObject["generationConfig"]!!.jsonObject["thinkingConfig"]
+                ?.jsonObject?.get("thinkingLevel")?.jsonPrimitive?.content
+        }
+    }
+
+    @Test fun flashModelsThinkLittleForQuickTranslations() {
+        val ok = ok("""{"detectedLang":"es","koTranslation":"a","note":"b"}""")
+        assertEquals(listOf("low", "low"), thinkingOf("gemini-flash-latest", ok, ok))
+    }
+
+    @Test fun liteModelsKeepTheirOwnMinimalThinking() {
+        val ok = ok("""{"detectedLang":"es","koTranslation":"a","note":"b"}""")
+        assertEquals(listOf(null, null), thinkingOf("gemini-flash-lite-latest", ok, ok))
+    }
+
+    @Test fun aModelThatRejectsTheThinkingLevelIsAskedAgainWithoutIt() {
+        val ok = ok("""{"detectedLang":"es","koTranslation":"a","note":"b"}""")
+        val rejected = MockResponse().setResponseCode(400).setBody("""{"error":{"message":"Thinking level is not supported for this model."}}""")
+        // 한 번 거절되면 다음 요청부터는 처음부터 빼고 보낸다.
+        assertEquals(listOf("low", null, null), thinkingOf("gemini-2.5-flash", rejected, ok, ok))
+    }
 }
