@@ -5,7 +5,9 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 @RunWith(RobolectricTestRunner::class)
 class SharedTextTest {
@@ -27,5 +29,12 @@ class SharedTextTest {
     @Test fun otherIntentsAreIgnored() {
         assertNull(sharedTextOf(Intent(Intent.ACTION_MAIN).putExtra(Intent.EXTRA_TEXT, "x")))
         assertNull(sharedTextOf(null))
+    }
+
+    @Test fun onlyAnEditableSelectionCanTakeTheResultBack() {
+        assertTrue(canReturnText(Intent(Intent.ACTION_PROCESS_TEXT)))
+        assertFalse(canReturnText(Intent(Intent.ACTION_PROCESS_TEXT).putExtra(Intent.EXTRA_PROCESS_TEXT_READONLY, true)))
+        assertFalse(canReturnText(Intent(Intent.ACTION_SEND)))
+        assertFalse(canReturnText(null))
     }
 }

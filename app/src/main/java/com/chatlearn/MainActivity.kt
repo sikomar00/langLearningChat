@@ -37,6 +37,7 @@ import com.chatlearn.ui.settings.SettingsScreen
 import com.chatlearn.ui.settings.SettingsViewModel
 import com.chatlearn.ui.translate.TranslateScreen
 import com.chatlearn.ui.translate.TranslateViewModel
+import com.chatlearn.ui.translate.canReturnText
 import com.chatlearn.ui.today.TodayScreen
 import com.chatlearn.ui.onboarding.ONBOARDING_EXAMPLE
 import com.chatlearn.ui.onboarding.OnboardingScreen
@@ -63,6 +64,8 @@ private enum class Overlay { REVIEW, SETTINGS, ONBOARDING }
 class MainActivity : ComponentActivity() {
     // 공유·선택 메뉴로 넘어온 문장이나 알림·바로가기·위젯이 시킨 일. 화면이 처리하면 비운다.
     private var pendingLaunch by mutableStateOf<LaunchRequest?>(null)
+    // 텍스트 선택 메뉴(고칠 수 있는 칸)로 열렸으면 고른 보낼 말을 그 칸에 돌려준다.
+    private var returnsText by mutableStateOf(false)
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
@@ -97,6 +100,8 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         // 회전 등으로 다시 만들어질 때 같은 문장을 또 번역하지 않는다.
         if (savedInstanceState == null) pendingLaunch = launchRequestOf(intent)
+        // 결과를 기다리는 앱(startActivityForResult)이 있을 때만. 이 화면이 열린 처음 요청 기준으로 정한다.
+        returnsText = canReturnText(intent) && callingActivity != null
         val c = (application as ChatLearnApp).container
         c.warmUpTts()
         if (savedInstanceState == null) c.runAutoBackupIfDue()
@@ -245,6 +250,7 @@ class MainActivity : ComponentActivity() {
                                             Tab.TRANSLATE -> TranslateScreen(
                                                 translateVm, onSpeak = { text, lang -> c.tts.speak(text, lang, false) }, onOpenSettings = { overlay = Overlay.SETTINGS },
                                                 onOpenLibrary = { q -> libraryVm.showOnly(q); tab = Tab.LIBRARY },
+                                                onReplace = if (returnsText) { text -> setResult(RESULT_OK, Intent().putExtra(Intent.EXTRA_PROCESS_TEXT, text)); finish() } else null,
                                             )
                                             Tab.LIBRARY -> LibraryScreen(
                                                 libraryVm, onGoTranslate = { tab = Tab.TRANSLATE },

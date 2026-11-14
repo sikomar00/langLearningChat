@@ -42,13 +42,19 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.chatlearn.ai.AiError
 import com.chatlearn.domain.Lang
 import com.chatlearn.domain.splitMessages
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
-fun TranslateScreen(vm: TranslateViewModel, onSpeak: (String, Lang) -> Unit = { _, _ -> }, onOpenSettings: () -> Unit = {}, onOpenLibrary: (String) -> Unit = {}) {
+fun TranslateScreen(
+    vm: TranslateViewModel, onSpeak: (String, Lang) -> Unit = { _, _ -> }, onOpenSettings: () -> Unit = {}, onOpenLibrary: (String) -> Unit = {},
+    onReplace: ((String) -> Unit)? = null,
+) {
     val s by vm.state.collectAsStateWithLifecycle()
     val clipboard = LocalClipboardManager.current
     val ctx = androidx.compose.ui.platform.LocalContext.current
+    val scope = rememberCoroutineScope()
+    var replacing by remember { mutableStateOf(false) }
     // 복사만: Android 13부터는 시스템이 복사 알림을 띄우므로 그 아래 버전에서만 짧게 알린다.
     fun copy(text: String) {
         clipboard.setText(AnnotatedString(text))
@@ -296,6 +302,13 @@ fun TranslateScreen(vm: TranslateViewModel, onSpeak: (String, Lang) -> Unit = { 
                             clipboard.setText(AnnotatedString(c.text))
                             vm.onCandidateCopied(c)
                         }) { Text("복사하고 저장") }
+                    }
+                    // 텍스트 선택 메뉴로 왔으면 고른 문장을 원래 칸에 바로 넣는다. 저장을 마친 뒤 돌아가야 화면과 함께 취소되지 않는다.
+                    if (onReplace != null) Button(
+                        onClick = { replacing = true; scope.launch { vm.onCandidateCopied(c).join(); onReplace(c.text) } },
+                        Modifier.fillMaxWidth(), enabled = !replacing,
+                    ) {
+                        Text("이걸로 바꾸고 저장")
                     }
                 }
             }
