@@ -214,6 +214,9 @@ class LibraryViewModel(
         query.value = text
     }
 
+    /** 서랍의 "새 폴더": 화면이 이름 창을 열고 비운다. */
+    val newFolderRequest = MutableStateFlow(false)
+
     /** 다른 화면(성장)에서 문장 하나를 열어 달라고 할 때. 필터를 풀어 목록에 보이게 하고, 화면이 상세를 연 뒤 비운다. */
     val openRequest = MutableStateFlow<Long?>(null)
     fun open(id: Long) {

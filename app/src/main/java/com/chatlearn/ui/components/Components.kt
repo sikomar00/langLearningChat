@@ -1,5 +1,6 @@
 package com.chatlearn.ui.components
 
+import androidx.compose.ui.semantics.role
 import com.chatlearn.ui.theme.board
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.selection.toggleable
@@ -129,8 +130,10 @@ fun ChoiceChip(
     enabled: Boolean = true,
     leadingIcon: (@Composable () -> Unit)? = null,
     trailingIcon: (@Composable () -> Unit)? = null,
+    /** 하나만 고르는 줄이면 true: 스크린리더가 "선택됨" 대신 라디오 버튼으로 읽는다. */
+    radio: Boolean = false,
 ) = FilterChip(
-    selected, onClick, label, modifier, enabled, leadingIcon, trailingIcon,
+    selected, onClick, label, if (radio) modifier.semantics { role = Role.RadioButton } else modifier, enabled, leadingIcon, trailingIcon,
     colors = FilterChipDefaults.filterChipColors(labelColor = MaterialTheme.colorScheme.onSurface, iconColor = MaterialTheme.colorScheme.onSurface),
 )
 

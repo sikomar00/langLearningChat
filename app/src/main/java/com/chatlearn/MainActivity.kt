@@ -1,5 +1,6 @@
 package com.chatlearn
 
+import com.chatlearn.ui.library.LibraryDrawer
 import kotlinx.coroutines.flow.map
 import com.chatlearn.ui.components.BoardSearchBar
 import android.content.Intent
@@ -227,6 +228,16 @@ class MainActivity : ComponentActivity() {
                             selectedIconColor = world.onFlap, indicatorColor = world.flap,
                             selectedTextColor = world.flap, unselectedIconColor = world.onBoardMuted, unselectedTextColor = world.onBoardMuted,
                         )
+                        // 라이브러리 편성표 서랍: 화면 전체 높이의 모달(위 검색·아래 탭까지 덮는다). 버튼으로만 연다.
+                        val libraryDrawer = rememberDrawerState(DrawerValue.Closed)
+                        val drawerScope = rememberCoroutineScope()
+                        BackHandler(enabled = libraryDrawer.isOpen) { drawerScope.launch { libraryDrawer.close() } }
+                        ModalNavigationDrawer(
+                            drawerState = libraryDrawer, gesturesEnabled = libraryDrawer.isOpen,
+                            drawerContent = {
+                                LibraryDrawer(libraryVm, onNewFolder = { libraryVm.newFolderRequest.value = true }, close = { drawerScope.launch { libraryDrawer.close() } })
+                            },
+                        ) {
                         Scaffold(
                             topBar = {
                                 val query by libraryVm.query.collectAsStateWithLifecycle()
@@ -275,7 +286,7 @@ class MainActivity : ComponentActivity() {
                                                 onReplace = if (returnsText) { text -> setResult(RESULT_OK, Intent().putExtra(Intent.EXTRA_PROCESS_TEXT, text)); finish() } else null,
                                             )
                                             Tab.LIBRARY -> LibraryScreen(
-                                                libraryVm, onGoTranslate = { tab = Tab.TRANSLATE },
+                                                libraryVm, onGoTranslate = { tab = Tab.TRANSLATE }, onOpenDrawer = { drawerScope.launch { libraryDrawer.open() } },
                                                 showGestureHint = settings?.libraryHintDismissed == false,
                                                 onDismissGestureHint = { lifecycleScope.launch { c.settings.dismissLibraryHint() } },
                                             ) { ids, lang -> openReview { reviewVm.startWith(ids, lang) } }
@@ -284,6 +295,7 @@ class MainActivity : ComponentActivity() {
                                     }
                                 }
                             }
+                        }
                         }
                     }
                 }

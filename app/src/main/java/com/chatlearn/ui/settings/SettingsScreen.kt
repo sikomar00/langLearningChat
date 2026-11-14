@@ -95,7 +95,7 @@ fun SettingsScreen(vm: SettingsViewModel, onPreviewVoice: (com.chatlearn.domain.
                 OutlinedTextField(model, { model = it }, Modifier.fillMaxWidth(), singleLine = true, label = { Text("직접 입력") })
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     listOf("gemini-flash-latest", "gemini-flash-lite-latest", "gemini-3.6-flash", "gemini-3.5-flash-lite").forEach { preset ->
-                        ChoiceChip(selected = model == preset, onClick = { model = preset }, label = { Text(preset) })
+                        ChoiceChip(radio = true, selected = model == preset, onClick = { model = preset }, label = { Text(preset) })
                     }
                 }
             }
@@ -129,7 +129,7 @@ fun SettingsScreen(vm: SettingsViewModel, onPreviewVoice: (com.chatlearn.domain.
             SettingItem("하루 최대 복습", "이보다 많으면 나머지는 다음 날로 넘겨요.") {
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     listOf(50, 100, 200).forEach { n ->
-                        ChoiceChip(selected = s.maxReviews == n, onClick = { vm.saveMaxReviews(n) }, label = { Text("${n}장") })
+                        ChoiceChip(radio = true, selected = s.maxReviews == n, onClick = { vm.saveMaxReviews(n) }, label = { Text("${n}장") })
                     }
                 }
             }
@@ -138,7 +138,7 @@ fun SettingsScreen(vm: SettingsViewModel, onPreviewVoice: (com.chatlearn.domain.
             SettingItem("얼마나 기억할까요", "복습할 때 이만큼은 기억나도록 간격을 정해요. 높일수록 더 자주 복습해요.", first = true) {
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     listOf(0.85 to "85% 여유", 0.9 to "90% 보통", 0.95 to "95% 꼼꼼").forEach { (r, label) ->
-                        ChoiceChip(selected = kotlin.math.abs(s.retention - r) < 0.001, onClick = { vm.saveRetention(r) }, label = { Text(label) })
+                        ChoiceChip(radio = true, selected = kotlin.math.abs(s.retention - r) < 0.001, onClick = { vm.saveRetention(r) }, label = { Text(label) })
                     }
                 }
             }
@@ -157,7 +157,7 @@ fun SettingsScreen(vm: SettingsViewModel, onPreviewVoice: (com.chatlearn.domain.
                 SettingItem("알림 시각") {
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         listOf(8, 12, 18, 20, 22).forEach { h ->
-                            ChoiceChip(selected = s.reminderHour == h, onClick = { vm.saveReminder(true, h) }, label = { Text(if (h < 12) "오전 ${h}시" else if (h == 12) "낮 12시" else "오후 ${h - 12}시") })
+                            ChoiceChip(radio = true, selected = s.reminderHour == h, onClick = { vm.saveReminder(true, h) }, label = { Text(if (h < 12) "오전 ${h}시" else if (h == 12) "낮 12시" else "오후 ${h - 12}시") })
                         }
                     }
                 }
@@ -176,7 +176,7 @@ fun SettingsScreen(vm: SettingsViewModel, onPreviewVoice: (com.chatlearn.domain.
                 SettingItem("알림 말투", "예: " + com.chatlearn.reminder.reminderText(5, 0, com.chatlearn.reminder.ReminderTone.fromName(s.reminderTone))) {
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         com.chatlearn.reminder.ReminderTone.entries.forEach { t ->
-                            ChoiceChip(selected = s.reminderTone == t.name, onClick = { vm.saveReminderTone(t.name) }, label = { Text(t.label) })
+                            ChoiceChip(radio = true, selected = s.reminderTone == t.name, onClick = { vm.saveReminderTone(t.name) }, label = { Text(t.label) })
                         }
                     }
                 }
@@ -193,7 +193,7 @@ fun SettingsScreen(vm: SettingsViewModel, onPreviewVoice: (com.chatlearn.domain.
             SettingItem("영어 억양", "듣기와 말로 답하기에 쓸 억양이에요. 친구가 쓰는 억양에 맞추면 좋아요.", first = true) {
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp), itemVerticalAlignment = Alignment.CenterVertically) {
                     com.chatlearn.settings.EnAccent.entries.forEach { a ->
-                        ChoiceChip(selected = s.enAccent == a.name, onClick = { vm.saveEnAccent(a.name) }, label = { Text(a.label) })
+                        ChoiceChip(radio = true, selected = s.enAccent == a.name, onClick = { vm.saveEnAccent(a.name) }, label = { Text(a.label) })
                     }
                     TextButton(onClick = { onPreviewVoice(com.chatlearn.domain.Lang.EN) }) { Text("들어보기") }
                 }
@@ -201,7 +201,7 @@ fun SettingsScreen(vm: SettingsViewModel, onPreviewVoice: (com.chatlearn.domain.
             SettingItem("스페인어 억양") {
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp), itemVerticalAlignment = Alignment.CenterVertically) {
                     com.chatlearn.settings.EsAccent.entries.forEach { a ->
-                        ChoiceChip(selected = s.esAccent == a.name, onClick = { vm.saveEsAccent(a.name) }, label = { Text(a.label) })
+                        ChoiceChip(radio = true, selected = s.esAccent == a.name, onClick = { vm.saveEsAccent(a.name) }, label = { Text(a.label) })
                     }
                     TextButton(onClick = { onPreviewVoice(com.chatlearn.domain.Lang.ES) }) { Text("들어보기") }
                 }
@@ -209,7 +209,7 @@ fun SettingsScreen(vm: SettingsViewModel, onPreviewVoice: (com.chatlearn.domain.
             SettingItem("말 빠르기", "느리게 듣기는 고른 빠르기보다 더 천천히 들려줘요.") {
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     listOf(0.8f to "천천히", 1f to "보통", 1.2f to "빠르게").forEach { (rate, label) ->
-                        ChoiceChip(selected = kotlin.math.abs(s.speechRate - rate) < 0.01f, onClick = { vm.saveSpeechRate(rate) }, label = { Text(label) })
+                        ChoiceChip(radio = true, selected = kotlin.math.abs(s.speechRate - rate) < 0.01f, onClick = { vm.saveSpeechRate(rate) }, label = { Text(label) })
                     }
                 }
             }
