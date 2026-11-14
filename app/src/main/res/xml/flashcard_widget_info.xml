@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 뜻·정답·버튼 두 개가 들어가도록 오늘의 복습 위젯보다 조금 넓게. 1시간마다 다시 그려 기한이 된 카드를 반영한다. -->
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:description="@string/flashcard_widget_description"
+    android:initialLayout="@layout/glance_default_loading_layout"
+    android:previewLayout="@layout/flashcard_widget_preview"
+    android:minWidth="180dp"
+    android:minHeight="170dp"
+    android:minResizeWidth="180dp"
+    android:minResizeHeight="170dp"
+    android:targetCellWidth="4"
+    android:targetCellHeight="2"
+    android:resizeMode="horizontal|vertical"
+    android:updatePeriodMillis="3600000"
+    android:widgetCategory="home_screen" />

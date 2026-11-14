@@ -18,6 +18,7 @@ import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.chatlearn.domain.Lang
 import com.chatlearn.stats.DayCount
@@ -42,7 +43,8 @@ fun TodayScreen(
     onPractice: (com.chatlearn.domain.GrammarPoint) -> Unit = {},
 ) {
     val ui by vm.ui.collectAsStateWithLifecycle()
-    LaunchedEffect(Unit) { vm.refresh() }
+    // 앱으로 돌아올 때마다 다시 읽는다(위젯에서 복습했거나 자정이 지났을 수 있다).
+    LifecycleResumeEffect(Unit) { vm.refresh(); onPauseOrDispose {} }
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Text("ChatLearn", style = MaterialTheme.typography.titleLarge.copy(fontFamily = Rounded), color = MaterialTheme.colorScheme.primary, modifier = Modifier.weight(1f))

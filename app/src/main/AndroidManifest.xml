@@ -40,6 +40,12 @@
             </intent-filter>
             <meta-data android:name="android.appwidget.provider" android:resource="@xml/review_widget_info" />
         </receiver>
+        <receiver android:name=".widget.FlashcardWidgetReceiver" android:exported="true" android:label="@string/flashcard_widget_name">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/flashcard_widget_info" />
+        </receiver>
         <receiver android:name=".reminder.ReminderReceiver" android:exported="false">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />

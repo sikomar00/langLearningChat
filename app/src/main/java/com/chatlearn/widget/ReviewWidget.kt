@@ -125,15 +125,16 @@ private fun WidgetContent(context: Context, s: WidgetSnapshot?) {
     }
 }
 
-private fun openIntent(context: Context, target: String) = Intent(context, MainActivity::class.java)
+internal fun openIntent(context: Context, target: String) = Intent(context, MainActivity::class.java)
     .setAction(ACTION_OPEN).putExtra(EXTRA_TARGET, target)
     // 엑스트라만 다른 인텐트는 같은 PendingIntent로 묶이므로 버튼마다 주소를 다르게 준다.
     .setData(Uri.parse("chatlearn://open/$target"))
     .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
 
-/** 복습·저장 뒤 위젯 숫자를 다시 그린다. 위젯이 없으면 아무 일도 하지 않는다. */
+/** 복습·저장 뒤 위젯(오늘의 복습·한 장 복습)을 다시 그린다. 위젯이 없으면 아무 일도 하지 않는다. */
 suspend fun refreshReviewWidget(context: Context) {
     runCatching { ReviewWidget().updateAll(context) }
+    runCatching { refreshFlashcards(context) }
 }
 
 /** 런처가 앱 안에서 위젯 추가를 지원하는가. */
