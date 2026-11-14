@@ -9,6 +9,7 @@ import java.time.ZoneOffset
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 class StatsCalculatorTest {
     private val zone: ZoneId = ZoneOffset.UTC
@@ -251,11 +252,28 @@ class StatsCalculatorTest {
             card(1, 1, due = now - 5 * 86_400_000L), card(2, 2, due = ms(today.plusDays(3), 9)),
             card(3, 3, last = null), card(4, 4, last = null), card(5, 5, last = null),
         )
-        val o = GrowthCalculator.outlook(cards, now, zone, newPerDay = 2)
+        val o = GrowthCalculator.outlook(cards, emptyList(), now, zone, newPerDay = 2)
         assertEquals(30, o.size)
         assertEquals(OutlookDay(today, 1, 2), o[0])
         assertEquals(OutlookDay(today.plusDays(1), 0, 1), o[1])
         assertEquals(1, o[3].reviews)
         assertEquals(3, o.sumOf { it.new })
+    }
+
+    @Test fun excludedEntriesLeaveEveryStatAndKnownEntriesCountAsMastered() {
+        val cards = listOf(card(1, 1, lapses = 2), card(2, 2, lapses = 3), card(3, 3, last = null))
+        val logs = listOf(log(1, ms(today, 9), Rating.AGAIN), log(2, ms(today, 10), Rating.GOOD))
+        val items = listOf(
+            item(1, "a").let { it.copy(entry = it.entry.copy(excludeFromStats = true)) },
+            item(2, "b").let { it.copy(entry = it.entry.copy(known = true)) },
+            item(3, "c"),
+        )
+        val s = compute(logs, cards, items)
+        assertEquals(Retention(1, 1), s.byLang[Lang.EN]) // 1번(통계 제외)의 "다시"는 빠진다
+        assertEquals(1, s.growth.mastered) // 2번은 알아요라 익힘
+        assertEquals(listOf("익힘" to 1, "거의" to 0, "익히는 중" to 0, "새 문장" to 1), s.growth.stages)
+        assertTrue(s.weakest.isEmpty()) // 1번은 통계 제외, 2번은 알아요
+        val o = GrowthCalculator.outlook(cards, items, now, zone, newPerDay = 5)
+        assertEquals(1, o.sumOf { it.reviews }) // 알아요인 2번 카드는 예보에서 빠진다
     }
 }

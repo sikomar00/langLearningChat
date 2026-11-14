@@ -65,7 +65,7 @@ fun StatsScreen(vm: StatsViewModel, onPractice: (com.chatlearn.domain.GrammarPoi
         if (s.heatmap.isNotEmpty()) SectionCard("${StatsCalculator.HEATMAP_WEEKS}주 학습 기록") { Heatmap(s.heatmap, g.monthDays, s.streak) }
         SectionCard("익힌 정도") {
             MasteryBar(g.stages)
-            Text("익힘은 21일 넘게 기억한 문장이에요.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("익힘은 21일 넘게 기억했거나 '이미 알아요'로 표시한 문장이에요.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         SectionCard("자주 틀리는 문장") {
             if (s.weakest.isEmpty()) Text("아직 틀린 문장이 없어요.")

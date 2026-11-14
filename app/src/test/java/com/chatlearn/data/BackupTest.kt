@@ -50,18 +50,19 @@ class BackupTest {
         assertEquals(1, Backup.decode(noVersion).entries.size)
     }
 
-    @Test fun exportedFileDeclaresVersion5() = runBlocking {
-        assertTrue(Backup.encode(repo.exportAll()).contains("\"version\":5"))
+    @Test fun exportedFileDeclaresVersion6() = runBlocking {
+        assertTrue(Backup.encode(repo.exportAll()).contains("\"version\":6"))
     }
 
-    @Test fun versions2To5AreAcceptedAndVersion6IsRejected() {
+    @Test fun versions2To6AreAcceptedAndVersion7IsRejected() {
         val empty = BackupData(version = 2, entries = emptyList(), texts = emptyList(), cards = emptyList(),
             logs = emptyList(), tags = emptyList(), entryTags = emptyList())
         assertEquals(2, Backup.decode(Backup.encode(empty)).version)
         assertEquals(3, Backup.decode(Backup.encode(empty.copy(version = 3))).version)
         assertEquals(4, Backup.decode(Backup.encode(empty.copy(version = 4))).version)
         assertEquals(5, Backup.decode(Backup.encode(empty.copy(version = 5))).version)
-        assertFailsWith<BackupFormatException> { Backup.decode(Backup.encode(empty.copy(version = 6))) }
+        assertEquals(6, Backup.decode(Backup.encode(empty.copy(version = 6))).version)
+        assertFailsWith<BackupFormatException> { Backup.decode(Backup.encode(empty.copy(version = 7))) }
     }
 
     @Test fun keyPhrasesSurviveARoundTripAndOldFilesHaveNone() = runBlocking {
@@ -148,5 +149,15 @@ class BackupTest {
         assertNull(d.cards.single().stability)
         assertEquals(TagKind.TOPIC, d.tags.single().kind)
         assertTrue(d.grammarEvents.isEmpty())
+    }
+
+    @Test fun endStatesSurviveABackupRoundTripAndOldFilesReadAsActive() = runBlocking {
+        val id = (repo.saveEntry(EntryDraft(Direction.RECEIVED, Lang.EN, "Known one", "한", "", null, emptyList()), 1) as SaveResult.Saved).id
+        db.dao().setKnown(listOf(id), true)
+        db.dao().setExcludeFromStats(listOf(id), true)
+        val back = Backup.decode(Backup.encode(repo.exportAll())).entries.single { it.id == id }
+        assertTrue(back.known && back.excludeFromStats)
+        val old = Backup.decode(v1Json).entries.single()
+        assertTrue(!old.known && !old.excludeFromStats)
     }
 }

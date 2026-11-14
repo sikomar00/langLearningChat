@@ -1,5 +1,6 @@
 package com.chatlearn.ui.library
 
+import com.chatlearn.stats.EntryState
 import com.chatlearn.stats.progressOf
 import com.chatlearn.stats.EntryProgress
 import androidx.lifecycle.ViewModel
@@ -64,7 +65,12 @@ class LibraryViewModel(
         .map { si ->
             val now = clock()
             val misses = recentMissIds(si.logs, si.cards, now - RECENT_MISS_MS)
-            si.cards.groupBy { it.entryId }.mapValues { (id, cards) -> progressOf(cards, now).copy(recentMiss = id in misses) }
+            val entries = si.items.associate { it.entry.id to it.entry }
+            si.cards.groupBy { it.entryId }.mapValues { (id, cards) ->
+                val e = entries[id]
+                val p = progressOf(cards, now).copy(recentMiss = id in misses, excluded = e?.excludeFromStats == true)
+                if (e?.known == true) p.copy(state = EntryState.KNOWN) else p
+            }
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
 
@@ -239,6 +245,8 @@ class LibraryViewModel(
     }
 
     fun saveNote(id: Long, note: String) = viewModelScope.launch { repo.updateNote(id, note) }
+    fun setKnown(id: Long, known: Boolean) = viewModelScope.launch { repo.setKnown(listOf(id), known) }
+    fun setExcludeFromStats(id: Long, exclude: Boolean) = viewModelScope.launch { repo.setExcludeFromStats(listOf(id), exclude) }
     fun saveText(id: Long, lang: Lang, text: String) = viewModelScope.launch {
         if (text.isNotBlank()) repo.putText(id, lang, text, TextOrigin.USER)
     }

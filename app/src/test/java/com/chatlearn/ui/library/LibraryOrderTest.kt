@@ -201,4 +201,17 @@ class LibraryOrderTest {
         )
         assertEquals(listOf(1, 1, 4), stageSteps(logs))
     }
+
+    @Test fun knownEntriesHaveTheirOwnChipAndLeaveTheStageChips() {
+        val ps = mapOf(
+            1L to EntryProgress(EntryState.KNOWN, now + day, 0, stage = 5),
+            2L to EntryProgress(EntryState.LATER, now + 10 * day, 0, stage = 5, excluded = true),
+        )
+        val items = (1L..2L).map { item(it, it) }
+        val counts = statusCounts(items, ps, now)
+        assertEquals(1, counts[StatusFilter.KNOWN])
+        assertEquals(1, counts[StatusFilter.MASTERED]) // 알아요로 뺀 1번은 익힘 칩에 넣지 않는다
+        assertEquals(listOf(2L), filterByStatus(items, ps, StatusFilter.EXCLUDED, now).map { it.entry.id })
+        assertEquals(listOf(EntryState.LATER, EntryState.KNOWN), groupByState(items, ps).map { it.first })
+    }
 }

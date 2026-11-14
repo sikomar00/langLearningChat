@@ -38,7 +38,10 @@ object GrowthCalculator {
         val weekStart = today.minusDays(6).atStartOfDay(zone).toInstant().toEpochMilli()
         val prevStart = today.minusDays(13).atStartOfDay(zone).toInstant().toEpochMilli()
         val cardsOf = cards.groupBy { it.entryId }
-        val stageOf = items.associate { it.entry.id to (cardsOf[it.entry.id]?.let { c -> progressOf(c, now).stage } ?: 0) }
+        // "이미 알아요"는 내가 안다고 정한 문장이라 익힘으로 센다.
+        val stageOf = items.associate {
+            it.entry.id to if (it.entry.known) MAX_STAGE else (cardsOf[it.entry.id]?.let { c -> progressOf(c, now).stage } ?: 0)
+        }
         val masteredItems = items.filter { stageOf[it.entry.id] == MAX_STAGE }
 
         val weekLogs = logs.filter { it.reviewedAt >= weekStart }
@@ -70,7 +73,10 @@ object GrowthCalculator {
      * 앞으로 [days]일: 복습한 카드는 기한 날짜에(밀린 카드는 오늘), 아직 안 본 카드는 하루 [newPerDay]장씩 오늘부터.
      * shortcut: 오늘 이미 시작한 새 카드 수는 빼지 않는다. 오늘 칸이 조금 많게 보일 수 있다.
      */
-    fun outlook(cards: List<ReviewCardEntity>, now: Long, zone: ZoneId, newPerDay: Int, days: Int = 30): List<OutlookDay> {
+    fun outlook(allCards: List<ReviewCardEntity>, items: List<LibraryItem>, now: Long, zone: ZoneId, newPerDay: Int, days: Int = 30): List<OutlookDay> {
+        // 복습 차례에 들어오지 않는 "이미 알아요" 문장은 예보에서도 뺀다.
+        val known = items.filter { it.entry.known }.mapTo(HashSet()) { it.entry.id }
+        val cards = allCards.filter { it.entryId !in known }
         val reviews = StatsCalculator.forecast(cards.filter { it.lastReviewedAt != null }.map { it.dueAt }, now, zone, days)
         var waiting = cards.count { it.lastReviewedAt == null }
         return reviews.map { d ->

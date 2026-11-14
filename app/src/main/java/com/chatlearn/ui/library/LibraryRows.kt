@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.foundation.background
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.ui.Alignment
 import androidx.compose.material3.*
@@ -48,6 +49,7 @@ internal fun boardTitle(s: EntryState): String = when (s) {
     EntryState.DUE -> "지금 탑승 · ${stateTitle(s)}"
     EntryState.LATER -> "출발 예정 · ${stateTitle(s)}"
     EntryState.NEW -> "탑승 대기 · ${stateTitle(s)}"
+    EntryState.KNOWN -> "도착 · ${stateTitle(s)}"
 }
 
 @Composable
@@ -180,6 +182,11 @@ internal fun StatusMark(progress: EntryProgress?, now: Long) {
             dueBadge(p, now), Modifier.border(1.dp, MaterialTheme.colorScheme.outline, CircleShape).padding(horizontal = 8.dp, vertical = 2.dp),
             style = style, color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
+        // 도착한 편: 체크 표시와 글자, 색은 쓰지 않는다.
+        EntryState.KNOWN -> Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            Icon(Icons.Default.Check, contentDescription = null, Modifier.size(14.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(dueBadge(p, now), style = style, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
     }
 }
 
@@ -189,6 +196,7 @@ internal fun DistanceBar(progress: EntryProgress?, now: Long, modifier: Modifier
     when (progress?.state ?: EntryState.NEW) {
         EntryState.DUE -> Box(modifier.fillMaxWidth().height(2.dp).background(MaterialTheme.statusColors.flapGraphic))
         EntryState.NEW -> Box(modifier.size(24.dp, 6.dp).border(1.dp, MaterialTheme.colorScheme.outline, MaterialTheme.shapes.extraSmall))
+        EntryState.KNOWN -> Unit // 다음 복습이 없으니 거리도 없다.
         EntryState.LATER -> {
             val days = ((progress?.nextDueAt ?: now) - now) / 86_400_000f
             val color = MaterialTheme.colorScheme.outline

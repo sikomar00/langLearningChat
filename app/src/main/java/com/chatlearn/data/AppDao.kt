@@ -82,9 +82,10 @@ interface AppDao {
     @Query("SELECT * FROM entry WHERE id IN (:ids)") suspend fun entriesByIds(ids: List<Long>): List<EntryEntity>
     @Query("SELECT * FROM review_card WHERE entryId IN (:ids) AND (:lang IS NULL OR answerLang = :lang) ORDER BY dueAt, id")
     suspend fun cardsForEntries(ids: List<Long>, lang: Lang?): List<ReviewCardEntity>
-    @Query("SELECT * FROM review_card WHERE lastReviewedAt IS NOT NULL AND dueAt <= :now ORDER BY dueAt LIMIT :limit")
+    // "이미 알아요" 문장은 복습 차례에 넣지 않는다(직접 골라 복습하는 cardsForEntries는 그대로).
+    @Query("SELECT * FROM review_card WHERE lastReviewedAt IS NOT NULL AND dueAt <= :now AND entryId NOT IN (SELECT id FROM entry WHERE known = 1) ORDER BY dueAt LIMIT :limit")
     suspend fun dueReviewed(now: Long, limit: Int): List<ReviewCardEntity>
-    @Query("SELECT * FROM review_card WHERE lastReviewedAt IS NULL AND dueAt <= :now ORDER BY dueAt LIMIT :limit")
+    @Query("SELECT * FROM review_card WHERE lastReviewedAt IS NULL AND dueAt <= :now AND entryId NOT IN (SELECT id FROM entry WHERE known = 1) ORDER BY dueAt LIMIT :limit")
     suspend fun dueNew(now: Long, limit: Int): List<ReviewCardEntity>
 
     // 오늘 처음 복습한 카드 수: 모든 로그가 dayStart 이후인 카드
@@ -95,7 +96,7 @@ interface AppDao {
     suspend fun introducedToday(dayStart: Long): Int
 
     /** 아직 한 번도 복습하지 않았고 기한이 된 새 카드 수(오늘 한도와 상관없이). */
-    @Query("SELECT COUNT(*) FROM review_card WHERE lastReviewedAt IS NULL AND dueAt <= :now")
+    @Query("SELECT COUNT(*) FROM review_card WHERE lastReviewedAt IS NULL AND dueAt <= :now AND entryId NOT IN (SELECT id FROM entry WHERE known = 1)")
     suspend fun countDueNew(now: Long): Int
 
     // 폴더
@@ -112,6 +113,8 @@ interface AppDao {
     @Query("DELETE FROM folder") suspend fun deleteAllFolders()
 
     @Query("UPDATE entry SET note = :note WHERE id = :id") suspend fun updateNote(id: Long, note: String)
+    @Query("UPDATE entry SET known = :known WHERE id IN (:ids)") suspend fun setKnown(ids: List<Long>, known: Boolean)
+    @Query("UPDATE entry SET excludeFromStats = :exclude WHERE id IN (:ids)") suspend fun setExcludeFromStats(ids: List<Long>, exclude: Boolean)
     @Query("UPDATE entry SET notionPageId = :pageId WHERE id = :id") suspend fun setNotionPageId(id: Long, pageId: String?)
     @Query("DELETE FROM entry WHERE id = :id") suspend fun deleteEntry(id: Long)
 
@@ -121,7 +124,7 @@ interface AppDao {
     @Query("SELECT * FROM review_log") suspend fun allLogs(): List<ReviewLogEntity>
     @Query("SELECT reviewedAt FROM review_log") suspend fun reviewTimes(): List<Long>
     @Query("SELECT COUNT(*) FROM review_card") suspend fun countCards(): Int
-    @Query("SELECT dueAt FROM review_card WHERE lastReviewedAt IS NOT NULL AND dueAt < :until") suspend fun reviewDueTimes(until: Long): List<Long>
+    @Query("SELECT dueAt FROM review_card WHERE lastReviewedAt IS NOT NULL AND dueAt < :until AND entryId NOT IN (SELECT id FROM entry WHERE known = 1)") suspend fun reviewDueTimes(until: Long): List<Long>
     @Query("SELECT * FROM tag") suspend fun allTags(): List<TagEntity>
     @Query("SELECT * FROM entry_tag") suspend fun allEntryTags(): List<EntryTagEntity>
 

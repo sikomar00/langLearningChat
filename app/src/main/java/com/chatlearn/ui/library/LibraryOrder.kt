@@ -20,7 +20,7 @@ import java.util.Locale
 enum class LibrarySort(val label: String) { RECENT("최근 저장"), DUE("복습 기한"), LAPSES("많이 틀린 순") }
 enum class StatusFilter(val label: String) {
     ALL("전체"), UNREVIEWED(stageName(0)), LEARNING(stageName(1)), ALMOST(stageName(3)), MASTERED(stageName(MAX_STAGE)),
-    RECENT_MISS("최근 틀림"), DUE_SOON("곧 복습"), STRUGGLING("자주 틀린 것"),
+    RECENT_MISS("최근 틀림"), DUE_SOON("곧 복습"), STRUGGLING("자주 틀린 것"), KNOWN("알아요"), EXCLUDED("통계 제외"),
 }
 
 const val STRUGGLING_LAPSES = 2
@@ -37,6 +37,7 @@ fun dueBadge(p: EntryProgress, now: Long): String = when (p.state) {
     EntryState.NEW -> "새 문장"
     EntryState.DUE -> "복습할 차례"
     EntryState.LATER -> "${intervalLabel((p.nextDueAt ?: now) - now)} 후"
+    EntryState.KNOWN -> "알아요"
 }
 
 private val NEW_PROGRESS = EntryProgress(EntryState.NEW, null, 0)
@@ -55,14 +56,19 @@ fun sortLibrary(items: List<LibraryItem>, progress: Map<Long, EntryProgress>, so
 fun matchesStatus(p: EntryProgress, f: StatusFilter, now: Long): Boolean = when (f) {
     StatusFilter.ALL -> true
     StatusFilter.UNREVIEWED -> p.state == EntryState.NEW
-    StatusFilter.LEARNING -> p.state != EntryState.NEW && p.stage <= 2
-    StatusFilter.ALMOST -> p.state != EntryState.NEW && p.stage in 3 until MAX_STAGE
-    StatusFilter.MASTERED -> p.stage >= MAX_STAGE
+    // 익힌 단계 칩은 복습 중인 문장만(알아요로 뺀 문장은 따로).
+    StatusFilter.LEARNING -> p.reviewing() && p.stage <= 2
+    StatusFilter.ALMOST -> p.reviewing() && p.stage in 3 until MAX_STAGE
+    StatusFilter.MASTERED -> p.reviewing() && p.stage >= MAX_STAGE
     StatusFilter.RECENT_MISS -> p.recentMiss
     // 이미 "복습할 차례"인 문장은 빼고, 아직 기한 전이지만 3일 안에 돌아오는 문장.
     StatusFilter.DUE_SOON -> p.state == EntryState.LATER && (p.nextDueAt ?: Long.MAX_VALUE) <= now + DUE_SOON_MS
     StatusFilter.STRUGGLING -> p.lapses >= STRUGGLING_LAPSES
+    StatusFilter.KNOWN -> p.state == EntryState.KNOWN
+    StatusFilter.EXCLUDED -> p.excluded
 }
+
+private fun EntryProgress.reviewing() = state != EntryState.NEW && state != EntryState.KNOWN
 
 fun filterByStatus(items: List<LibraryItem>, progress: Map<Long, EntryProgress>, f: StatusFilter, now: Long = System.currentTimeMillis()): List<LibraryItem> =
     if (f == StatusFilter.ALL) items else items.filter { matchesStatus(progress[it.entry.id] ?: NEW_PROGRESS, f, now) }
@@ -74,7 +80,7 @@ fun statusCounts(items: List<LibraryItem>, progress: Map<Long, EntryProgress>, n
 /** 목록을 "복습할 차례 → 새 문장 → 나중에" 순서로 묶는다. 묶음 안의 순서는 주어진 순서를 그대로 둔다. */
 fun groupByState(items: List<LibraryItem>, progress: Map<Long, EntryProgress>): List<Pair<EntryState, List<LibraryItem>>> {
     val byState = items.groupBy { (progress[it.entry.id] ?: NEW_PROGRESS).state }
-    return listOf(EntryState.DUE, EntryState.NEW, EntryState.LATER).mapNotNull { st -> byState[st]?.let { st to it } }
+    return listOf(EntryState.DUE, EntryState.NEW, EntryState.LATER, EntryState.KNOWN).mapNotNull { st -> byState[st]?.let { st to it } }
 }
 
 fun stateTitle(s: EntryState): String = when (s) {
@@ -82,6 +88,7 @@ fun stateTitle(s: EntryState): String = when (s) {
     // 문장 수를 세므로 "카드"가 아니라 "문장": 한 문장에 카드가 둘일 수 있어 복습 탭의 카드 수와 다르다.
     EntryState.NEW -> "새 문장"
     EntryState.LATER -> "나중에 복습"
+    EntryState.KNOWN -> "이미 알아요"
 }
 
 enum class GroupBy(val label: String) { STATE("상태"), PERSON("친구"), DATE("날짜"), TAG("태그"), NONE("묶지 않음") }

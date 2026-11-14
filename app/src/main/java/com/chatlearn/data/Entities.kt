@@ -37,6 +37,10 @@ data class EntryEntity(
     val contextText: String? = null,
     /** 노션 데이터베이스로 보낸 페이지 id. 다시 보내면 새로 만들지 않고 이 페이지를 고친다. */
     val notionPageId: String? = null,
+    /** 이미 알아요: 복습 차례(오늘 복습·위젯·예보)에 넣지 않는다. 직접 골라 복습하면 나온다. 익힌 정도에서는 익힘으로 센다. */
+    @ColumnInfo(defaultValue = "0") val known: Boolean = false,
+    /** 통계에서 빼기: 정답률·익힌 정도·친구별·자주 틀리는 문장에 넣지 않는다. 복습은 그대로 한다. */
+    @ColumnInfo(defaultValue = "0") val excludeFromStats: Boolean = false,
 )
 
 @Serializable

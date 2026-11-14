@@ -181,4 +181,29 @@ class MigrationTest {
         assertTrue(names.containsAll(listOf("index_review_log_reviewedAt", "index_entry_text_lang_text", "index_entry_createdAt")))
         db.close()
     }
+
+    private fun createV5() = createFromSchema(5, listOf(
+        "INSERT INTO entry (id, createdAt, direction, chatLang, note, tone, folderId, kind, contextText, notionPageId) VALUES (1, 100, 'RECEIVED', 'EN', '', NULL, NULL, 'SENTENCE', NULL, NULL)",
+        "INSERT INTO review_card (id, entryId, answerLang, dueAt, intervalDays, ease, reps, lapses, lastReviewedAt, stability, difficulty) VALUES (1, 1, 'EN', 500, 3.0, 2.5, 2, 0, 400, 3.0, 5.0)",
+        "INSERT INTO review_card (id, entryId, answerLang, dueAt, intervalDays, ease, reps, lapses, lastReviewedAt, stability, difficulty) VALUES (2, 1, 'ES', 0, 0.0, 2.5, 0, 0, NULL, NULL, NULL)",
+    ))
+
+    @Test fun v5UpgradesToV6KeepingEveryEntryInReviewAndStatsUntilMarkedKnown() = runBlocking {
+        createV5()
+        val db = open()
+        val dao = db.dao()
+        val e = dao.allEntries().single()
+        assertEquals(false, e.known)
+        assertEquals(false, e.excludeFromStats)
+        assertEquals(1, dao.dueReviewed(1_000, 10).size)
+        assertEquals(1, dao.countDueNew(1_000))
+        dao.setKnown(listOf(1), true)
+        // 이미 알아요: 복습 차례·새 카드 수·예보에서 빠지고, 직접 고르면 여전히 나온다.
+        assertTrue(dao.dueReviewed(1_000, 10).isEmpty())
+        assertTrue(dao.dueNew(1_000, 10).isEmpty())
+        assertEquals(0, dao.countDueNew(1_000))
+        assertTrue(dao.reviewDueTimes(10_000).isEmpty())
+        assertEquals(2, dao.cardsForEntries(listOf(1), null).size)
+        db.close()
+    }
 }

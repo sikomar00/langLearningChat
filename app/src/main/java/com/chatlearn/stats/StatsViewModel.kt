@@ -27,7 +27,7 @@ class StatsViewModel(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
     /** 앞으로 30일 복습·새 카드 예보. */
-    val outlook: StateFlow<List<OutlookDay>> = kotlinx.coroutines.flow.combine(input, newPerDay) { si, n -> GrowthCalculator.outlook(si.cards, clock(), zone, n) }
+    val outlook: StateFlow<List<OutlookDay>> = kotlinx.coroutines.flow.combine(input, newPerDay) { si, n -> GrowthCalculator.outlook(si.cards, si.items, clock(), zone, n) }
         .flowOn(Dispatchers.Default)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 

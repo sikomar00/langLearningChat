@@ -124,6 +124,10 @@ internal fun DetailDialog(item: LibraryItem, hasAltCard: Boolean, recentTags: Li
                     }
                 }
                 ReviewHistory(item, vm)
+                SectionCard("복습과 통계") {
+                    EndStateSwitch("이미 알아요", "오늘 복습·위젯·예보에 넣지 않아요. 익힌 정도에서는 익힘으로 세요.", item.entry.known) { vm.setKnown(item.entry.id, it) }
+                    EndStateSwitch("통계에서 빼기", "정답률·익힌 정도·친구별 통계에 넣지 않아요. 복습은 그대로 해요.", item.entry.excludeFromStats) { vm.setExcludeFromStats(item.entry.id, it) }
+                }
                 SectionCard("뜻 고치기") {
                     OutlinedTextField(ko, { ko = it }, label = { Text("한국어 뜻") }, modifier = Modifier.fillMaxWidth())
                     if (hasAltCard && altText != null) {

@@ -56,6 +56,12 @@ object StatsCalculator {
         now: Long,
         zone: ZoneId,
     ): Stats {
+        val excluded = items.filter { it.entry.excludeFromStats }.mapTo(HashSet()) { it.entry.id }
+        if (excluded.isNotEmpty()) {
+            val keptCards = cards.filter { it.entryId !in excluded }
+            val keptIds = keptCards.mapTo(HashSet()) { it.id }
+            return compute(logs.filter { it.cardId in keptIds }, keptCards, items.filter { it.entry.id !in excluded }, now, zone)
+        }
         fun day(ms: Long) = Instant.ofEpochMilli(ms).atZone(zone).toLocalDate()
         val today = day(now)
         val perDay = logs.groupBy { day(it.reviewedAt) }
@@ -72,7 +78,9 @@ object StatsCalculator {
         val streak = streakOf(perDay.keys, today)
 
         val itemById = items.associateBy { it.entry.id }
-        val weakest = cards.filter { it.lapses > 0 }
+        // 이미 알아요로 뺀 문장은 자주 틀리는 문장에서도 뺀다.
+        val known = items.filter { it.entry.known }.mapTo(HashSet()) { it.entry.id }
+        val weakest = cards.filter { it.lapses > 0 && it.entryId !in known }
             .sortedWith(compareByDescending<ReviewCardEntity> { it.lapses }.thenBy { it.entryId })
             .mapNotNull { c ->
                 itemById[c.entryId]?.let {
