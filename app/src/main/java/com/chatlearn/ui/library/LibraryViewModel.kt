@@ -1,5 +1,6 @@
 package com.chatlearn.ui.library
 
+import com.chatlearn.domain.MAX_STAGE
 import com.chatlearn.stats.EntryState
 import com.chatlearn.stats.progressOf
 import com.chatlearn.stats.EntryProgress
@@ -69,7 +70,7 @@ class LibraryViewModel(
             si.cards.groupBy { it.entryId }.mapValues { (id, cards) ->
                 val e = entries[id]
                 val p = progressOf(cards, now).copy(recentMiss = id in misses, excluded = e?.excludeFromStats == true)
-                if (e?.known == true) p.copy(state = EntryState.KNOWN) else p
+                if (e?.known == true) p.copy(state = EntryState.KNOWN, stage = MAX_STAGE) else p
             }
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
@@ -87,6 +88,9 @@ class LibraryViewModel(
     val folderCounts: StateFlow<Map<Long, Int>> = all
         .map { l -> l.groupingBy { it.entry.folderId ?: FOLDER_UNFILED }.eachCount() }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
+    /** 필터와 상관없는 전체 문장(삭제 대기 제외). 열린 상세 창이 필터 밖으로 나가도 닫히지 않게 여기서 찾는다. */
+    val everything: StateFlow<List<LibraryItem>> = combine(all, _pendingDelete) { l, pending -> l.filter { it.entry.id != pending } }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
     val items: StateFlow<List<LibraryItem>> =
         combine(searched, statusFilter, sort, progress) { l, sf, so, pr -> sortLibrary(filterByStatus(l, pr, sf, clock()), pr, so) }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())

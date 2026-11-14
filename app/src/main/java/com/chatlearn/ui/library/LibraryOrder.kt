@@ -47,7 +47,7 @@ fun sortLibrary(items: List<LibraryItem>, progress: Map<Long, EntryProgress>, so
     return when (sort) {
         LibrarySort.RECENT -> items.sortedWith(recent)
         LibrarySort.DUE -> items.sortedWith(
-            compareBy<LibraryItem> { progress[it.entry.id]?.nextDueAt ?: Long.MAX_VALUE }.then(recent),
+            compareBy<LibraryItem> { progress[it.entry.id]?.takeIf { p -> p.state != EntryState.KNOWN }?.nextDueAt ?: Long.MAX_VALUE }.then(recent),
         )
         LibrarySort.LAPSES -> items.sortedWith(compareByDescending<LibraryItem> { progress[it.entry.id]?.lapses ?: 0 }.then(recent))
     }
@@ -60,10 +60,10 @@ fun matchesStatus(p: EntryProgress, f: StatusFilter, now: Long): Boolean = when 
     StatusFilter.LEARNING -> p.reviewing() && p.stage <= 2
     StatusFilter.ALMOST -> p.reviewing() && p.stage in 3 until MAX_STAGE
     StatusFilter.MASTERED -> p.reviewing() && p.stage >= MAX_STAGE
-    StatusFilter.RECENT_MISS -> p.recentMiss
+    StatusFilter.RECENT_MISS -> p.recentMiss && p.state != EntryState.KNOWN
     // 이미 "복습할 차례"인 문장은 빼고, 아직 기한 전이지만 3일 안에 돌아오는 문장.
     StatusFilter.DUE_SOON -> p.state == EntryState.LATER && (p.nextDueAt ?: Long.MAX_VALUE) <= now + DUE_SOON_MS
-    StatusFilter.STRUGGLING -> p.lapses >= STRUGGLING_LAPSES
+    StatusFilter.STRUGGLING -> p.lapses >= STRUGGLING_LAPSES && p.state != EntryState.KNOWN
     StatusFilter.KNOWN -> p.state == EntryState.KNOWN
     StatusFilter.EXCLUDED -> p.excluded
 }

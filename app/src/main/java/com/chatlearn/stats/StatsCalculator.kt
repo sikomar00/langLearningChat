@@ -56,15 +56,22 @@ object StatsCalculator {
         now: Long,
         zone: ZoneId,
     ): Stats {
+        // 통계에서 뺀 문장은 정답률·익힌 정도·친구별·자주 틀리는 문장에서만 뺀다. 복습한 날(연속·달력·7일 수)은 모든 기록으로 센다.
+        val all = logs
         val excluded = items.filter { it.entry.excludeFromStats }.mapTo(HashSet()) { it.entry.id }
-        if (excluded.isNotEmpty()) {
-            val keptCards = cards.filter { it.entryId !in excluded }
-            val keptIds = keptCards.mapTo(HashSet()) { it.id }
-            return compute(logs.filter { it.cardId in keptIds }, keptCards, items.filter { it.entry.id !in excluded }, now, zone)
-        }
+        val (outCards, keptCards) = cards.partition { it.entryId in excluded }
+        val outIds = outCards.mapTo(HashSet()) { it.id }
+        val kept = Kept(all.filter { it.cardId !in outIds }, keptCards, items.filter { it.entry.id !in excluded })
+        return computeKept(all, kept, now, zone)
+    }
+
+    private class Kept(val logs: List<ReviewLogEntity>, val cards: List<ReviewCardEntity>, val items: List<LibraryItem>)
+
+    private fun computeKept(all: List<ReviewLogEntity>, kept: Kept, now: Long, zone: ZoneId): Stats {
+        val (logs, cards, items) = Triple(kept.logs, kept.cards, kept.items)
         fun day(ms: Long) = Instant.ofEpochMilli(ms).atZone(zone).toLocalDate()
         val today = day(now)
-        val perDay = logs.groupBy { day(it.reviewedAt) }
+        val perDay = all.groupBy { day(it.reviewedAt) }
 
         val last7 = (6 downTo 0).map { back ->
             val d = today.minusDays(back.toLong())
@@ -79,7 +86,7 @@ object StatsCalculator {
 
         val itemById = items.associateBy { it.entry.id }
         // 이미 알아요로 뺀 문장은 자주 틀리는 문장에서도 뺀다.
-        val known = items.filter { it.entry.known }.mapTo(HashSet()) { it.entry.id }
+        val known = items.knownIds()
         val weakest = cards.filter { it.lapses > 0 && it.entryId !in known }
             .sortedWith(compareByDescending<ReviewCardEntity> { it.lapses }.thenBy { it.entryId })
             .mapNotNull { c ->
@@ -102,7 +109,7 @@ object StatsCalculator {
         return Stats(
             last7 = last7,
             streak = streak,
-            growth = GrowthCalculator.compute(logs, cards, items, now, zone),
+            growth = GrowthCalculator.compute(all, logs, cards, items, now, zone),
             weakest = weakest,
             byLang = byLang,
             byTag = byTag.mapValues { retention(it.value) },

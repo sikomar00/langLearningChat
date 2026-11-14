@@ -1,10 +1,14 @@
 package com.chatlearn.stats
 
+import com.chatlearn.data.LibraryItem
 import com.chatlearn.data.ReviewCardEntity
 import com.chatlearn.domain.MAX_STAGE
 import com.chatlearn.domain.stageOf
 
 /** KNOWN은 "이미 알아요"로 표시해 복습 차례에서 뺀 문장. */
+/** "이미 알아요"로 표시한 문장 id. */
+fun List<LibraryItem>.knownIds(): Set<Long> = filter { it.entry.known }.mapTo(HashSet()) { it.entry.id }
+
 enum class EntryState { NEW, DUE, LATER, KNOWN }
 
 /**

@@ -33,7 +33,8 @@ data class OutlookDay(val date: java.time.LocalDate, val reviews: Int, val new: 
 object GrowthCalculator {
     private val STAGE_ORDER = listOf(MAX_STAGE, 3, 1, 0).map(::stageName)
 
-    fun compute(logs: List<ReviewLogEntity>, cards: List<ReviewCardEntity>, items: List<LibraryItem>, now: Long, zone: ZoneId): Growth {
+    /** [activity]는 모든 복습 기록(복습 수·복습한 날), [logs]·[cards]·[items]는 통계에서 뺀 문장을 덜어 낸 것(정답률·익힌 정도). */
+    fun compute(activity: List<ReviewLogEntity>, logs: List<ReviewLogEntity>, cards: List<ReviewCardEntity>, items: List<LibraryItem>, now: Long, zone: ZoneId): Growth {
         val today = Instant.ofEpochMilli(now).atZone(zone).toLocalDate()
         val weekStart = today.minusDays(6).atStartOfDay(zone).toInstant().toEpochMilli()
         val prevStart = today.minusDays(13).atStartOfDay(zone).toInstant().toEpochMilli()
@@ -45,13 +46,14 @@ object GrowthCalculator {
         val masteredItems = items.filter { stageOf[it.entry.id] == MAX_STAGE }
 
         val weekLogs = logs.filter { it.reviewedAt >= weekStart }
+        val weekActivity = activity.count { it.reviewedAt >= weekStart }
         val month = today.withDayOfMonth(1)
-        val monthDays = logs.map { Instant.ofEpochMilli(it.reviewedAt).atZone(zone).toLocalDate() }.filter { !it.isBefore(month) }.distinct().size
+        val monthDays = activity.map { Instant.ofEpochMilli(it.reviewedAt).atZone(zone).toLocalDate() }.filter { !it.isBefore(month) }.distinct().size
         val stageCounts = items.groupingBy { stageName(stageOf[it.entry.id] ?: 0) }.eachCount()
         return Growth(
             mastered = masteredItems.size,
-            weekReviews = weekLogs.size,
-            prevWeekReviews = logs.count { it.reviewedAt in prevStart until weekStart },
+            weekReviews = weekActivity,
+            prevWeekReviews = activity.count { it.reviewedAt in prevStart until weekStart },
             week = Retention(weekLogs.size, weekLogs.count { it.rating != Rating.AGAIN }),
             stages = STAGE_ORDER.map { it to (stageCounts[it] ?: 0) },
             monthDays = monthDays,
@@ -75,7 +77,7 @@ object GrowthCalculator {
      */
     fun outlook(allCards: List<ReviewCardEntity>, items: List<LibraryItem>, now: Long, zone: ZoneId, newPerDay: Int, days: Int = 30): List<OutlookDay> {
         // 복습 차례에 들어오지 않는 "이미 알아요" 문장은 예보에서도 뺀다.
-        val known = items.filter { it.entry.known }.mapTo(HashSet()) { it.entry.id }
+        val known = items.knownIds()
         val cards = allCards.filter { it.entryId !in known }
         val reviews = StatsCalculator.forecast(cards.filter { it.lastReviewedAt != null }.map { it.dueAt }, now, zone, days)
         var waiting = cards.count { it.lastReviewedAt == null }

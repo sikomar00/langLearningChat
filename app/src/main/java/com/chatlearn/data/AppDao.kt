@@ -9,6 +9,9 @@ data class KnownExpressionRow(val phrase: String, val ko: String)
 data class KeyPhraseTarget(val entryId: Long, val lang: Lang, val text: String)
 data class ExpansionTarget(val entryId: Long, val chatLang: Lang, val chatText: String)
 
+/** "이미 알아요" 문장은 복습 차례(오늘 복습·새 카드 수·예보)에 넣지 않는다. 직접 골라 복습하는 cardsForEntries는 그대로. */
+private const val NOT_KNOWN = " AND entryId NOT IN (SELECT id FROM entry WHERE known = 1)"
+
 @Dao
 interface AppDao {
     @Insert suspend fun insertEntry(e: EntryEntity): Long
@@ -82,10 +85,9 @@ interface AppDao {
     @Query("SELECT * FROM entry WHERE id IN (:ids)") suspend fun entriesByIds(ids: List<Long>): List<EntryEntity>
     @Query("SELECT * FROM review_card WHERE entryId IN (:ids) AND (:lang IS NULL OR answerLang = :lang) ORDER BY dueAt, id")
     suspend fun cardsForEntries(ids: List<Long>, lang: Lang?): List<ReviewCardEntity>
-    // "이미 알아요" 문장은 복습 차례에 넣지 않는다(직접 골라 복습하는 cardsForEntries는 그대로).
-    @Query("SELECT * FROM review_card WHERE lastReviewedAt IS NOT NULL AND dueAt <= :now AND entryId NOT IN (SELECT id FROM entry WHERE known = 1) ORDER BY dueAt LIMIT :limit")
+    @Query("SELECT * FROM review_card WHERE lastReviewedAt IS NOT NULL AND dueAt <= :now" + NOT_KNOWN + " ORDER BY dueAt LIMIT :limit")
     suspend fun dueReviewed(now: Long, limit: Int): List<ReviewCardEntity>
-    @Query("SELECT * FROM review_card WHERE lastReviewedAt IS NULL AND dueAt <= :now AND entryId NOT IN (SELECT id FROM entry WHERE known = 1) ORDER BY dueAt LIMIT :limit")
+    @Query("SELECT * FROM review_card WHERE lastReviewedAt IS NULL AND dueAt <= :now" + NOT_KNOWN + " ORDER BY dueAt LIMIT :limit")
     suspend fun dueNew(now: Long, limit: Int): List<ReviewCardEntity>
 
     // 오늘 처음 복습한 카드 수: 모든 로그가 dayStart 이후인 카드
@@ -96,7 +98,7 @@ interface AppDao {
     suspend fun introducedToday(dayStart: Long): Int
 
     /** 아직 한 번도 복습하지 않았고 기한이 된 새 카드 수(오늘 한도와 상관없이). */
-    @Query("SELECT COUNT(*) FROM review_card WHERE lastReviewedAt IS NULL AND dueAt <= :now AND entryId NOT IN (SELECT id FROM entry WHERE known = 1)")
+    @Query("SELECT COUNT(*) FROM review_card WHERE lastReviewedAt IS NULL AND dueAt <= :now" + NOT_KNOWN)
     suspend fun countDueNew(now: Long): Int
 
     // 폴더
@@ -124,7 +126,7 @@ interface AppDao {
     @Query("SELECT * FROM review_log") suspend fun allLogs(): List<ReviewLogEntity>
     @Query("SELECT reviewedAt FROM review_log") suspend fun reviewTimes(): List<Long>
     @Query("SELECT COUNT(*) FROM review_card") suspend fun countCards(): Int
-    @Query("SELECT dueAt FROM review_card WHERE lastReviewedAt IS NOT NULL AND dueAt < :until AND entryId NOT IN (SELECT id FROM entry WHERE known = 1)") suspend fun reviewDueTimes(until: Long): List<Long>
+    @Query("SELECT dueAt FROM review_card WHERE lastReviewedAt IS NOT NULL AND dueAt < :until" + NOT_KNOWN) suspend fun reviewDueTimes(until: Long): List<Long>
     @Query("SELECT * FROM tag") suspend fun allTags(): List<TagEntity>
     @Query("SELECT * FROM entry_tag") suspend fun allEntryTags(): List<EntryTagEntity>
 

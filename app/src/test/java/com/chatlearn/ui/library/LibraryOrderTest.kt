@@ -213,5 +213,9 @@ class LibraryOrderTest {
         assertEquals(1, counts[StatusFilter.MASTERED]) // 알아요로 뺀 1번은 익힘 칩에 넣지 않는다
         assertEquals(listOf(2L), filterByStatus(items, ps, StatusFilter.EXCLUDED, now).map { it.entry.id })
         assertEquals(listOf(EntryState.LATER, EntryState.KNOWN), groupByState(items, ps).map { it.first })
+        // 알아요는 복습 기한 순에서 맨 뒤, 자주 틀린 것에서도 빠진다.
+        val overdueKnown = ps + (1L to ps.getValue(1L).copy(nextDueAt = now - 30 * day, lapses = 5))
+        assertEquals(listOf(2L, 1L), sortLibrary(items, overdueKnown, LibrarySort.DUE).map { it.entry.id })
+        assertEquals(emptyList(), filterByStatus(items, overdueKnown, StatusFilter.STRUGGLING, now))
     }
 }

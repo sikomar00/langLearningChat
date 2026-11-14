@@ -1,5 +1,7 @@
 package com.chatlearn.ui.library
 
+import androidx.compose.ui.semantics.Role
+import androidx.compose.foundation.selection.toggleable
 import kotlinx.coroutines.joinAll
 import com.chatlearn.domain.langLabel
 import com.chatlearn.domain.stageName
@@ -126,7 +128,7 @@ internal fun DetailDialog(item: LibraryItem, hasAltCard: Boolean, recentTags: Li
                 ReviewHistory(item, vm)
                 SectionCard("복습과 통계") {
                     EndStateSwitch("이미 알아요", "오늘 복습·위젯·예보에 넣지 않아요. 익힌 정도에서는 익힘으로 세요.", item.entry.known) { vm.setKnown(item.entry.id, it) }
-                    EndStateSwitch("통계에서 빼기", "정답률·익힌 정도·친구별 통계에 넣지 않아요. 복습은 그대로 해요.", item.entry.excludeFromStats) { vm.setExcludeFromStats(item.entry.id, it) }
+                    EndStateSwitch("통계에서 빼기", "정답률·익힌 정도·친구별 통계에 넣지 않아요. 복습과 복습한 날 기록은 그대로예요.", item.entry.excludeFromStats) { vm.setExcludeFromStats(item.entry.id, it) }
                 }
                 SectionCard("뜻 고치기") {
                     OutlinedTextField(ko, { ko = it }, label = { Text("한국어 뜻") }, modifier = Modifier.fillMaxWidth())
@@ -306,7 +308,7 @@ internal fun SentenceTicket(item: LibraryItem, vm: LibraryViewModel) {
         }
         Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
             LabeledText("마지막 복습", at(r.lastReviewedAt), Modifier.weight(1f), valueStyle = MaterialTheme.typography.bodyLarge.board())
-            LabeledText("다음 복습", at(r.dueAt), Modifier.weight(1f), valueStyle = MaterialTheme.typography.bodyLarge.board())
+            LabeledText("다음 복습", if (item.entry.known) "없음 · 알아요" else at(r.dueAt), Modifier.weight(1f), valueStyle = MaterialTheme.typography.bodyLarge.board())
         }
     } }
     Ticket(route = "${langLabel(item.entry.chatLang)} → 한국어 · $saved", stub = stub) {
@@ -396,3 +398,17 @@ internal fun NameDialog(title: String, initial: String, confirmLabel: String, on
 private val SAVED_AT = DateTimeFormatter.ofPattern("MM/dd HH:mm")
 private val REVIEWED_AT = DateTimeFormatter.ofPattern("M월 d일 HH:mm")
 
+/** 끝 상태 한 줄: 이름과 무슨 일이 생기는지, 오른쪽 스위치. 누르면 바로 반영된다(저장 버튼과 상관없이). */
+@Composable
+internal fun EndStateSwitch(label: String, help: String, checked: Boolean, onChange: (Boolean) -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().toggleable(value = checked, role = Role.Switch, onValueChange = onChange),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(label, style = MaterialTheme.typography.titleMedium)
+            Text(help, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        Switch(checked = checked, onCheckedChange = null)
+    }
+}

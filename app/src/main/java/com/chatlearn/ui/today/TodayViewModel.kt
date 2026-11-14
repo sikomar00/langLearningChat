@@ -1,5 +1,6 @@
 package com.chatlearn.ui.today
 
+import com.chatlearn.domain.MAX_STAGE
 import com.chatlearn.stats.progressOf
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -14,6 +15,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.launch
 import java.time.ZoneId
 
@@ -46,6 +48,11 @@ class TodayViewModel(
     /** 처음 읽기 전에는 null. */
     val ui: StateFlow<TodayUi?> = _ui.asStateFlow()
 
+    init {
+        // 문장이 바뀌면(이미 알아요·저장·삭제) 다른 탭에 있어도 오늘 수와 배지를 다시 읽는다. 첫 값은 화면이 읽으니 건너뛴다.
+        viewModelScope.launch { repo.observeLibrary().drop(1).collect { refresh() } }
+    }
+
     /** 화면에 들어올 때와 복습을 마치고 돌아올 때 다시 읽는다. */
     fun refresh(): Job = viewModelScope.launch {
         val now = clock()
@@ -63,7 +70,9 @@ class TodayViewModel(
             forecast = StatsCalculator.forecast(repo.reviewDueTimes(now + 7 * DAY_MS), now, zone),
             recent = recent,
             recentStages = repo.cardsFor(recent.map { it.entry.id }.toSet(), null)
-                .groupBy({ it.card.entryId }, { it.card }).mapValues { (_, cards) -> progressOf(cards, now).stage },
+                .groupBy({ it.card.entryId }, { it.card }).mapValues { (id, cards) ->
+                    if (recent.any { it.entry.id == id && it.entry.known }) MAX_STAGE else progressOf(cards, now).stage
+                },
             hasEntries = library.isNotEmpty(),
             weakGrammar = com.chatlearn.stats.GrammarStats.weakest(repo.observeGrammarEvents().first()).firstOrNull { it.errors > 0 },
         )

@@ -5,8 +5,6 @@ import com.chatlearn.domain.MAX_STAGE
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.selection.toggleable
-import androidx.compose.ui.semantics.Role
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -148,19 +146,3 @@ internal fun exerciseName(k: ExerciseKind) = when (k) {
     ExerciseKind.CLOZE -> "빈칸 채우기"
     ExerciseKind.DICTATION -> "듣고 받아쓰기"
 }
-
-/** 끝 상태 한 줄: 이름과 무슨 일이 생기는지, 오른쪽 스위치. 누르면 바로 반영된다(저장 버튼과 상관없이). */
-@Composable
-internal fun EndStateSwitch(label: String, help: String, checked: Boolean, onChange: (Boolean) -> Unit) {
-    Row(
-        Modifier.fillMaxWidth().toggleable(value = checked, role = Role.Switch, onValueChange = onChange),
-        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        Column(Modifier.weight(1f)) {
-            Text(label, style = MaterialTheme.typography.titleMedium)
-            Text(help, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-        Switch(checked = checked, onCheckedChange = null)
-    }
-}
-

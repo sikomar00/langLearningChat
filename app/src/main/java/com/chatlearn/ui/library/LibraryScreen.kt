@@ -55,7 +55,8 @@ fun LibraryScreen(
     val recentTags by vm.recentTags.collectAsStateWithLifecycle()
     // id만 기억하고 항목은 매번 최신 데이터에서 찾아서, 열린 상세 창이 확장 결과를 바로 반영하게 한다.
     var selectedId by remember { mutableStateOf<Long?>(null) }
-    val selected = items.firstOrNull { it.entry.id == selectedId }
+    val everything by vm.everything.collectAsStateWithLifecycle()
+    val selected = everything.firstOrNull { it.entry.id == selectedId }
     val openRequest by vm.openRequest.collectAsStateWithLifecycle()
     LaunchedEffect(openRequest) { openRequest?.let { selectedId = it; vm.openRequest.value = null } }
     val expandedIds by vm.expandedIds.collectAsStateWithLifecycle()

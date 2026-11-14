@@ -270,6 +270,10 @@ class StatsCalculatorTest {
         )
         val s = compute(logs, cards, items)
         assertEquals(Retention(1, 1), s.byLang[Lang.EN]) // 1번(통계 제외)의 "다시"는 빠진다
+        assertEquals(Retention(1, 1), s.growth.week)
+        // 복습한 날·복습 수는 모든 기록으로 센다(연속·달력이 화면마다 다르지 않게).
+        assertEquals(2, s.last7.last().reviews)
+        assertEquals(2, s.growth.weekReviews)
         assertEquals(1, s.growth.mastered) // 2번은 알아요라 익힘
         assertEquals(listOf("익힘" to 1, "거의" to 0, "익히는 중" to 0, "새 문장" to 1), s.growth.stages)
         assertTrue(s.weakest.isEmpty()) // 1번은 통계 제외, 2번은 알아요

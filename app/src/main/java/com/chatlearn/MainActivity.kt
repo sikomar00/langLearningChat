@@ -220,7 +220,6 @@ class MainActivity : ComponentActivity() {
                         // 첫 화면(오늘)이 아닌 탭에서 뒤로가기를 누르면 앱을 끝내지 않고 오늘 탭으로 돌아간다.
                         BackHandler(enabled = tab != Tab.TODAY) { tab = Tab.TODAY }
                         // 탭을 옮길 때마다 오늘 수를 다시 읽는다(라이브러리에서 "이미 알아요"를 켜거나 새 문장을 저장하면 배지가 바뀐다).
-                        LaunchedEffect(tab) { if (tab != Tab.TODAY) todayVm.refresh() } // 오늘 탭은 화면이 스스로 읽는다
                         val todayUi = todayVm.ui.collectAsStateWithLifecycle().value
                         val due = todayUi?.due ?: 0
                         val world = MaterialTheme.statusColors
