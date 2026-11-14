@@ -55,6 +55,8 @@ fun LibraryScreen(
     // id만 기억하고 항목은 매번 최신 데이터에서 찾아서, 열린 상세 창이 확장 결과를 바로 반영하게 한다.
     var selectedId by remember { mutableStateOf<Long?>(null) }
     val selected = items.firstOrNull { it.entry.id == selectedId }
+    val openRequest by vm.openRequest.collectAsStateWithLifecycle()
+    LaunchedEffect(openRequest) { openRequest?.let { selectedId = it; vm.openRequest.value = null } }
     val expandedIds by vm.expandedIds.collectAsStateWithLifecycle()
     var managingTags by remember { mutableStateOf(false) }
     val sort by vm.sort.collectAsStateWithLifecycle()
@@ -367,7 +369,7 @@ fun LibraryScreen(
     }
 
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.BottomCenter) { SnackbarHost(snackbar) }
-    selected?.let { item -> DetailDialog(item, item.entry.id in expandedIds, recentTags, folders, vm) { selectedId = null } }
+    selected?.let { item -> DetailDialog(item, item.entry.id in expandedIds, recentTags, folders, vm, onReview = { onStartReview(setOf(item.entry.id), null); selectedId = null }) { selectedId = null } }
     if (managingTags) TagManagerDialog(tags, vm) { managingTags = false }
 }
 

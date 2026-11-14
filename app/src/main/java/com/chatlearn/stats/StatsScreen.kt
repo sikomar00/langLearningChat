@@ -13,6 +13,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -31,7 +32,7 @@ import java.util.Locale
 fun percent(r: Retention): String = r.rate?.let { String.format(Locale.US, "%d%%", Math.round(it * 100)) } ?: "-"
 
 @Composable
-fun StatsScreen(vm: StatsViewModel, onPractice: (com.chatlearn.domain.GrammarPoint) -> Unit = {}) {
+fun StatsScreen(vm: StatsViewModel, onPractice: (com.chatlearn.domain.GrammarPoint) -> Unit = {}, onOpenSentence: (Long) -> Unit = {}) {
     val stats by vm.stats.collectAsStateWithLifecycle()
     val grammar by vm.grammar.collectAsStateWithLifecycle()
     val s = stats
@@ -39,43 +40,63 @@ fun StatsScreen(vm: StatsViewModel, onPractice: (com.chatlearn.domain.GrammarPoi
         LoadingBox()
         return
     }
+    val g = s.growth
     Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        // 오늘을 안내판 한 줄로: 세 칸에 안내판 숫자(큰 숫자 하나를 내세우지 않는다).
-        BoardStrip(listOf("오늘 복습" to "${s.today.reviews}회", "정답률" to percent(s.today), "연속" to "${s.streak}일"))
+        // 맨 위는 출석이 아니라 지난주의 나와 견준 수. 줄어도 빨간 손실 표시는 쓰지 않는다.
+        val diff = g.weekReviews - g.prevWeekReviews
+        BoardStrip(listOf(
+            BoardCell("익힌 문장", "${g.mastered}", "이번 주 +${g.newlyMastered}", up = g.newlyMastered > 0),
+            BoardCell("7일 복습", "${g.weekReviews}회", when {
+                diff > 0 -> "지난 7일보다 ▲$diff"
+                diff < 0 -> "지난 7일보다 ▼${-diff}"
+                else -> "지난 7일과 같아요"
+            }, up = diff > 0),
+            BoardCell("7일 정답률", percent(g.week), null),
+        ))
+        Text(g.line, style = MaterialTheme.typography.bodyLarge)
         GrammarSection(grammar, onPractice)
         SectionCard("최근 7일") { com.chatlearn.ui.components.DayBars(s.last7, { "${it.date.monthValue}/${it.date.dayOfMonth}" }, s.last7.last().date) }
-        if (s.heatmap.isNotEmpty()) SectionCard("${StatsCalculator.HEATMAP_WEEKS}주 학습 기록") { Heatmap(s.heatmap) }
+        if (s.heatmap.isNotEmpty()) SectionCard("${StatsCalculator.HEATMAP_WEEKS}주 학습 기록") { Heatmap(s.heatmap, g.monthDays, s.streak) }
         SectionCard("익힌 정도") {
-            MasteryBar(s.cards.mature, s.cards.learning, s.cards.new)
-            Text("익숙함은 복습 간격이 21일 이상인 카드예요.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            MasteryBar(g.stages)
+            Text("익힘은 21일 넘게 기억한 문장이에요.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         SectionCard("자주 틀리는 문장") {
             if (s.weakest.isEmpty()) Text("아직 틀린 문장이 없어요.")
-            s.weakest.forEachIndexed { i, w -> StatRow(w.text, "${w.lapses}회", showDivider = i < s.weakest.lastIndex) }
-        }
-        SectionCard("언어별 정답률") {
-            if (s.byLang.isEmpty()) Text("아직 기록이 없어요.")
-            s.byLang.entries.forEachIndexed { i, (lang, r) -> StatRow(langLabel(lang), "${percent(r)}  ·  ${r.reviews}회", showDivider = i < s.byLang.size - 1) }
-        }
-        SectionCard("방식별 정답률") {
-            if (s.byExercise.isEmpty()) Text("아직 기록이 없어요.")
-            s.byExercise.entries.forEachIndexed { i, (kind, r) ->
-                val name = when (kind) { ExerciseKind.TRANSLATE -> "쓰기 번역"; ExerciseKind.CLOZE -> "빈칸 채우기"; ExerciseKind.DICTATION -> "듣고 받아쓰기" }
-                StatRow(name, "${percent(r)}  ·  ${r.reviews}회", showDivider = i < s.byExercise.size - 1)
+            s.weakest.forEachIndexed { i, w ->
+                StatRow(w.text, "${w.lapses}회", Modifier.clickable(onClickLabel = "문장 열기") { onOpenSentence(w.entryId) }, showDivider = i < s.weakest.lastIndex)
             }
-            s.avgResponseMs?.let { Text("보통 응답 시간 ${String.format(Locale.US, "%.1f", it / 1000.0)}초") }
         }
-        SectionCard("태그별 정답률") {
-            if (s.byTag.isEmpty()) Text("복습한 태그가 없어요.")
-            val tags = s.byTag.entries.sortedByDescending { it.value.reviews }
-            tags.forEachIndexed { i, (tag, r) -> StatRow(tag, "${percent(r)}  ·  ${r.reviews}회", showDivider = i < tags.lastIndex) }
+        AccuracySection(s)
+    }
+}
+
+private enum class AccuracyBy(val label: String) { LANG("언어"), EXERCISE("방식"), TAG("태그") }
+
+/** 정답률 한 칸: 언어·방식·태그를 칩으로 바꿔 본다(표 네 개를 길게 늘어놓지 않게). */
+@Composable
+private fun AccuracySection(s: Stats) {
+    var by by rememberSaveable { mutableStateOf(AccuracyBy.LANG) }
+    SectionCard("정답률") {
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            AccuracyBy.entries.forEach { b -> FilterChip(selected = by == b, onClick = { by = b }, label = { Text(b.label) }) }
         }
+        val rows: List<Pair<String, Retention>> = when (by) {
+            AccuracyBy.LANG -> s.byLang.entries.map { (lang, r) -> langLabel(lang) to r }
+            AccuracyBy.EXERCISE -> s.byExercise.entries.map { (kind, r) ->
+                when (kind) { ExerciseKind.TRANSLATE -> "쓰기 번역"; ExerciseKind.CLOZE -> "빈칸 채우기"; ExerciseKind.DICTATION -> "듣고 받아쓰기" } to r
+            }
+            AccuracyBy.TAG -> s.byTag.entries.sortedByDescending { it.value.reviews }.map { it.key to it.value }
+        }
+        if (rows.isEmpty()) Text(if (by == AccuracyBy.TAG) "복습한 태그가 없어요." else "아직 기록이 없어요.")
+        rows.forEachIndexed { i, (name, r) -> StatRow(name, "${percent(r)}  ·  ${r.reviews}회", showDivider = i < rows.lastIndex) }
+        if (by == AccuracyBy.EXERCISE) s.avgResponseMs?.let { Text("보통 응답 시간 ${String.format(Locale.US, "%.1f", it / 1000.0)}초") }
     }
 }
 
 /** 최근 12주 달력: 세로 7칸이 월~일, 가로 한 줄이 한 주. 진할수록 많이 복습한 날. */
 @Composable
-private fun Heatmap(days: List<DayCount>) {
+private fun Heatmap(days: List<DayCount>, monthDays: Int, streak: Int) {
     val active = days.count { it.reviews > 0 }
     val best = days.maxOf { it.reviews }
     val lamp = MaterialTheme.statusColors.flapGraphic
@@ -85,7 +106,9 @@ private fun Heatmap(days: List<DayCount>) {
     fun cellColor(level: Int) = if (level == 0) emptyCell else lamp.copy(alpha = alphas[level])
     val weeks = days.chunked(7)
     Text(
-        if (active == 0) "아직 복습한 날이 없어요" else "최근 ${StatsCalculator.HEATMAP_WEEKS}주 중 ${active}일 복습했어요",
+        // 연속일은 압박이 되지 않게 아래쪽, 이 줄 끝에 덧붙이기만 한다.
+        if (active == 0) "아직 복습한 날이 없어요"
+        else "이번 달 ${monthDays}일 복습했어요" + (if (streak > 1) " · ${streak}일째 이어서" else ""),
         style = MaterialTheme.typography.bodyMedium,
     )
     BoxWithConstraints(
@@ -172,38 +195,43 @@ private fun GrammarSection(items: List<GrammarWeakness>, onPractice: (com.chatle
     }
 }
 
-/** 안내판 띠: 검은 판에 칸마다 작은 이름표와 안내판 숫자, 칸 사이는 가는 세로선. */
+private class BoardCell(val label: String, val value: String, val note: String?, val up: Boolean = false)
+
+/** 안내판 띠: 검은 판에 칸마다 작은 이름표와 안내판 숫자, 아래에 작은 비교. 칸 사이는 가는 세로선. */
 @Composable
-private fun BoardStrip(cells: List<Pair<String, String>>) {
+private fun BoardStrip(cells: List<BoardCell>) {
     val c = MaterialTheme.statusColors
     Surface(color = c.board, contentColor = c.onBoard, shape = MaterialTheme.shapes.medium) {
         Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min).padding(vertical = 14.dp)) {
-            cells.forEachIndexed { i, (label, value) ->
+            cells.forEachIndexed { i, cell ->
                 if (i > 0) Box(Modifier.width(1.dp).fillMaxHeight().background(c.boardRaised))
-                Column(Modifier.weight(1f).padding(horizontal = 16.dp).semantics(mergeDescendants = true) {}) {
-                    BoardLabel(label, color = c.onBoardMuted)
-                    Text(value, style = MaterialTheme.typography.headlineSmall.board(), color = c.onBoard)
+                Column(Modifier.weight(1f).padding(horizontal = 12.dp).semantics(mergeDescendants = true) {}) {
+                    BoardLabel(cell.label, color = c.onBoardMuted)
+                    Text(cell.value, style = MaterialTheme.typography.headlineSmall.board(), color = c.onBoard)
+                    // 늘면 밝은 호박, 줄거나 같으면 흐리게(검은 판 위 초록은 작은 글씨 대비가 모자라다).
+                    cell.note?.let { Text(it, style = MaterialTheme.typography.labelSmall, color = if (cell.up) c.flap else c.onBoardMuted) }
                 }
             }
         }
     }
 }
 
-/** 익힌 정도: 익숙함·학습 중·새 카드의 비율 막대와 수. 익숙함이 늘어나는 게 실력이 쌓이는 모습. */
+/** 익힌 정도: 익힘·거의·익히는 중·새 문장의 비율 막대와 수. 익힘이 늘어나는 게 실력이 쌓이는 모습. */
 @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
-private fun MasteryBar(mature: Int, learning: Int, new: Int) {
-    val c = MaterialTheme.statusColors
-    val total = (mature + learning + new).coerceAtLeast(1)
-    val parts = listOf(Triple("익숙함", mature, c.flapGraphic), Triple("학습 중", learning, MaterialTheme.colorScheme.onSurfaceVariant), Triple("새 카드", new, MaterialTheme.colorScheme.outline))
+private fun MasteryBar(stages: List<Pair<String, Int>>) {
+    val lamp = MaterialTheme.statusColors.flapGraphic
+    val colors = listOf(lamp, lamp.copy(alpha = 0.5f), MaterialTheme.colorScheme.onSurfaceVariant, MaterialTheme.colorScheme.outline)
+    val parts = stages.zip(colors) { (label, n), color -> Triple(label, n, color) }
+    val total = parts.sumOf { it.second }
     Row(
-        Modifier.fillMaxWidth().height(12.dp).clearAndSetSemantics { contentDescription = "익숙함 ${mature}장, 학습 중 ${learning}장, 새 카드 ${new}장" },
+        Modifier.fillMaxWidth().height(12.dp).clearAndSetSemantics { contentDescription = parts.joinToString(", ") { "${it.first} ${it.second}개" } },
         horizontalArrangement = Arrangement.spacedBy(3.dp),
     ) {
         parts.filter { it.second > 0 }.forEach { (_, n, color) ->
             Box(Modifier.weight(n.toFloat() / total).fillMaxHeight().background(color, MaterialTheme.shapes.extraSmall))
         }
-        if (mature + learning + new == 0) Box(Modifier.fillMaxWidth().fillMaxHeight().background(MaterialTheme.colorScheme.outlineVariant, MaterialTheme.shapes.extraSmall))
+        if (total == 0) Box(Modifier.fillMaxWidth().fillMaxHeight().background(MaterialTheme.colorScheme.outlineVariant, MaterialTheme.shapes.extraSmall))
     }
     FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
         parts.forEach { (label, n, color) ->
@@ -215,4 +243,3 @@ private fun MasteryBar(mature: Int, learning: Int, new: Int) {
         }
     }
 }
-

@@ -19,13 +19,12 @@ data class Retention(val reviews: Int, val remembered: Int) {
 
 data class DayCount(val date: LocalDate, val reviews: Int)
 data class WeakItem(val entryId: Long, val text: String, val lapses: Int)
-data class CardMix(val new: Int, val learning: Int, val mature: Int)
 
 data class Stats(
     val today: Retention,
     val last7: List<DayCount>,
     val streak: Int,
-    val cards: CardMix,
+    val growth: Growth,
     val weakest: List<WeakItem>,
     val byLang: Map<Lang, Retention>,
     val byTag: Map<String, Retention>,
@@ -44,7 +43,6 @@ data class SentenceStats(
 )
 
 object StatsCalculator {
-    const val MATURE_DAYS = com.chatlearn.domain.Scheduler.MATURE_DAYS
     const val HEATMAP_WEEKS = 12
     private const val WEAK_LIMIT = 5
 
@@ -74,12 +72,6 @@ object StatsCalculator {
 
         val streak = streakOf(perDay.keys, today)
 
-        val mix = CardMix(
-            new = cards.count { it.lastReviewedAt == null },
-            learning = cards.count { it.lastReviewedAt != null && it.intervalDays < MATURE_DAYS },
-            mature = cards.count { it.lastReviewedAt != null && it.intervalDays >= MATURE_DAYS },
-        )
-
         val itemById = items.associateBy { it.entry.id }
         val weakest = cards.filter { it.lapses > 0 }
             .sortedWith(compareByDescending<ReviewCardEntity> { it.lapses }.thenBy { it.entryId })
@@ -104,7 +96,7 @@ object StatsCalculator {
             today = retention(perDay[today].orEmpty()),
             last7 = last7,
             streak = streak,
-            cards = mix,
+            growth = GrowthCalculator.compute(logs, cards, items, now, zone),
             weakest = weakest,
             byLang = byLang,
             byTag = byTag.mapValues { retention(it.value) },

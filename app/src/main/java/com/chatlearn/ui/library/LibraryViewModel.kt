@@ -194,6 +194,13 @@ class LibraryViewModel(
         query.value = text
     }
 
+    /** 다른 화면(성장)에서 문장 하나를 열어 달라고 할 때. 필터를 풀어 목록에 보이게 하고, 화면이 상세를 연 뒤 비운다. */
+    val openRequest = MutableStateFlow<Long?>(null)
+    fun open(id: Long) {
+        showOnly("")
+        openRequest.value = id
+    }
+
     internal fun dropStaleTagFilter(existing: List<String>) {
         val current = tagFilter.value
         if (current != null && current !in existing) tagFilter.value = null

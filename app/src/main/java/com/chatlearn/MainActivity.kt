@@ -277,7 +277,7 @@ class MainActivity : ComponentActivity() {
                                                 showGestureHint = settings?.libraryHintDismissed == false,
                                                 onDismissGestureHint = { lifecycleScope.launch { c.settings.dismissLibraryHint() } },
                                             ) { ids, lang -> openReview { reviewVm.startWith(ids, lang) } }
-                                            Tab.GROWTH -> Box(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) { StatsScreen(viewModel(factory = factory), onPractice = practice) }
+                                            Tab.GROWTH -> Box(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) { StatsScreen(viewModel(factory = factory), onPractice = practice, onOpenSentence = { id -> libraryVm.open(id); tab = Tab.LIBRARY }) }
                                         }
                                     }
                                 }

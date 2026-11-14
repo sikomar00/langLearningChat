@@ -63,7 +63,7 @@ class StatsCalculatorTest {
         assertNull(s.today.rate)
         assertEquals(0, s.streak)
         assertEquals(7, s.last7.size)
-        assertEquals(CardMix(0, 0, 0), s.cards)
+        assertEquals(0, s.growth.mastered)
     }
 
     @Test fun todayCountsOnlyTodayInTheGivenZoneAndAgainIsNotRemembered() {
@@ -108,14 +108,16 @@ class StatsCalculatorTest {
         assertEquals(0, compute(listOf(log(1, ms(today.minusDays(2), 10), Rating.GOOD))).streak)
     }
 
-    @Test fun cardMixSplitsNewLearningAndMatureAt21Days() {
+    @Test fun growthCountsSentenceStagesAtTwentyOneDays() {
         val cards = listOf(
             card(1, 1, last = null, interval = 0.0),
             card(2, 2, interval = 20.9),
             card(3, 3, interval = 21.0),
             card(4, 4, interval = 90.0),
         )
-        assertEquals(CardMix(new = 1, learning = 1, mature = 2), compute(emptyList(), cards).cards)
+        val g = compute(emptyList(), cards, (1L..4L).map { item(it, "s$it") }).growth
+        assertEquals(listOf("익힘" to 2, "거의" to 1, "익히는 중" to 0, "새 문장" to 1), g.stages)
+        assertEquals(2, g.mastered)
     }
 
     @Test fun weakestListsMostLapsedFirstOnlyWithLapsesAndTopFive() {
@@ -206,5 +208,33 @@ class StatsCalculatorTest {
         assertEquals(7, f.size)
         assertEquals(today, f.first().date)
         assertEquals(listOf(2, 2, 0, 0, 0, 0, 1), f.map { it.reviews })
+    }
+
+    @Test fun growthComparesThisWeekWithLastWeekAndCountsNewlyMastered() {
+        val cards = listOf(card(1, 1, interval = 30.0), card(2, 2, interval = 40.0), card(3, 3))
+        val logs = listOf(
+            // 1번: 10일 간격으로 복습해 이번 주에 익힘이 됨
+            log(1, ms(today.minusDays(12), 9), Rating.GOOD), log(1, ms(today.minusDays(2), 9), Rating.GOOD),
+            // 2번: 30일 만의 복습이라 원래 익힘이던 문장
+            log(2, ms(today.minusDays(33), 9), Rating.GOOD), log(2, ms(today.minusDays(3), 9), Rating.GOOD),
+            log(3, ms(today, 9), Rating.AGAIN), log(3, ms(today.minusDays(8), 9), Rating.GOOD),
+        )
+        val P = com.chatlearn.domain.TagKind.PERSON
+        val items = listOf(item(1, "a").copy(tags = listOf("Lucia"), tagKinds = mapOf("Lucia" to P)), item(2, "b", Lang.ES), item(3, "c"))
+        val g = compute(logs, cards, items).growth
+        assertEquals(2, g.mastered)
+        assertEquals(1, g.newlyMastered)
+        assertEquals(3, g.weekReviews)
+        assertEquals(2, g.prevWeekReviews)
+        assertEquals(2, g.week.remembered)
+        assertEquals(1, g.monthDays) // 오늘이 11월 1일이라 이번 달 복습한 날은 오늘 하루
+    }
+
+    @Test fun factLineStatesOnlyRecordedFacts() {
+        val P = com.chatlearn.domain.TagKind.PERSON
+        assertEquals("아직 익힌 문장이 없어요. 한 문장을 21일 넘게 기억하면 '익힘'이 돼요.", GrowthCalculator.factLine(emptyList()))
+        val es = (1L..3L).map { item(it, "s$it", Lang.ES).copy(tags = if (it < 3) listOf("Lucia") else emptyList(), tagKinds = mapOf("Lucia" to P)) }
+        assertEquals("스페인어 문장 3개, 영어 문장 1개를 익혔어요. 가장 많이 나온 친구는 Lucia, 2개예요.", GrowthCalculator.factLine(es + item(4, "e")))
+        assertEquals("영어 문장 1개를 익혔어요.", GrowthCalculator.factLine(listOf(item(4, "e"))))
     }
 }

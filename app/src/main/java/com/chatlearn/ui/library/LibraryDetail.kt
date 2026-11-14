@@ -63,7 +63,7 @@ import com.chatlearn.domain.Lang
 // 문장 상세(보기·고치기)와 태그 관리 창. 목록 화면(LibraryScreen.kt)이 500줄을 넘어 나눴다.
 
 @Composable
-internal fun DetailDialog(item: LibraryItem, hasAltCard: Boolean, recentTags: List<String>, folders: List<FolderEntity>, vm: LibraryViewModel, onClose: () -> Unit) {
+internal fun DetailDialog(item: LibraryItem, hasAltCard: Boolean, recentTags: List<String>, folders: List<FolderEntity>, vm: LibraryViewModel, onReview: () -> Unit, onClose: () -> Unit) {
     var ko by remember(item.entry.id) { mutableStateOf(item.texts[Lang.KO].orEmpty()) }
     var note by remember(item.entry.id) { mutableStateOf(item.entry.note) }
     val altLang = if (item.entry.chatLang == Lang.EN) Lang.ES else Lang.EN
@@ -113,8 +113,8 @@ internal fun DetailDialog(item: LibraryItem, hasAltCard: Boolean, recentTags: Li
                             Text("답장 써 보기")
                         }
                     }
-                    OutlinedButton(shape = MaterialTheme.shapes.medium, onClick = { saveAll(); vm.sendToNotion(listOf(item.entry.id)); onClose() }, modifier = Modifier.weight(1f)) {
-                        Text(if (item.entry.notionPageId == null) "노션에 보내기" else "노션에 다시 보내기")
+                    OutlinedButton(shape = MaterialTheme.shapes.medium, onClick = { saveAll(); onReview() }, modifier = Modifier.weight(1f)) {
+                        Text("이 문장 복습")
                     }
                 }
                 ReviewHistory(item.entry.id, vm)
@@ -209,6 +209,9 @@ internal fun DetailDialog(item: LibraryItem, hasAltCard: Boolean, recentTags: Li
                         }
                     }
                 }
+                    OutlinedButton(shape = MaterialTheme.shapes.medium, onClick = { saveAll(); vm.sendToNotion(listOf(item.entry.id)); onClose() }, modifier = Modifier.fillMaxWidth()) {
+                        Text(if (item.entry.notionPageId == null) "노션에 보내기" else "노션에 다시 보내기")
+                    }
                     HorizontalDivider()
                     TextButton(onClick = { vm.delete(item.entry.id); onClose() }) {
                         Text("이 문장 삭제", color = MaterialTheme.colorScheme.error)
