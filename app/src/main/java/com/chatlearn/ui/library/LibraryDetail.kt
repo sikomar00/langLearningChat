@@ -305,7 +305,7 @@ internal fun SentenceTicket(item: LibraryItem, vm: LibraryViewModel) {
         }
         val stage = p?.stage ?: 0
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            BoardLabel("익힌 단계 $stage/$MAX_STAGE", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            BoardLabel("${stageName(stage)} · $stage/$MAX_STAGE", color = MaterialTheme.colorScheme.onSurfaceVariant)
             SegmentBar(stage, MAX_STAGE, Modifier.weight(1f).height(8.dp))
         }
         DistanceBar(p, now)

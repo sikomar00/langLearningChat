@@ -16,6 +16,8 @@ import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.FolderOpen
+import androidx.compose.material.icons.filled.Person
+import com.chatlearn.ui.theme.board
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import java.time.ZoneId
@@ -47,6 +49,8 @@ fun LibraryScreen(
     val lang by vm.langFilter.collectAsStateWithLifecycle()
     val tag by vm.tagFilter.collectAsStateWithLifecycle()
     val tags by vm.allTags.collectAsStateWithLifecycle()
+    val people by vm.people.collectAsStateWithLifecycle()
+    val statusCounts by vm.statusCounts.collectAsStateWithLifecycle()
     val recentTags by vm.recentTags.collectAsStateWithLifecycle()
     // id만 기억하고 항목은 매번 최신 데이터에서 찾아서, 열린 상세 창이 확장 결과를 바로 반영하게 한다.
     var selectedId by remember { mutableStateOf<Long?>(null) }
@@ -125,7 +129,8 @@ fun LibraryScreen(
         var groupBy by remember { mutableStateOf(GroupBy.entries.firstOrNull { it.name == uiPrefs.getString("library_group", null) } ?: GroupBy.STATE) }
         var compact by remember { mutableStateOf(uiPrefs.getBoolean("library_compact", true)) }
         var menuOpen by remember { mutableStateOf(false) }
-        val activeFilters = listOf(lang != null, tag != null, statusFilter != StatusFilter.ALL, sort != LibrarySort.RECENT).count { it }
+        // 상태는 늘 보이는 칩 줄에 있으니 접힌 필터 수에는 세지 않는다.
+        val activeFilters = listOf(lang != null, tag != null, sort != LibrarySort.RECENT).count { it }
 
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
             // 폴더: 전체 / 폴더 없음 / 각 폴더 / 새 폴더
@@ -183,18 +188,36 @@ fun LibraryScreen(
                 TextButton(onClick = { folderDialog = FolderDialogKind.Delete(f) }) { Text("폴더 삭제", color = MaterialTheme.colorScheme.error) }
             }
         }
+        // 익힌 단계와 자동 묶음: 수가 있는 칩만, 수는 안내판 숫자로. 위 폴더 줄에 "전체"가 있어 여기서는 다시 누르면 풀린다.
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            items(StatusFilter.entries.filter { it != StatusFilter.ALL && (it == statusFilter || (statusCounts[it] ?: 0) > 0) }) { f ->
+                FilterChip(
+                    selected = statusFilter == f, onClick = { vm.statusFilter.value = if (statusFilter == f) StatusFilter.ALL else f },
+                    label = {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(f.label)
+                            Text(" ${statusCounts[f] ?: 0}", style = MaterialTheme.typography.labelLarge.board())
+                        }
+                    },
+                )
+            }
+        }
         if (showFilters) {
             LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 items(listOf(Lang.EN to "영어", Lang.ES to "스페인어")) { (l, label) ->
                     FilterChip(selected = lang == l, onClick = { vm.langFilter.value = if (lang == l) null else l }, label = { Text(label) })
                 }
-                items(tags) { t ->
+                items(tags - people.toSet()) { t ->
                     FilterChip(selected = tag == t, onClick = { vm.tagFilter.value = if (tag == t) null else t }, label = { Text(t) })
                 }
             }
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                items(StatusFilter.entries.toList()) { f ->
-                    FilterChip(selected = statusFilter == f, onClick = { vm.statusFilter.value = f }, label = { Text(f.label) })
+            if (people.isNotEmpty()) LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                item { Text("친구", style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(end = 4.dp)) }
+                items(people) { t ->
+                    FilterChip(
+                        selected = tag == t, onClick = { vm.tagFilter.value = if (tag == t) null else t }, label = { Text(t) },
+                        leadingIcon = { Icon(Icons.Default.Person, contentDescription = null, Modifier.size(18.dp)) },
+                    )
                 }
             }
             LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -204,7 +227,7 @@ fun LibraryScreen(
                 if (activeFilters > 0) item {
                     TextButton(onClick = {
                         vm.langFilter.value = null; vm.tagFilter.value = null
-                        vm.statusFilter.value = StatusFilter.ALL; vm.sort.value = LibrarySort.RECENT
+                        vm.sort.value = LibrarySort.RECENT
                     }) { Text("초기화") }
                 }
             }
@@ -223,7 +246,7 @@ fun LibraryScreen(
             // 접어 둔 상태에서도 걸려 있는 조건을 알 수 있게 한 줄로 보여 준다.
             val summary = listOfNotNull(
                 lang?.let { if (it == Lang.EN) "영어" else "스페인어" }, tag,
-                statusFilter.takeIf { it != StatusFilter.ALL }?.label, sort.takeIf { it != LibrarySort.RECENT }?.label,
+                sort.takeIf { it != LibrarySort.RECENT }?.label,
             ).joinToString(" · ")
             Text(summary, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
         }
@@ -312,6 +335,7 @@ fun LibraryScreen(
         val groups: List<LibGroup> = remember(effective, items, progress, today) {
             when (effective) {
                 GroupBy.STATE -> groupByState(items, progress).map { (st, l) -> LibGroup("s-$st", boardTitle(st), l, st) }
+                GroupBy.PERSON -> groupByPerson(items).map { (t, l) -> LibGroup("p-$t", t, l, null) }
                 GroupBy.DATE -> groupByDate(items, ZoneId.systemDefault(), today).map { (t, l) -> LibGroup("d-$t", t, l, null) }
                 GroupBy.TAG -> groupByTag(items).map { (t, l) -> LibGroup("t-$t", t, l, null) }
                 GroupBy.NONE -> listOf(LibGroup("all", null, items, null))

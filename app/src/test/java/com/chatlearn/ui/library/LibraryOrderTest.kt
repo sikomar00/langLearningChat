@@ -145,4 +145,43 @@ class LibraryOrderTest {
         assertEquals("태그 없음", g.last().first)
         assertEquals(listOf(2L, 4L), g.first { it.first == "여행" }.second.map { it.entry.id })
     }
+
+    @Test fun stageNamesCoverAllStages() {
+        assertEquals(listOf("새 문장", "익히는 중", "익히는 중", "거의", "거의", "익힘"), (0..5).map(::stageName))
+    }
+
+    @Test fun statusChipsMatchStagesRecentMissesAndSoonDue() {
+        val ps = mapOf(
+            1L to EntryProgress(EntryState.NEW, now, 0),
+            2L to EntryProgress(EntryState.DUE, now - 1, 0, stage = 2, recentMiss = true),
+            3L to EntryProgress(EntryState.LATER, now + 2 * day, 0, stage = 4),
+            4L to EntryProgress(EntryState.LATER, now + 10 * day, 0, stage = 5),
+        )
+        val items = (1L..4L).map { item(it, it) }
+        val counts = statusCounts(items, ps, now)
+        assertEquals(4, counts[StatusFilter.ALL])
+        assertEquals(1, counts[StatusFilter.UNREVIEWED]); assertEquals(1, counts[StatusFilter.LEARNING])
+        assertEquals(1, counts[StatusFilter.ALMOST]); assertEquals(1, counts[StatusFilter.MASTERED])
+        assertEquals(listOf(2L), filterByStatus(items, ps, StatusFilter.RECENT_MISS, now).map { it.entry.id })
+        // 이미 기한인 2번은 "곧 복습"이 아니라 "복습할 차례"
+        assertEquals(listOf(3L), filterByStatus(items, ps, StatusFilter.DUE_SOON, now).map { it.entry.id })
+    }
+
+    @Test fun recentMissesAreAgainRatingsWithinTheWindow() {
+        fun log(card: Long, at: Long, rating: com.chatlearn.domain.Rating) =
+            com.chatlearn.data.ReviewLogEntity(cardId = card, reviewedAt = at, promptLang = Lang.KO, userAnswer = "", aiVerdict = null, aiFeedback = null, rating = rating)
+        val cards = listOf(card(1, now).copy(id = 10), card(2, now).copy(id = 20), card(3, now).copy(id = 30))
+        val logs = listOf(log(10, now - day, com.chatlearn.domain.Rating.AGAIN), log(20, now - 9 * day, com.chatlearn.domain.Rating.AGAIN), log(30, now, com.chatlearn.domain.Rating.GOOD))
+        assertEquals(setOf(1L), recentMissIds(logs, cards, now - RECENT_MISS_MS))
+    }
+
+    @Test fun groupsByFriendWithTheirCommonestCountryAndNoFriendLast() {
+        fun withKinds(id: Long, vararg tk: Pair<String, com.chatlearn.domain.TagKind>) =
+            item(id, id).copy(tags = tk.map { it.first }, tagKinds = tk.toMap())
+        val P = com.chatlearn.domain.TagKind.PERSON; val C = com.chatlearn.domain.TagKind.COUNTRY
+        val items = listOf(withKinds(1, "Lucia" to P, "스페인" to C), withKinds(2), withKinds(3, "Lucia" to P, "스페인" to C), withKinds(4, "Tom" to P))
+        val g = groupByPerson(items)
+        assertEquals(listOf("Lucia · 스페인", "Tom", "친구 없음"), g.map { it.first })
+        assertEquals(listOf(1L, 3L), g[0].second.map { it.entry.id })
+    }
 }

@@ -59,7 +59,11 @@ class LibraryViewModel(
 
     /** 문장별 복습 상태(새 카드, 복습할 차례, N일 후)와 틀린 횟수. */
     val progress: StateFlow<Map<Long, EntryProgress>> = source
-        .map { si -> val now = clock(); si.cards.groupBy { it.entryId }.mapValues { progressOf(it.value, now) } }
+        .map { si ->
+            val now = clock()
+            val misses = recentMissIds(si.logs, si.cards, now - RECENT_MISS_MS)
+            si.cards.groupBy { it.entryId }.mapValues { (id, cards) -> progressOf(cards, now).copy(recentMiss = id in misses) }
+        }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
 
     private data class Filters(val q: String, val lang: Lang?, val tag: String?, val folder: Long?)
@@ -76,7 +80,15 @@ class LibraryViewModel(
         .map { l -> l.groupingBy { it.entry.folderId ?: FOLDER_UNFILED }.eachCount() }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
     val items: StateFlow<List<LibraryItem>> =
-        combine(searched, statusFilter, sort, progress) { l, sf, so, pr -> sortLibrary(filterByStatus(l, pr, sf), pr, so) }
+        combine(searched, statusFilter, sort, progress) { l, sf, so, pr -> sortLibrary(filterByStatus(l, pr, sf, clock()), pr, so) }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    /** 상태 칩에 붙일 문장 수(검색·폴더·언어·태그 조건 안에서). */
+    val statusCounts: StateFlow<Map<StatusFilter, Int>> =
+        combine(searched, progress) { l, pr -> statusCounts(l, pr, clock()) }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
+    /** 친구(사람 태그) 이름. 필터의 친구 줄에 쓴다. */
+    val people: StateFlow<List<String>> =
+        all.map { list -> list.flatMap { i -> i.tags.filter { i.tagKinds[it] == com.chatlearn.domain.TagKind.PERSON } }.distinct().sorted() }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
     val allTags: StateFlow<List<String>> =
         all.map { list -> list.flatMap { it.tags }.distinct().sorted() }
