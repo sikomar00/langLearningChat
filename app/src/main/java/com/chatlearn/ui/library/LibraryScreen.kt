@@ -1,5 +1,7 @@
 package com.chatlearn.ui.library
 
+import com.chatlearn.ui.components.ChoiceChip
+import com.chatlearn.ui.components.SecondaryButton
 import com.chatlearn.stats.EntryState
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
@@ -119,11 +121,11 @@ fun LibraryScreen(
             @OptIn(ExperimentalLayoutApi::class)
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Button(shape = MaterialTheme.shapes.medium, enabled = chosen.isNotEmpty(), onClick = { onStartReview(chosen, lang); picked = null }) { Text("선택 복습") }
-                OutlinedButton(shape = MaterialTheme.shapes.medium, enabled = chosen.isNotEmpty() && !sendingToNotion, onClick = { vm.sendToNotion(chosen) }) { Text(if (sendingToNotion) "보내는 중…" else "노션") }
-                OutlinedButton(shape = MaterialTheme.shapes.medium, enabled = chosen.isNotEmpty(), onClick = { moveTargets = chosen }) {
+                SecondaryButton(shape = MaterialTheme.shapes.medium, enabled = chosen.isNotEmpty() && !sendingToNotion, onClick = { vm.sendToNotion(chosen) }) { Text(if (sendingToNotion) "보내는 중…" else "노션") }
+                SecondaryButton(shape = MaterialTheme.shapes.medium, enabled = chosen.isNotEmpty(), onClick = { moveTargets = chosen }) {
                     Icon(Icons.Default.Folder, contentDescription = null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("폴더로")
                 }
-                OutlinedButton(
+                SecondaryButton(
                     shape = MaterialTheme.shapes.medium,
                     enabled = chosen.isNotEmpty(), onClick = { confirmBulkDelete = true },
                     colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
@@ -200,15 +202,15 @@ fun LibraryScreen(
             LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                 item { Text("언어·태그", style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(end = 4.dp)) }
                 items(listOf(Lang.EN to "영어", Lang.ES to "스페인어")) { (l, label) ->
-                    FilterChip(selected = lang == l, onClick = { vm.langFilter.value = if (lang == l) null else l }, label = { Text(label) })
+                    ChoiceChip(selected = lang == l, onClick = { vm.langFilter.value = if (lang == l) null else l }, label = { Text(label) })
                 }
                 items(tags - people.toSet()) { t ->
-                    FilterChip(selected = tag == t, onClick = { vm.tagFilter.value = if (tag == t) null else t }, label = { Text(t) })
+                    ChoiceChip(selected = tag == t, onClick = { vm.tagFilter.value = if (tag == t) null else t }, label = { Text(t) })
                 }
             }
             LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                 items(LibrarySort.entries.toList()) { o ->
-                    FilterChip(selected = sort == o, onClick = { vm.sort.value = o }, label = { Text(o.label) })
+                    ChoiceChip(selected = sort == o, onClick = { vm.sort.value = o }, label = { Text(o.label) })
                 }
                 if (activeFilters > 0) item {
                     TextButton(onClick = {
@@ -220,13 +222,13 @@ fun LibraryScreen(
             LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                 item { Text("묶기", style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(end = 4.dp)) }
                 items(GroupBy.entries.toList()) { g ->
-                    FilterChip(selected = groupBy == g, onClick = { groupBy = g; showFilters = false; uiPrefs.edit().putString("library_group", g.name).apply() }, label = { Text(g.label) })
+                    ChoiceChip(selected = groupBy == g, onClick = { groupBy = g; showFilters = false; uiPrefs.edit().putString("library_group", g.name).apply() }, label = { Text(g.label) })
                 }
             }
             LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                 item { Text("보기", style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(end = 4.dp)) }
-                item { FilterChip(selected = compact, onClick = { compact = true; showFilters = false; uiPrefs.edit().putBoolean("library_compact", true).apply() }, label = { Text("촘촘히") }) }
-                item { FilterChip(selected = !compact, onClick = { compact = false; showFilters = false; uiPrefs.edit().putBoolean("library_compact", false).apply() }, label = { Text("카드") }) }
+                item { ChoiceChip(selected = compact, onClick = { compact = true; showFilters = false; uiPrefs.edit().putBoolean("library_compact", true).apply() }, label = { Text("촘촘히") }) }
+                item { ChoiceChip(selected = !compact, onClick = { compact = false; showFilters = false; uiPrefs.edit().putBoolean("library_compact", false).apply() }, label = { Text("카드") }) }
             }
         } else if (activeFilters > 0) {
             // 접어 둔 상태에서도 걸려 있는 조건을 알 수 있게 한 줄로 보여 준다.

@@ -48,7 +48,7 @@ fun EmptyState(
     ) {
         icon?.let { Icon(it, contentDescription = null, Modifier.size(40.dp), tint = MaterialTheme.colorScheme.outline) }
         Text(message, style = MaterialTheme.typography.bodyLarge, textAlign = TextAlign.Center, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        if (actionLabel != null && onAction != null) FilledTonalButton(shape = MaterialTheme.shapes.medium, onClick = onAction) { Text(actionLabel) }
+        if (actionLabel != null && onAction != null) Button(shape = MaterialTheme.shapes.medium, onClick = onAction) { Text(actionLabel) }
     }
 }
 
@@ -104,6 +104,36 @@ fun SectionCard(title: String, modifier: Modifier = Modifier, content: @Composab
 }
 
 
+/**
+ * 보조 버튼: 1dp 테두리 + 먹색 글자. M3 기본(회색 글자)은 꺼진 버튼처럼 보여서, 이 앱의 테두리 버튼은 모두 이것을 쓴다.
+ * 위험한 동작은 [colors]로 빨간 글자를 넘긴다.
+ */
+@Composable
+fun SecondaryButton(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    shape: androidx.compose.ui.graphics.Shape = MaterialTheme.shapes.medium,
+    colors: ButtonColors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.onSurface),
+    contentPadding: PaddingValues = ButtonDefaults.ContentPadding,
+    content: @Composable RowScope.() -> Unit,
+) = OutlinedButton(onClick, modifier, enabled, shape, colors, contentPadding = contentPadding, content = content)
+
+/** 고르기 칩: 고르지 않은 칩도 먹색 글자(회색이면 꺼진 칩처럼 보인다). 고른 칩은 플랩 호박. */
+@Composable
+fun ChoiceChip(
+    selected: Boolean,
+    onClick: () -> Unit,
+    label: @Composable () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    leadingIcon: (@Composable () -> Unit)? = null,
+    trailingIcon: (@Composable () -> Unit)? = null,
+) = FilterChip(
+    selected, onClick, label, modifier, enabled, leadingIcon, trailingIcon,
+    colors = FilterChipDefaults.filterChipColors(labelColor = MaterialTheme.colorScheme.onSurface, iconColor = MaterialTheme.colorScheme.onSurface),
+)
+
 /** 작은 라벨 + 값. 구역 안에서 항목끼리 구분이 되게 한다. */
 @Composable
 fun LabeledText(
@@ -141,7 +171,7 @@ fun Stepper(label: String, saved: Int, onChange: (Int) -> Unit, spec: StepperSpe
     fun set(v: Int) { value = v.coerceIn(range); onChange(value) }
     Row(Modifier.fillMaxWidth().heightIn(min = 56.dp), verticalAlignment = Alignment.CenterVertically) {
         Text(label, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
-        OutlinedIconButton(onClick = { set(value - step) }, enabled = value > range.first) {
+        OutlinedIconButton(onClick = { set(value - step) }, enabled = value > range.first, shape = MaterialTheme.shapes.medium) {
             Icon(androidx.compose.material.icons.Icons.Default.Remove, contentDescription = "$label 줄이기")
         }
         Text(
@@ -149,7 +179,7 @@ fun Stepper(label: String, saved: Int, onChange: (Int) -> Unit, spec: StepperSpe
             style = MaterialTheme.typography.titleLarge.board(),
             textAlign = TextAlign.Center, modifier = Modifier.widthIn(min = 56.dp),
         )
-        OutlinedIconButton(onClick = { set(value + step) }, enabled = value < range.last) {
+        OutlinedIconButton(onClick = { set(value + step) }, enabled = value < range.last, shape = MaterialTheme.shapes.medium) {
             Icon(androidx.compose.material.icons.Icons.Default.Add, contentDescription = "$label 늘리기")
         }
     }

@@ -1,5 +1,7 @@
 package com.chatlearn.stats
 
+import androidx.compose.ui.graphics.luminance
+import com.chatlearn.ui.components.ChoiceChip
 import com.chatlearn.domain.langLabel
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.ui.semantics.semantics
@@ -85,7 +87,7 @@ private fun AccuracySection(s: Stats) {
     var by by rememberSaveable { mutableStateOf(AccuracyBy.LANG) }
     SectionCard("정답률") {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            AccuracyBy.entries.forEach { b -> FilterChip(selected = by == b, onClick = { by = b }, label = { Text(b.label) }) }
+            AccuracyBy.entries.forEach { b -> ChoiceChip(selected = by == b, onClick = { by = b }, label = { Text(b.label) }) }
         }
         val rows: List<Pair<String, Retention>> = when (by) {
             AccuracyBy.LANG -> s.byLang.entries.map { (lang, r) -> langLabel(lang) to r }
@@ -106,10 +108,18 @@ private fun Heatmap(days: List<DayCount>, monthDays: Int, streak: Int) {
     val active = days.count { it.reviews > 0 }
     val best = days.maxOf { it.reviews }
     val lamp = MaterialTheme.statusColors.flapGraphic
-    // 빈 날은 눈에 띌 필요가 없어 옅은 선 색(다크에서 칸이 회색 덩어리로 보이지 않게), 켜진 날만 호박 불빛.
+    // 빈 날은 옅은 선 색. 복습한 날은 빈 칸과 3:1 이상이 되게 불투명 단계로: 1단계는 호박 테두리(모양으로도 구분),
+    // 2~4단계는 점점 짙은 호박(밤에는 점점 밝은 호박).
     val emptyCell = MaterialTheme.colorScheme.outlineVariant
-    val alphas = listOf(0f, 0.35f, 0.6f, 0.8f, 1f)
-    fun cellColor(level: Int) = if (level == 0) emptyCell else lamp.copy(alpha = alphas[level])
+    val night = MaterialTheme.colorScheme.surface.luminance() < 0.5f
+    val fills = if (night) listOf(lamp.copy(alpha = 0.6f), lamp.copy(alpha = 0.8f), lamp)
+    else listOf(lamp, com.chatlearn.ui.theme.FlapInk, androidx.compose.ui.graphics.Color(0xFF4D3500))
+    val cellShape = RoundedCornerShape(3.dp)
+    fun Modifier.heat(level: Int) = when (level) {
+        0 -> background(emptyCell, cellShape)
+        1 -> background(emptyCell, cellShape).border(1.5.dp, lamp, cellShape)
+        else -> background(fills[level - 2], cellShape)
+    }
     val weeks = days.chunked(7)
     Text(
         // 연속일은 압박이 되지 않게 아래쪽, 이 줄 끝에 덧붙이기만 한다.
@@ -149,7 +159,7 @@ private fun Heatmap(days: List<DayCount>, monthDays: Int, streak: Int) {
                 weeks.forEach { w ->
                     Column(verticalArrangement = Arrangement.spacedBy(gap)) {
                         w.forEach { d ->
-                            Box(Modifier.size(cell).clip(RoundedCornerShape(3.dp)).background(cellColor(heatLevel(d.reviews))))
+                            Box(Modifier.size(cell).heat(heatLevel(d.reviews)))
                         }
                     }
                 }
@@ -158,7 +168,7 @@ private fun Heatmap(days: List<DayCount>, monthDays: Int, streak: Int) {
     }
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
         Text("적음", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        (0..4).forEach { Box(Modifier.size(10.dp).clip(RoundedCornerShape(2.dp)).background(cellColor(it))) }
+        (0..4).forEach { Box(Modifier.size(10.dp).heat(it)) }
         Text("많음", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
@@ -187,7 +197,7 @@ private fun GrammarSection(items: List<GrammarWeakness>, onPractice: (com.chatle
                         style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
-                if (w.errors > 0) Text("${w.errors}", style = MaterialTheme.typography.headlineSmall.board(), color = MaterialTheme.colorScheme.error)
+                if (w.errors > 0) Text("${w.errors}", style = MaterialTheme.typography.headlineSmall.board())
             }
         }
     }
@@ -230,10 +240,15 @@ private fun MasteryBar(stages: List<Pair<String, Int>>) {
     val lamp = MaterialTheme.statusColors.flapGraphic
     val colors = listOf(lamp, MaterialTheme.colorScheme.surfaceContainerLowest, MaterialTheme.colorScheme.onSurfaceVariant, MaterialTheme.colorScheme.outline)
     val parts = stages.zip(colors) { (label, n), color -> Triple(label, n, color) }
-    // 둘째(거의)만 테두리 칸: 진한 호박 테두리 + 흰 속.
+    // 거의 = 흰 속 + 진한 호박 테두리, 새 문장 = 흰 속 + 회색 테두리(익히는 중과 농도로만 갈리지 않게).
     val shape = MaterialTheme.shapes.extraSmall
-    fun Modifier.part(i: Int, color: androidx.compose.ui.graphics.Color) =
-        background(color, shape).then(if (i == 1) Modifier.border(1.5.dp, lamp, shape) else Modifier)
+    val paper = MaterialTheme.colorScheme.surfaceContainerLowest
+    val outline = MaterialTheme.colorScheme.outline
+    fun Modifier.part(i: Int, color: androidx.compose.ui.graphics.Color) = when (i) {
+        1 -> background(paper, shape).border(1.5.dp, lamp, shape)
+        3 -> background(paper, shape).border(1.dp, outline, shape)
+        else -> background(color, shape)
+    }
     val total = parts.sumOf { it.second }
     Row(
         Modifier.fillMaxWidth().height(12.dp).clearAndSetSemantics { contentDescription = parts.joinToString(", ") { "${it.first} ${it.second}개" } },

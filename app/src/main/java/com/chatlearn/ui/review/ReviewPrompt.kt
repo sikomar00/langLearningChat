@@ -1,5 +1,6 @@
 package com.chatlearn.ui.review
 
+import com.chatlearn.ui.components.SecondaryButton
 import com.chatlearn.domain.langLabel
 import androidx.compose.ui.Alignment
 import com.chatlearn.ui.components.Ticket
@@ -84,10 +85,10 @@ internal fun PromptBody(s: ReviewUi.Prompt, vm: ReviewViewModel, canListen: Bool
             }) {
                 Text("들리는 $to 문장을 그대로 써 보세요", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    FilledTonalButton(shape = MaterialTheme.shapes.medium, onClick = { vm.speak(false) }) {
+                    SecondaryButton(shape = MaterialTheme.shapes.medium, onClick = { vm.speak(false) }) {
                         Icon(Icons.AutoMirrored.Filled.VolumeUp, contentDescription = null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("다시 듣기")
                     }
-                    OutlinedButton(shape = MaterialTheme.shapes.medium, onClick = { vm.speak(true) }) {
+                    SecondaryButton(shape = MaterialTheme.shapes.medium, onClick = { vm.speak(true) }) {
                         Icon(Icons.Default.SlowMotionVideo, contentDescription = null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("느리게")
                     }
                 }

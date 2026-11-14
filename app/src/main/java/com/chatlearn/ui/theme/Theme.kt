@@ -40,7 +40,8 @@ internal val DarkScheme = darkColorScheme(
     primaryContainer = Color(0xFF2A2F37), onPrimaryContainer = NightInk,
     secondary = NightInkSoft, onSecondary = Ink,
     secondaryContainer = Flap, onSecondaryContainer = Ink,
-    tertiary = Flap, onTertiary = Ink,
+    // 밤에도 플랩(지금·선택)과 나누려고 글자용 호박은 한 단 옅게.
+    tertiary = Color(0xFFFFE7A3), onTertiary = Ink,
     tertiaryContainer = Color(0xFF4A3500), onTertiaryContainer = Color(0xFFFFE7A3),
     background = NightGround, onBackground = NightInk,
     surface = NightGround, onSurface = NightInk,
@@ -71,7 +72,7 @@ data class StatusColors(
     val flap: Color = Flap,
     val onFlap: Color = Ink,
     val flapGraphic: Color = FlapGraphic,
-    val segmentOff: Color = Rule,
+    val segmentOff: Color = SegmentOff,
 )
 
 private val LocalStatusColors = staticCompositionLocalOf { StatusColors(OnTime) }

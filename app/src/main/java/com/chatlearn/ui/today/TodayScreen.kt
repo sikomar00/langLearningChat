@@ -1,5 +1,6 @@
 package com.chatlearn.ui.today
 
+import com.chatlearn.ui.components.SecondaryButton
 import com.chatlearn.domain.MAX_STAGE
 import com.chatlearn.ui.theme.board
 import com.chatlearn.ui.components.BoardLabel
@@ -53,9 +54,9 @@ fun TodayScreen(
                 Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     Column(Modifier.weight(1f)) {
                         Text("${w.point.nameKo} 다시 보기", style = MaterialTheme.typography.titleMedium, modifier = Modifier.semantics { heading() })
-                        Text("${w.errors}번 틀렸어요", style = MaterialTheme.typography.bodySmall.board(), color = MaterialTheme.colorScheme.error)
+                        Text("${w.errors}번 틀림", style = MaterialTheme.typography.bodySmall.board(), color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
-                    OutlinedButton(onClick = { onPractice(w.point) }, shape = MaterialTheme.shapes.medium) { Text("써 보기") }
+                    SecondaryButton(onClick = { onPractice(w.point) }, shape = MaterialTheme.shapes.medium) { Text("써 보기") }
                 }
             }
         }

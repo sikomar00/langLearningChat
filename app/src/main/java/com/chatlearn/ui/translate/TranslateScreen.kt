@@ -1,5 +1,7 @@
 package com.chatlearn.ui.translate
 
+import com.chatlearn.ui.components.ChoiceChip
+import com.chatlearn.ui.components.SecondaryButton
 import com.chatlearn.domain.langLabel
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.foundation.background
@@ -57,14 +59,14 @@ fun TranslateScreen(
             TranslateMode.entries.forEachIndexed { i, m ->
                 SegmentedButton(
                     selected = s.mode == m, onClick = { vm.setMode(m) },
-                    shape = SegmentedButtonDefaults.itemShape(i, TranslateMode.entries.size),
+                    shape = SegmentedButtonDefaults.itemShape(i, TranslateMode.entries.size, MaterialTheme.shapes.extraSmall),
                 ) { Text(when (m) { TranslateMode.RECEIVED -> "받은 말"; TranslateMode.SENT -> "보낼 말"; TranslateMode.CORRECT -> "써 보기" }) }
             }
         }
         if (s.mode != TranslateMode.RECEIVED) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 listOf(Lang.EN to "영어", Lang.ES to "스페인어").forEach { (l, label) ->
-                    FilterChip(selected = s.targetLang == l, onClick = { vm.setTarget(l) }, label = { Text(label) })
+                    ChoiceChip(selected = s.targetLang == l, onClick = { vm.setTarget(l) }, label = { Text(label) })
                 }
             }
         }
@@ -176,7 +178,7 @@ fun TranslateScreen(
             val settingsFix = it is TranslateError.Ai && (it.kind == AiError.BAD_KEY || it.kind == AiError.BAD_MODEL)
             val hopeless = it is TranslateError.Ai && (it.kind == AiError.DAILY_LIMIT || it.kind == AiError.BLOCKED)
             if (it is TranslateError.Ai && !settingsFix && !hopeless) {
-                OutlinedButton(shape = MaterialTheme.shapes.medium, onClick = { vm.translate() }, enabled = !s.loading) { Text("다시 시도") }
+                SecondaryButton(shape = MaterialTheme.shapes.medium, onClick = { vm.translate() }, enabled = !s.loading) { Text("다시 시도") }
             }
             if (settingsFix) {
                 Button(shape = MaterialTheme.shapes.medium, onClick = onOpenSettings) { Text("설정 열기") }
@@ -286,7 +288,7 @@ fun TranslateScreen(
                         TextButton(onClick = { onSpeak(c.text, s.targetLang) }) { Text("들어보기") }
                         TextButton(onClick = { copy(c.text) }) { Text("복사만") }
                         Spacer(Modifier.weight(1f))
-                        OutlinedButton(shape = MaterialTheme.shapes.medium, onClick = {
+                        SecondaryButton(shape = MaterialTheme.shapes.medium, onClick = {
                             clipboard.setText(AnnotatedString(c.text))
                             vm.onCandidateCopied(c)
                         }) { Text("복사하고 저장") }

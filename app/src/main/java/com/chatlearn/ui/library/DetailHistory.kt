@@ -120,7 +120,8 @@ private fun StageSteps(steps: List<Int>) {
         shown.forEach { st ->
             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 (MAX_STAGE downTo 1).forEach { lvl ->
-                    Box(Modifier.size(width = 14.dp, height = 5.dp).background(if (lvl <= st) c.flapGraphic else c.segmentOff, MaterialTheme.shapes.extraSmall))
+                    val cell = Modifier.size(width = 14.dp, height = 5.dp)
+                    Box(if (lvl <= st) cell.background(c.flapGraphic, MaterialTheme.shapes.extraSmall) else cell.border(1.dp, c.segmentOff, MaterialTheme.shapes.extraSmall))
                 }
             }
         }

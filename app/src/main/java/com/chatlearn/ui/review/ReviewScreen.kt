@@ -1,5 +1,6 @@
 package com.chatlearn.ui.review
 
+import com.chatlearn.ui.components.SecondaryButton
 import com.chatlearn.domain.langLabel
 import com.chatlearn.ui.theme.board
 import com.chatlearn.ui.components.SegmentBar
@@ -92,7 +93,7 @@ fun ReviewScreen(vm: ReviewViewModel, voice: VoicePrefs, onClose: () -> Unit) {
             Row(Modifier.fillMaxWidth().statusBarsPadding().heightIn(min = 56.dp).padding(end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                 IconButton(onClick = onClose) { Icon(Icons.Default.Close, contentDescription = "복습 닫기") }
                 if (inSession && progress.total > 0) {
-                    SegmentBar(progress.done, progress.total, Modifier.weight(1f).height(8.dp).padding(horizontal = 8.dp))
+                    SegmentBar(progress.done, progress.total, Modifier.weight(1f).height(8.dp).padding(horizontal = 8.dp), onBoard = true)
                     Text("${minOf(progress.done + 1, progress.total)}/${progress.total}", style = MaterialTheme.typography.labelLarge.board())
                 } else Spacer(Modifier.weight(1f))
                 if (state is ReviewUi.Prompt) {
@@ -161,7 +162,7 @@ fun ReviewScreen(vm: ReviewViewModel, voice: VoicePrefs, onClose: () -> Unit) {
                     if (chars.isNotEmpty()) {
                         LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                             items(chars) { ch ->
-                                OutlinedButton(
+                                SecondaryButton(
                                     shape = MaterialTheme.shapes.medium,
                                     onClick = { vm.appendToAnswer(ch, focusedBlank.coerceIn(0, s.answers.lastIndex)) },
                                     modifier = Modifier.defaultMinSize(minWidth = 48.dp, minHeight = 48.dp), contentPadding = PaddingValues(horizontal = 12.dp),
@@ -189,7 +190,7 @@ fun ReviewScreen(vm: ReviewViewModel, voice: VoicePrefs, onClose: () -> Unit) {
                             Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
                                 val label = ratingLabel(r)
                                 if (r == s.suggested) Button(shape = MaterialTheme.shapes.medium, onClick = { vm.rate(r) }, modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp)) { Text(label) }
-                                else OutlinedButton(shape = MaterialTheme.shapes.medium, onClick = { vm.rate(r) }, modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp)) { Text(label) }
+                                else SecondaryButton(shape = MaterialTheme.shapes.medium, onClick = { vm.rate(r) }, modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp)) { Text(label) }
                                 Text(s.previews[r].orEmpty(), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                         }

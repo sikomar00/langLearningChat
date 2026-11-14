@@ -1,5 +1,6 @@
 package com.chatlearn.ui.review
 
+import com.chatlearn.ui.components.SecondaryButton
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.layout.*
@@ -78,11 +79,11 @@ internal fun GradedBody(s: ReviewUi.Graded, vm: ReviewViewModel, canListen: Bool
 @Composable
 private fun ShadowingRow(vm: ReviewViewModel, canListen: Boolean, heard: String?, reference: String, onShadow: () -> Unit) {
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-        FilledTonalButton(shape = MaterialTheme.shapes.medium, onClick = { vm.speak(false) }) {
+        SecondaryButton(shape = MaterialTheme.shapes.medium, onClick = { vm.speak(false) }) {
             Icon(Icons.AutoMirrored.Filled.VolumeUp, contentDescription = null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("듣기")
         }
         IconButton(onClick = { vm.speak(true) }) { Icon(Icons.Default.SlowMotionVideo, contentDescription = "느리게 듣기") }
-        if (canListen) OutlinedButton(shape = MaterialTheme.shapes.medium, onClick = onShadow) {
+        if (canListen) SecondaryButton(shape = MaterialTheme.shapes.medium, onClick = onShadow) {
             Icon(Icons.Default.Mic, contentDescription = null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("따라 말하기")
         }
     }

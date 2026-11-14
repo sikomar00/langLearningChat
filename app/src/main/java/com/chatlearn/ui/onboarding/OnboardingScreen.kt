@@ -1,5 +1,6 @@
 package com.chatlearn.ui.onboarding
 
+import com.chatlearn.ui.components.SecondaryButton
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.foundation.layout.*
@@ -51,7 +52,7 @@ fun OnboardingScreen(vm: SettingsViewModel, onFinish: (tryExample: Boolean) -> U
         }
         when (step) {
             0, 1 -> Button(shape = MaterialTheme.shapes.medium, onClick = { step++ }, modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp)) { Text(if (step == 0) "시작하기" else "알겠어요") }
-            2 -> OutlinedButton(shape = MaterialTheme.shapes.medium, onClick = { step = 3 }, modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp)) { Text("키는 나중에 넣을게요") }
+            2 -> SecondaryButton(shape = MaterialTheme.shapes.medium, onClick = { step = 3 }, modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp)) { Text("키는 나중에 넣을게요") }
             else -> {
                 // 키가 없으면 번역이 오류로 끝나므로 예시 번역은 키를 연결했을 때만.
                 if (connected) {
@@ -91,7 +92,7 @@ private fun KeySetup(vm: SettingsViewModel, onConnected: () -> Unit) {
     var error by remember { mutableStateOf<String?>(null) }
     Title("Gemini 키 연결")
     Text("Google AI Studio에서 무료 키를 만들어 붙여 넣어 주세요. 1분이면 돼요.", style = MaterialTheme.typography.bodyLarge)
-    FilledTonalButton(shape = MaterialTheme.shapes.medium, onClick = { runCatching { uriHandler.openUri("https://aistudio.google.com/apikey") } }) { Text("키 발급 페이지 열기") }
+    SecondaryButton(shape = MaterialTheme.shapes.medium, onClick = { runCatching { uriHandler.openUri("https://aistudio.google.com/apikey") } }) { Text("키 발급 페이지 열기") }
     OutlinedTextField(
         key, { key = it; error = null }, Modifier.fillMaxWidth(), singleLine = true,
         label = { Text("API 키") }, visualTransformation = PasswordVisualTransformation(),

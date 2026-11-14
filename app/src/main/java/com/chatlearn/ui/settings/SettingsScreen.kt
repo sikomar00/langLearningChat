@@ -1,5 +1,7 @@
 package com.chatlearn.ui.settings
 
+import com.chatlearn.ui.components.ChoiceChip
+import com.chatlearn.ui.components.SecondaryButton
 import com.chatlearn.ui.theme.board
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -93,14 +95,14 @@ fun SettingsScreen(vm: SettingsViewModel, onPreviewVoice: (com.chatlearn.domain.
                 OutlinedTextField(model, { model = it }, Modifier.fillMaxWidth(), singleLine = true, label = { Text("직접 입력") })
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     listOf("gemini-flash-latest", "gemini-flash-lite-latest", "gemini-3.6-flash", "gemini-3.5-flash-lite").forEach { preset ->
-                        FilterChip(selected = model == preset, onClick = { model = preset }, label = { Text(preset) })
+                        ChoiceChip(selected = model == preset, onClick = { model = preset }, label = { Text(preset) })
                     }
                 }
             }
             SettingItem("저장과 연결 확인", "입력한 키와 모델을 저장한 뒤 확인해요.") {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Button(shape = MaterialTheme.shapes.medium, onClick = { vm.saveKey(key); vm.saveModel(model); message = "저장했어요." }, modifier = Modifier.weight(1f)) { Text("저장") }
-                    OutlinedButton(shape = MaterialTheme.shapes.medium, enabled = !checking, modifier = Modifier.weight(1f), onClick = {
+                    SecondaryButton(shape = MaterialTheme.shapes.medium, enabled = !checking, modifier = Modifier.weight(1f), onClick = {
                         checking = true; checkResult = null
                         scope.launch {
                             // 입력한 값으로 확인하도록 먼저 저장을 끝낸다.
@@ -127,7 +129,7 @@ fun SettingsScreen(vm: SettingsViewModel, onPreviewVoice: (com.chatlearn.domain.
             SettingItem("하루 최대 복습", "이보다 많으면 나머지는 다음 날로 넘겨요.") {
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     listOf(50, 100, 200).forEach { n ->
-                        FilterChip(selected = s.maxReviews == n, onClick = { vm.saveMaxReviews(n) }, label = { Text("${n}장") })
+                        ChoiceChip(selected = s.maxReviews == n, onClick = { vm.saveMaxReviews(n) }, label = { Text("${n}장") })
                     }
                 }
             }
@@ -136,7 +138,7 @@ fun SettingsScreen(vm: SettingsViewModel, onPreviewVoice: (com.chatlearn.domain.
             SettingItem("얼마나 기억할까요", "복습할 때 이만큼은 기억나도록 간격을 정해요. 높일수록 더 자주 복습해요.", first = true) {
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     listOf(0.85 to "85% 여유", 0.9 to "90% 보통", 0.95 to "95% 꼼꼼").forEach { (r, label) ->
-                        FilterChip(selected = kotlin.math.abs(s.retention - r) < 0.001, onClick = { vm.saveRetention(r) }, label = { Text(label) })
+                        ChoiceChip(selected = kotlin.math.abs(s.retention - r) < 0.001, onClick = { vm.saveRetention(r) }, label = { Text(label) })
                     }
                 }
             }
@@ -155,7 +157,7 @@ fun SettingsScreen(vm: SettingsViewModel, onPreviewVoice: (com.chatlearn.domain.
                 SettingItem("알림 시각") {
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         listOf(8, 12, 18, 20, 22).forEach { h ->
-                            FilterChip(selected = s.reminderHour == h, onClick = { vm.saveReminder(true, h) }, label = { Text(if (h < 12) "오전 ${h}시" else if (h == 12) "낮 12시" else "오후 ${h - 12}시") })
+                            ChoiceChip(selected = s.reminderHour == h, onClick = { vm.saveReminder(true, h) }, label = { Text(if (h < 12) "오전 ${h}시" else if (h == 12) "낮 12시" else "오후 ${h - 12}시") })
                         }
                     }
                 }
@@ -163,7 +165,7 @@ fun SettingsScreen(vm: SettingsViewModel, onPreviewVoice: (com.chatlearn.domain.
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         listOf("월", "화", "수", "목", "금", "토", "일").forEachIndexed { i, d ->
                             val on = s.reminderDays and (1 shl i) != 0
-                            FilterChip(selected = on, onClick = {
+                            ChoiceChip(selected = on, onClick = {
                                 val next = s.reminderDays xor (1 shl i)
                                 // 전부 끄면 알림이 영영 오지 않으니 최소 하루는 남긴다.
                                 if (next != 0) vm.saveReminderDays(next)
@@ -174,7 +176,7 @@ fun SettingsScreen(vm: SettingsViewModel, onPreviewVoice: (com.chatlearn.domain.
                 SettingItem("알림 말투", "예: " + com.chatlearn.reminder.reminderText(5, 0, com.chatlearn.reminder.ReminderTone.fromName(s.reminderTone))) {
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         com.chatlearn.reminder.ReminderTone.entries.forEach { t ->
-                            FilterChip(selected = s.reminderTone == t.name, onClick = { vm.saveReminderTone(t.name) }, label = { Text(t.label) })
+                            ChoiceChip(selected = s.reminderTone == t.name, onClick = { vm.saveReminderTone(t.name) }, label = { Text(t.label) })
                         }
                     }
                 }
@@ -191,7 +193,7 @@ fun SettingsScreen(vm: SettingsViewModel, onPreviewVoice: (com.chatlearn.domain.
             SettingItem("영어 억양", "듣기와 말로 답하기에 쓸 억양이에요. 친구가 쓰는 억양에 맞추면 좋아요.", first = true) {
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp), itemVerticalAlignment = Alignment.CenterVertically) {
                     com.chatlearn.settings.EnAccent.entries.forEach { a ->
-                        FilterChip(selected = s.enAccent == a.name, onClick = { vm.saveEnAccent(a.name) }, label = { Text(a.label) })
+                        ChoiceChip(selected = s.enAccent == a.name, onClick = { vm.saveEnAccent(a.name) }, label = { Text(a.label) })
                     }
                     TextButton(onClick = { onPreviewVoice(com.chatlearn.domain.Lang.EN) }) { Text("들어보기") }
                 }
@@ -199,7 +201,7 @@ fun SettingsScreen(vm: SettingsViewModel, onPreviewVoice: (com.chatlearn.domain.
             SettingItem("스페인어 억양") {
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp), itemVerticalAlignment = Alignment.CenterVertically) {
                     com.chatlearn.settings.EsAccent.entries.forEach { a ->
-                        FilterChip(selected = s.esAccent == a.name, onClick = { vm.saveEsAccent(a.name) }, label = { Text(a.label) })
+                        ChoiceChip(selected = s.esAccent == a.name, onClick = { vm.saveEsAccent(a.name) }, label = { Text(a.label) })
                     }
                     TextButton(onClick = { onPreviewVoice(com.chatlearn.domain.Lang.ES) }) { Text("들어보기") }
                 }
@@ -207,7 +209,7 @@ fun SettingsScreen(vm: SettingsViewModel, onPreviewVoice: (com.chatlearn.domain.
             SettingItem("말 빠르기", "느리게 듣기는 고른 빠르기보다 더 천천히 들려줘요.") {
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     listOf(0.8f to "천천히", 1f to "보통", 1.2f to "빠르게").forEach { (rate, label) ->
-                        FilterChip(selected = kotlin.math.abs(s.speechRate - rate) < 0.01f, onClick = { vm.saveSpeechRate(rate) }, label = { Text(label) })
+                        ChoiceChip(selected = kotlin.math.abs(s.speechRate - rate) < 0.01f, onClick = { vm.saveSpeechRate(rate) }, label = { Text(label) })
                     }
                 }
             }
@@ -220,7 +222,7 @@ fun SettingsScreen(vm: SettingsViewModel, onPreviewVoice: (com.chatlearn.domain.
                 SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
                     val modes = com.chatlearn.settings.ThemeMode.entries
                     modes.forEachIndexed { i, m ->
-                        SegmentedButton(selected = mode == m, onClick = { vm.saveThemeMode(m.name) }, shape = SegmentedButtonDefaults.itemShape(i, modes.size)) { Text(m.label) }
+                        SegmentedButton(selected = mode == m, onClick = { vm.saveThemeMode(m.name) }, shape = SegmentedButtonDefaults.itemShape(i, modes.size, MaterialTheme.shapes.extraSmall)) { Text(m.label) }
                     }
                 }
             }
@@ -235,7 +237,7 @@ fun SettingsScreen(vm: SettingsViewModel, onPreviewVoice: (com.chatlearn.domain.
             SettingItem("위젯", "오늘의 복습(복습할 카드 수·목표)과 한 장 복습 위젯을 홈 화면에 둘 수 있어요.", first = true) {
                 val canPin = remember { com.chatlearn.widget.canPinReviewWidget(ctx) }
                 if (canPin) {
-                    OutlinedButton(shape = MaterialTheme.shapes.medium, onClick = {
+                    SecondaryButton(shape = MaterialTheme.shapes.medium, onClick = {
                         if (!com.chatlearn.widget.requestPinReviewWidget(ctx)) message = "위젯을 추가하지 못했어요. 홈 화면을 길게 눌러 위젯 목록에서 추가해 주세요."
                     }) { Text("홈 화면에 위젯 추가") }
                 } else {
@@ -249,8 +251,8 @@ fun SettingsScreen(vm: SettingsViewModel, onPreviewVoice: (com.chatlearn.domain.
             SettingItem("백업 파일", com.chatlearn.settings.backupStatus(s.lastBackupAt, vm.now(), java.time.ZoneId.systemDefault()), first = true) {
                 if (backupDue) InfoMessage("휴대폰의 구글 백업이 꺼져 있거나 앱을 지우면 문장 ${entryCount}개가 사라질 수 있어요. 자동 백업 폴더를 고르거나 내보내기로 파일을 보관해 두세요.", MessageKind.ERROR)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedButton(shape = MaterialTheme.shapes.medium, onClick = { exportLauncher.launch("chatlearn-backup.json") }, modifier = Modifier.weight(1f)) { Text("내보내기") }
-                    OutlinedButton(shape = MaterialTheme.shapes.medium, onClick = { importLauncher.launch(arrayOf("application/json", "*/*")) }, modifier = Modifier.weight(1f)) { Text("가져오기") }
+                    SecondaryButton(shape = MaterialTheme.shapes.medium, onClick = { exportLauncher.launch("chatlearn-backup.json") }, modifier = Modifier.weight(1f)) { Text("내보내기") }
+                    SecondaryButton(shape = MaterialTheme.shapes.medium, onClick = { importLauncher.launch(arrayOf("application/json", "*/*")) }, modifier = Modifier.weight(1f)) { Text("가져오기") }
                 }
                 Text("가져오면 지금 있는 데이터가 백업 파일의 내용으로 바뀝니다.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
@@ -315,7 +317,7 @@ private fun AutoBackupFolder(folder: String, vm: SettingsViewModel) {
         style = MaterialTheme.typography.bodySmall,
     )
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        OutlinedButton(shape = MaterialTheme.shapes.medium, onClick = { pick.launch(null) }) { Text(if (folder.isBlank()) "폴더 고르기" else "폴더 바꾸기") }
+        SecondaryButton(shape = MaterialTheme.shapes.medium, onClick = { pick.launch(null) }) { Text(if (folder.isBlank()) "폴더 고르기" else "폴더 바꾸기") }
         if (folder.isNotBlank()) TextButton(onClick = { vm.saveAutoBackupFolder("") }) { Text("끄기") }
     }
 }

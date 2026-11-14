@@ -143,12 +143,18 @@ fun Ticket(route: String, modifier: Modifier = Modifier, stub: (@Composable Colu
 
 /** 0~[total] 중 [done]만큼 켜진 칸: 출발 안내판의 불빛 줄. 목표·익힌 단계처럼 셀 수 있는 양에만. 크기는 [modifier]로 정한다. */
 @Composable
-fun SegmentBar(done: Int, total: Int, modifier: Modifier = Modifier) {
-    val on = MaterialTheme.statusColors.flapGraphic
-    val off = MaterialTheme.statusColors.segmentOff
+fun SegmentBar(done: Int, total: Int, modifier: Modifier = Modifier, onBoard: Boolean = false) {
+    val c = MaterialTheme.statusColors
+    // 꺼진 칸은 칠하지 않고 1dp 테두리만: 켜진 칸과는 "채움 대 테두리"로, 바탕과는 3:1로 갈린다.
+    // 검은 판 위에서는 켜진 칸이 밝은 플랩, 꺼진 칸이 판 위 흐린 글자색(남은 칸이 더 밝아 보이지 않게).
+    val on = if (onBoard) c.flap else c.flapGraphic
+    val off = if (onBoard) c.onBoardMuted else c.segmentOff
+    val shape = MaterialTheme.shapes.extraSmall
     val n = total.coerceIn(1, 20)
     val lit = if (total <= 20) done.coerceIn(0, n) else (done * n / total).coerceIn(0, n)
     Row(modifier, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
-        repeat(n) { i -> Box(Modifier.weight(1f).fillMaxHeight().background(if (i < lit) on else off, MaterialTheme.shapes.extraSmall)) }
+        repeat(n) { i ->
+            Box(Modifier.weight(1f).fillMaxHeight().then(if (i < lit) Modifier.background(on, shape) else Modifier.border(1.dp, off, shape)))
+        }
     }
 }

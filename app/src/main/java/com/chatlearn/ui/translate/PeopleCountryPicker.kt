@@ -1,5 +1,6 @@
 package com.chatlearn.ui.translate
 
+import com.chatlearn.ui.components.ChoiceChip
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -52,7 +53,7 @@ private fun ChipRow(spec: ChipRowSpec, onToggle: (String) -> Unit, trailing: @Co
     Row(verticalAlignment = Alignment.CenterVertically) {
         Icon(icon, contentDescription = label, Modifier.size(20.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
         LazyRow(Modifier.padding(start = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            items(names, key = { it }) { n -> FilterChip(selected = n in selected, onClick = { onToggle(n) }, label = { Text(n) }) }
+            items(names, key = { it }) { n -> ChoiceChip(selected = n in selected, onClick = { onToggle(n) }, label = { Text(n) }) }
             item { trailing() }
         }
     }

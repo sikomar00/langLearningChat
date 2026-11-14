@@ -16,6 +16,8 @@ internal val Stock = Color(0xFFFFFFFF)
 internal val Ink = Color(0xFF15181D)
 internal val InkSoft = Color(0xFF5B616B)
 internal val Rule = Color(0xFFE1E3E7)
+// 불빛 칸의 꺼진 칸 테두리: 바탕(흰 용지·대합실)과 3:1 이상. 칠하지 않고 테두리만 그린다.
+internal val SegmentOff = Color(0xFF7D838C)
 internal val FlapInk = Color(0xFF7A5400)
 // 밝은 바탕 위 호박 그림(오늘 막대·켜진 칸·지금 복습 선): 바탕 대비 3.5:1, 꺼진 칸 대비 3:1.
 internal val FlapGraphic = Color(0xFFA87800)
@@ -29,6 +31,6 @@ internal val NightInk = Color(0xFFE8EAED)
 internal val NightInkSoft = Color(0xFFA9AFB8)
 internal val NightRule = Color(0xFF2C3037)
 // 다크의 꺼진 칸: 줄 바탕에서 보이고 켜진 칸(플랩)과 4.5:1.
-internal val NightSegmentOff = Color(0xFF4A5059)
+internal val NightSegmentOff = Color(0xFF7A808A)
 internal val DelayedLight = Color(0xFFFF8A7A)
 internal val OnTimeLight = Color(0xFF7FCB98)

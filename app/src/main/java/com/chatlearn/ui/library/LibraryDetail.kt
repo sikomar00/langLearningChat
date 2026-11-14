@@ -1,5 +1,7 @@
 package com.chatlearn.ui.library
 
+import com.chatlearn.ui.components.ChoiceChip
+import com.chatlearn.ui.components.SecondaryButton
 import androidx.compose.ui.semantics.Role
 import androidx.compose.foundation.selection.toggleable
 import kotlinx.coroutines.joinAll
@@ -110,7 +112,7 @@ internal fun DetailDialog(item: LibraryItem, hasAltCard: Boolean, recentTags: Li
         Surface(Modifier.fillMaxSize()) {
             Column(Modifier.fillMaxSize().navigationBarsPadding().imePadding()) {
                 BoardTopBar("문장", navigationIcon = { IconButton(onClick = close) { Icon(Icons.Default.Close, contentDescription = "닫기") } }) {
-                    TextButton(onClick = { saveAll(); onClose() }, colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.statusColors.flap)) { Text("저장") }
+                    TextButton(onClick = { saveAll(); onClose() }, colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.statusColors.onBoard)) { Text("저장") }
                 }
                 Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 SentenceTicket(item, vm)
@@ -121,7 +123,7 @@ internal fun DetailDialog(item: LibraryItem, hasAltCard: Boolean, recentTags: Li
                             Text("답장 써 보기")
                         }
                     }
-                    OutlinedButton(shape = MaterialTheme.shapes.medium, onClick = { val saving = saveAll(); reviewScope.launch { saving.joinAll(); onReview() } }, modifier = Modifier.weight(1f)) {
+                    SecondaryButton(shape = MaterialTheme.shapes.medium, onClick = { val saving = saveAll(); reviewScope.launch { saving.joinAll(); onReview() } }, modifier = Modifier.weight(1f)) {
                         Text("이 문장 복습")
                     }
                 }
@@ -142,7 +144,7 @@ internal fun DetailDialog(item: LibraryItem, hasAltCard: Boolean, recentTags: Li
                         var making by remember { mutableStateOf(false) }
                         var failed by remember { mutableStateOf(false) }
                         val scope2 = rememberCoroutineScope()
-                        OutlinedButton(shape = MaterialTheme.shapes.medium, enabled = !making, onClick = {
+                        SecondaryButton(shape = MaterialTheme.shapes.medium, enabled = !making, onClick = {
                             making = true; failed = false
                             scope2.launch { failed = !vm.expandOne(item.entry.id).await(); making = false }
                         }) { Text(if (making) "만드는 중…" else "다른 언어 카드 만들기") }
@@ -169,16 +171,16 @@ internal fun DetailDialog(item: LibraryItem, hasAltCard: Boolean, recentTags: Li
                     Text("폴더", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     @OptIn(ExperimentalLayoutApi::class)
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        FilterChip(selected = item.entry.folderId == null, onClick = { vm.moveToFolder(listOf(item.entry.id), null) }, label = { Text("없음") })
+                        ChoiceChip(selected = item.entry.folderId == null, onClick = { vm.moveToFolder(listOf(item.entry.id), null) }, label = { Text("없음") })
                         folders.forEach { f ->
-                            FilterChip(selected = item.entry.folderId == f.id, onClick = { vm.moveToFolder(listOf(item.entry.id), f.id) }, label = { Text(f.name) })
+                            ChoiceChip(selected = item.entry.folderId == f.id, onClick = { vm.moveToFolder(listOf(item.entry.id), f.id) }, label = { Text(f.name) })
                         }
                     }
                     var pickingDate by remember { mutableStateOf(false) }
                     val zone = ZoneId.systemDefault()
                     val learned = Instant.ofEpochMilli(item.entry.createdAt).atZone(zone).toLocalDate()
                     LabeledText("알게 된 날", learned.format(DateTimeFormatter.ofPattern("yyyy년 M월 d일 (E)", java.util.Locale.KOREAN)))
-                    OutlinedButton(shape = MaterialTheme.shapes.medium, onClick = { pickingDate = true }) { Text("날짜 바꾸기") }
+                    SecondaryButton(shape = MaterialTheme.shapes.medium, onClick = { pickingDate = true }) { Text("날짜 바꾸기") }
                     if (pickingDate) PastDatePickerDialog(
                         initial = learned, today = java.time.LocalDate.now(zone), onDismiss = { pickingDate = false },
                         onPick = { d ->
@@ -221,7 +223,7 @@ internal fun DetailDialog(item: LibraryItem, hasAltCard: Boolean, recentTags: Li
                         }
                     }
                 }
-                    OutlinedButton(shape = MaterialTheme.shapes.medium, onClick = { saveAll(); vm.sendToNotion(listOf(item.entry.id)); onClose() }, modifier = Modifier.fillMaxWidth()) {
+                    SecondaryButton(shape = MaterialTheme.shapes.medium, onClick = { saveAll(); vm.sendToNotion(listOf(item.entry.id)); onClose() }, modifier = Modifier.fillMaxWidth()) {
                         Text(if (item.entry.notionPageId == null) "노션에 보내기" else "노션에 다시 보내기")
                     }
                     HorizontalDivider()

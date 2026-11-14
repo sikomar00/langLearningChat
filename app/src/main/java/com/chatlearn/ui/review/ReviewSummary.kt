@@ -59,7 +59,7 @@ internal fun EmptyBody(custom: Boolean, moreNew: Int, vm: ReviewViewModel, onClo
 @Composable
 internal fun LearnMore(waiting: Int, onClick: () -> Unit) {
     if (waiting <= 0) return
-    FilledTonalButton(shape = MaterialTheme.shapes.medium, onClick = onClick, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) { Text("새 카드 ${minOf(LEARN_MORE, waiting)}장 더 배우기") }
+    Button(shape = MaterialTheme.shapes.medium, onClick = onClick, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) { Text("새 카드 ${minOf(LEARN_MORE, waiting)}장 더 배우기") }
     Text(
         "기다리는 새 카드 ${waiting}장. 하루 새 카드 수는 설정 > 복습에서 바꿀 수 있어요.",
         style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,

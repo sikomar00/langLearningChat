@@ -209,7 +209,7 @@ class MainActivity : ComponentActivity() {
                     }
                     Overlay.SETTINGS -> Surface(Modifier.fillMaxSize()) {
                         BackHandler(onBack = closeOverlay)
-                        Column(Modifier.fillMaxSize().navigationBarsPadding()) {
+                        Column(Modifier.fillMaxSize().navigationBarsPadding().imePadding()) { // 노션 토큰·API 키 칸이 키보드에 가리지 않게
                             BoardTopBar("설정", navigationIcon = {
                                 IconButton(onClick = closeOverlay) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "뒤로") }
                             })
