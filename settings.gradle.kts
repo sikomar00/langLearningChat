@@ -7,3 +7,4 @@ dependencyResolutionManagement {
 }
 rootProject.name = "ChatLearn"
 include(":app")
+include(":baselineprofile")
