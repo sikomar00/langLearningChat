@@ -1,5 +1,11 @@
 package com.chatlearn.stats
 
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.ui.semantics.semantics
+import com.chatlearn.ui.theme.statusColors
+import com.chatlearn.ui.theme.board
+import com.chatlearn.ui.components.BoardLabel
+import com.chatlearn.ui.components.FlightCode
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -34,16 +40,14 @@ fun StatsScreen(vm: StatsViewModel, onPractice: (com.chatlearn.domain.GrammarPoi
         return
     }
     Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        // 오늘을 안내판 한 줄로: 세 칸에 안내판 숫자(큰 숫자 하나를 내세우지 않는다).
+        BoardStrip(listOf("오늘 복습" to "${s.today.reviews}회", "정답률" to percent(s.today), "연속" to "${s.streak}일"))
         GrammarSection(grammar, onPractice)
-        SectionCard("오늘") {
-            Text("복습 ${s.today.reviews}회 · 정답률 ${percent(s.today)}", style = MaterialTheme.typography.titleMedium)
-            Text("연속 학습 ${s.streak}일")
-        }
         SectionCard("최근 7일") { com.chatlearn.ui.components.DayBars(s.last7, { "${it.date.monthValue}/${it.date.dayOfMonth}" }, s.last7.last().date) }
         if (s.heatmap.isNotEmpty()) SectionCard("${StatsCalculator.HEATMAP_WEEKS}주 학습 기록") { Heatmap(s.heatmap) }
-        SectionCard("카드 상태") {
-            Text("새 카드 ${s.cards.new}개 · 학습 중 ${s.cards.learning}개 · 익숙함 ${s.cards.mature}개")
-            Text("익숙함은 복습 간격이 21일 이상인 카드예요.", style = MaterialTheme.typography.bodySmall)
+        SectionCard("익힌 정도") {
+            MasteryBar(s.cards.mature, s.cards.learning, s.cards.new)
+            Text("익숙함은 복습 간격이 21일 이상인 카드예요.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         SectionCard("자주 틀리는 문장") {
             if (s.weakest.isEmpty()) Text("아직 틀린 문장이 없어요.")
@@ -74,10 +78,11 @@ fun StatsScreen(vm: StatsViewModel, onPractice: (com.chatlearn.domain.GrammarPoi
 private fun Heatmap(days: List<DayCount>) {
     val active = days.count { it.reviews > 0 }
     val best = days.maxOf { it.reviews }
-    val primary = MaterialTheme.colorScheme.primary
-    val emptyCell = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f)
-    val alphas = listOf(0f, 0.3f, 0.55f, 0.8f, 1f)
-    fun cellColor(level: Int) = if (level == 0) emptyCell else primary.copy(alpha = alphas[level])
+    val lamp = MaterialTheme.statusColors.flapGraphic
+    // 빈 날은 눈에 띌 필요가 없어 옅은 선 색(다크에서 칸이 회색 덩어리로 보이지 않게), 켜진 날만 호박 불빛.
+    val emptyCell = MaterialTheme.colorScheme.outlineVariant
+    val alphas = listOf(0f, 0.35f, 0.6f, 0.8f, 1f)
+    fun cellColor(level: Int) = if (level == 0) emptyCell else lamp.copy(alpha = alphas[level])
     val weeks = days.chunked(7)
     Text(
         if (active == 0) "아직 복습한 날이 없어요" else "최근 ${StatsCalculator.HEATMAP_WEEKS}주 중 ${active}일 복습했어요",
@@ -141,18 +146,18 @@ private fun GrammarSection(items: List<GrammarWeakness>, onPractice: (com.chatle
                 Modifier.fillMaxWidth().heightIn(min = 48.dp).clickable(onClickLabel = "설명 보기") { open = w },
                 verticalAlignment = Alignment.CenterVertically,
             ) {
+                FlightCode(w.point.lang.code, Modifier.padding(end = 12.dp))
                 Column(Modifier.weight(1f)) {
                     Text(w.point.nameKo, style = MaterialTheme.typography.bodyLarge)
                     Text(
                         listOfNotNull(
-                            "${if (w.point.lang == com.chatlearn.domain.Lang.EN) "영어" else "스페인어"}",
                             w.errors.takeIf { it > 0 }?.let { "${it}번 틀림" },
                             w.needed.takeIf { it > 0 }?.let { "${it}번 필요했음" },
                         ).joinToString(", "),
                         style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
-                if (w.errors > 0) Text("${w.errors}", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.error)
+                if (w.errors > 0) Text("${w.errors}", style = MaterialTheme.typography.headlineSmall.board(), color = MaterialTheme.colorScheme.error)
             }
         }
     }
@@ -164,6 +169,50 @@ private fun GrammarSection(items: List<GrammarWeakness>, onPractice: (com.chatle
             confirmButton = { TextButton(onClick = { open = null; onPractice(w.point) }) { Text("이 문법으로 써 보기") } },
             dismissButton = { TextButton(onClick = { open = null }) { Text("닫기") } },
         )
+    }
+}
+
+/** 안내판 띠: 검은 판에 칸마다 작은 이름표와 안내판 숫자, 칸 사이는 가는 세로선. */
+@Composable
+private fun BoardStrip(cells: List<Pair<String, String>>) {
+    val c = MaterialTheme.statusColors
+    Surface(color = c.board, contentColor = c.onBoard, shape = MaterialTheme.shapes.medium) {
+        Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min).padding(vertical = 14.dp)) {
+            cells.forEachIndexed { i, (label, value) ->
+                if (i > 0) Box(Modifier.width(1.dp).fillMaxHeight().background(c.boardRaised))
+                Column(Modifier.weight(1f).padding(horizontal = 16.dp).semantics(mergeDescendants = true) {}) {
+                    BoardLabel(label, color = c.onBoardMuted)
+                    Text(value, style = MaterialTheme.typography.headlineSmall.board(), color = c.onBoard)
+                }
+            }
+        }
+    }
+}
+
+/** 익힌 정도: 익숙함·학습 중·새 카드의 비율 막대와 수. 익숙함이 늘어나는 게 실력이 쌓이는 모습. */
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+@Composable
+private fun MasteryBar(mature: Int, learning: Int, new: Int) {
+    val c = MaterialTheme.statusColors
+    val total = (mature + learning + new).coerceAtLeast(1)
+    val parts = listOf(Triple("익숙함", mature, c.flapGraphic), Triple("학습 중", learning, MaterialTheme.colorScheme.onSurfaceVariant), Triple("새 카드", new, MaterialTheme.colorScheme.outline))
+    Row(
+        Modifier.fillMaxWidth().height(12.dp).clearAndSetSemantics { contentDescription = "익숙함 ${mature}장, 학습 중 ${learning}장, 새 카드 ${new}장" },
+        horizontalArrangement = Arrangement.spacedBy(3.dp),
+    ) {
+        parts.filter { it.second > 0 }.forEach { (_, n, color) ->
+            Box(Modifier.weight(n.toFloat() / total).fillMaxHeight().background(color, MaterialTheme.shapes.extraSmall))
+        }
+        if (mature + learning + new == 0) Box(Modifier.fillMaxWidth().fillMaxHeight().background(MaterialTheme.colorScheme.outlineVariant, MaterialTheme.shapes.extraSmall))
+    }
+    FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        parts.forEach { (label, n, color) ->
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Box(Modifier.size(10.dp).background(color, MaterialTheme.shapes.extraSmall))
+                Text(label, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("$n", style = MaterialTheme.typography.titleMedium.board())
+            }
+        }
     }
 }
 

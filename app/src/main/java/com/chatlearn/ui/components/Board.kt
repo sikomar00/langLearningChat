@@ -1,5 +1,6 @@
 package com.chatlearn.ui.components
 
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.TextField
 import androidx.compose.material3.IconButton
@@ -101,7 +102,9 @@ fun BoardLabel(text: String, modifier: Modifier = Modifier, color: Color = Color
 @Composable
 fun FlightCode(lang: String, modifier: Modifier = Modifier) {
     Text(
-        lang.uppercase(), modifier.background(MaterialTheme.colorScheme.inverseSurface, MaterialTheme.shapes.extraSmall).padding(horizontal = 6.dp, vertical = 1.dp),
+        lang.uppercase(),
+        modifier.background(MaterialTheme.colorScheme.inverseSurface, MaterialTheme.shapes.extraSmall).padding(horizontal = 6.dp, vertical = 1.dp)
+            .semantics { contentDescription = when (lang.lowercase()) { "en" -> "영어"; "es" -> "스페인어"; else -> lang } },
         style = MaterialTheme.typography.labelMedium.board(), color = MaterialTheme.colorScheme.inverseOnSurface,
     )
 }

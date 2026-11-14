@@ -154,14 +154,14 @@ private val HOUR = DateTimeFormatter.ofPattern("HH:mm")
 private val DAY = DateTimeFormatter.ofPattern("MM/dd")
 
 /** 목적지: 함께 대화한 친구와 그 나라. 없으면 폴더 이름, 그것도 없으면 빈칸. */
-private fun destinationOf(item: LibraryItem, folderName: String?): String {
+internal fun destinationOf(item: LibraryItem, folderName: String?): String {
     fun of(kind: TagKind) = item.tags.filter { (item.tagKinds[it] ?: TagKind.TOPIC) == kind }
     return (of(TagKind.PERSON) + of(TagKind.COUNTRY)).joinToString(" · ").ifEmpty { folderName.orEmpty() }
 }
 
 /** 상태 열: 지금 복습할 차례는 호박 알약, 예정은 초록 점과 남은 날, 새 문장은 테두리만. 바뀌면 플랩처럼 넘어간다. */
 @Composable
-private fun StatusMark(progress: EntryProgress?, now: Long) {
+internal fun StatusMark(progress: EntryProgress?, now: Long) {
     val p = progress ?: EntryProgress(EntryState.NEW, null, 0)
     val style = MaterialTheme.typography.labelMedium.board()
     when (p.state) {
@@ -182,7 +182,7 @@ private fun StatusMark(progress: EntryProgress?, now: Long) {
 
 /** 다음 복습까지의 거리(그림). 상태는 색과 함께 선 모양으로도 다르다: 실선 · 점선 · 빈 칸. 14일 이상이면 꽉 찬다. */
 @Composable
-private fun DistanceBar(progress: EntryProgress?, now: Long, modifier: Modifier = Modifier) {
+internal fun DistanceBar(progress: EntryProgress?, now: Long, modifier: Modifier = Modifier) {
     when (progress?.state ?: EntryState.NEW) {
         EntryState.DUE -> Box(modifier.fillMaxWidth().height(2.dp).background(MaterialTheme.statusColors.flapGraphic))
         EntryState.NEW -> Box(modifier.size(24.dp, 6.dp).border(1.dp, MaterialTheme.colorScheme.outline, MaterialTheme.shapes.extraSmall))

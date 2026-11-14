@@ -1,5 +1,14 @@
 package com.chatlearn.ui.library
 
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.foundation.text.selection.SelectionContainer
+import com.chatlearn.ui.theme.board
+import com.chatlearn.ui.components.langLabel
+import com.chatlearn.ui.components.SegmentBar
+import com.chatlearn.ui.components.FlightCode
+import com.chatlearn.ui.components.BoardLabel
+import com.chatlearn.ui.components.Ticket
+import com.chatlearn.ui.components.BoardTopBar
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
@@ -72,6 +81,15 @@ internal fun DetailDialog(item: LibraryItem, hasAltCard: Boolean, recentTags: Li
     val dirty = listOf(ko, note, alt, chatKey, altKey) != opened.first || editedTags.toSet() != opened.second || tagInput.isNotBlank()
     var confirmDiscard by remember { mutableStateOf(false) }
     val close = { if (dirty) confirmDiscard = true else onClose() }
+    // 저장 버튼과, 문장을 밖으로 보내는 버튼(노션·답장)이 같은 저장을 쓴다: 고친 내용을 버리지 않고 반영한 뒤 보낸다.
+    val saveAll = {
+                        vm.saveText(item.entry.id, Lang.KO, ko); vm.saveNote(item.entry.id, note)
+                        if (hasAltCard && altText != null && alt.isNotBlank() && alt != altText) vm.saveText(item.entry.id, altLang, alt)
+                        // 입력창에 쓰다 만 태그도 잃지 않게 함께 저장한다.
+                        vm.saveTags(item.entry.id, (editedTags + parseTags(tagInput)).distinct())
+                        if (chatKey != item.keyPhrases[item.entry.chatLang].orEmpty()) vm.saveKeyPhrase(item.entry.id, item.entry.chatLang, chatKey)
+                        if (hasAltCard && altText != null && altKey != item.keyPhrases[altLang].orEmpty()) vm.saveKeyPhrase(item.entry.id, altLang, altKey)
+    }
     if (confirmDiscard) AlertDialog(
         onDismissRequest = { confirmDiscard = false },
         title = { Text("고친 내용을 버릴까요?") },
@@ -82,25 +100,23 @@ internal fun DetailDialog(item: LibraryItem, hasAltCard: Boolean, recentTags: Li
 
     Dialog(onDismissRequest = close, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Surface(Modifier.fillMaxSize()) {
-            Column(Modifier.fillMaxSize().systemBarsPadding().imePadding()) {
-                Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                    IconButton(onClick = close) { Icon(Icons.Default.Close, contentDescription = "닫기") }
-                    Text(item.texts[item.entry.chatLang].orEmpty(), Modifier.weight(1f), style = MaterialTheme.typography.titleMedium, maxLines = 2)
-                    TextButton(onClick = {
-                        vm.saveText(item.entry.id, Lang.KO, ko); vm.saveNote(item.entry.id, note)
-                        if (hasAltCard && altText != null && alt.isNotBlank() && alt != altText) vm.saveText(item.entry.id, altLang, alt)
-                        // 입력창에 쓰다 만 태그도 잃지 않게 함께 저장한다.
-                        vm.saveTags(item.entry.id, (editedTags + parseTags(tagInput)).distinct())
-                        if (chatKey != item.keyPhrases[item.entry.chatLang].orEmpty()) vm.saveKeyPhrase(item.entry.id, item.entry.chatLang, chatKey)
-                        if (hasAltCard && altText != null && altKey != item.keyPhrases[altLang].orEmpty()) vm.saveKeyPhrase(item.entry.id, altLang, altKey)
-                        onClose()
-                    }) { Text("저장") }
+            Column(Modifier.fillMaxSize().navigationBarsPadding().imePadding()) {
+                BoardTopBar("문장", navigationIcon = { IconButton(onClick = close) { Icon(Icons.Default.Close, contentDescription = "닫기") } }) {
+                    TextButton(onClick = { saveAll(); onClose() }, colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.statusColors.flap)) { Text("저장") }
                 }
-                HorizontalDivider()
                 Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                SentenceStatsLine(item.entry.id, vm)
-                SectionCard("문장") {
-                    LabeledText(if (item.entry.chatLang == Lang.EN) "영어 원문" else "스페인어 원문", item.texts[item.entry.chatLang].orEmpty(), valueStyle = MaterialTheme.typography.titleMedium)
+                SentenceTicket(item, vm)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (item.entry.direction == com.chatlearn.domain.Direction.RECEIVED && item.entry.kind == com.chatlearn.domain.EntryKind.SENTENCE) {
+                        Button(shape = MaterialTheme.shapes.medium, onClick = { saveAll(); vm.replyRequest.value = item.texts[item.entry.chatLang].orEmpty() to item.entry.chatLang; onClose() }, modifier = Modifier.weight(1f)) {
+                            Text("답장 써 보기")
+                        }
+                    }
+                    OutlinedButton(shape = MaterialTheme.shapes.medium, onClick = { saveAll(); vm.sendToNotion(listOf(item.entry.id)); onClose() }, modifier = Modifier.weight(1f)) {
+                        Text(if (item.entry.notionPageId == null) "노션에 보내기" else "노션에 다시 보내기")
+                    }
+                }
+                SectionCard("뜻 고치기") {
                     OutlinedTextField(ko, { ko = it }, label = { Text("한국어 뜻") }, modifier = Modifier.fillMaxWidth())
                     if (hasAltCard && altText != null) {
                         OutlinedTextField(
@@ -120,14 +136,6 @@ internal fun DetailDialog(item: LibraryItem, hasAltCard: Boolean, recentTags: Li
                     }
                 }
                 item.entry.contextText?.let { ctx -> SectionCard("대화") { com.chatlearn.ui.review.ContextFold(ctx) } }
-                OutlinedButton(shape = MaterialTheme.shapes.medium, onClick = { vm.sendToNotion(listOf(item.entry.id)); onClose() }, modifier = Modifier.fillMaxWidth()) {
-                    Text(if (item.entry.notionPageId == null) "노션에 보내기" else "노션에 다시 보내기")
-                }
-                if (item.entry.direction == com.chatlearn.domain.Direction.RECEIVED && item.entry.kind == com.chatlearn.domain.EntryKind.SENTENCE) {
-                    FilledTonalButton(shape = MaterialTheme.shapes.medium, onClick = { vm.replyRequest.value = item.texts[item.entry.chatLang].orEmpty() to item.entry.chatLang; onClose() }, modifier = Modifier.fillMaxWidth()) {
-                        Text("이 말에 답장 써 보기")
-                    }
-                }
                 SectionCard("핵심 표현") {
                     Text("빈칸 채우기에서 이 표현이 빈칸이 돼요. 문장 안에 있는 그대로 적어야 해요.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     OutlinedTextField(
@@ -257,20 +265,50 @@ internal fun TagManagerDialog(tags: List<String>, vm: LibraryViewModel, onClose:
     }
 }
 
+/**
+ * 문장 한 장을 탑승권으로: 머리띠에 경로와 저장한 때, 본문에 문장·뜻·편과 친구·나라·상태·익힌 단계·거리,
+ * 절취선 아래에 복습 기록(안내판 숫자)과 다음 복습.
+ */
 @Composable
-internal fun SentenceStatsLine(entryId: Long, vm: LibraryViewModel) {
+internal fun SentenceTicket(item: LibraryItem, vm: LibraryViewModel) {
     val input by vm.statsInput.collectAsStateWithLifecycle()
-    val st = remember(entryId, input) { input?.let { StatsCalculator.sentenceStats(entryId, it.logs, it.cards) } } ?: return
-    val fmt = remember { DateTimeFormatter.ofPattern("M월 d일 HH:mm") }
-    fun at(ms: Long?) = ms?.let { fmt.format(Instant.ofEpochMilli(it).atZone(ZoneId.systemDefault())) } ?: "-"
-    SectionCard("학습 기록") {
-        Text(
-            if (st.reviews == 0) "아직 복습하지 않았어요."
-            else "복습 ${st.reviews}회 · 기억 ${st.remembered}회 · 틀림 ${st.lapses}회",
-            style = MaterialTheme.typography.bodyLarge,
-        )
-        LabeledText("마지막 복습", at(st.lastReviewedAt))
-        LabeledText("다음 복습", at(st.dueAt))
+    val progress by vm.progress.collectAsStateWithLifecycle()
+    val st = remember(item.entry.id, input) { input?.let { StatsCalculator.sentenceStats(item.entry.id, it.logs, it.cards) } }
+    val p = progress[item.entry.id]
+    val now = System.currentTimeMillis()
+    val zone = ZoneId.systemDefault()
+    fun at(ms: Long?) = ms?.let { REVIEWED_AT.format(Instant.ofEpochMilli(it).atZone(zone)) } ?: "-"
+    val saved = Instant.ofEpochMilli(item.entry.createdAt).atZone(zone).format(SAVED_AT)
+    // 기록을 읽기 전에는 떼는 칸을 비워 둔다(0회로 보였다가 바뀌지 않게).
+    val stub: (@Composable ColumnScope.() -> Unit)? = st?.let { r -> {
+        if (r.reviews == 0) Text("아직 복습하지 않았어요.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        else Row(Modifier.fillMaxWidth().semantics(mergeDescendants = true) {}) {
+            listOf(Triple("복습", r.reviews, false), Triple("기억", r.remembered, false), Triple("틀림", r.lapses, r.lapses > 0)).forEach { (label, n, bad) ->
+                Column(Modifier.weight(1f)) {
+                    BoardLabel(label, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("$n", style = MaterialTheme.typography.headlineSmall.board(), color = if (bad) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface)
+                }
+            }
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+            LabeledText("마지막 복습", at(r.lastReviewedAt), Modifier.weight(1f), valueStyle = MaterialTheme.typography.bodyLarge.board())
+            LabeledText("다음 복습", at(r.dueAt), Modifier.weight(1f), valueStyle = MaterialTheme.typography.bodyLarge.board())
+        }
+    } }
+    Ticket(route = "${langLabel(item.entry.chatLang)} → 한국어 · $saved", stub = stub) {
+        SelectionContainer { Text(item.texts[item.entry.chatLang].orEmpty(), style = MaterialTheme.typography.headlineSmall) }
+        Text(item.texts[Lang.KO].orEmpty(), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FlightCode(item.entry.chatLang.code)
+            Text(destinationOf(item, null), Modifier.weight(1f), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+            StatusMark(p, now)
+        }
+        val stage = p?.stage ?: 0
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            BoardLabel("익힌 단계 $stage/$MAX_STAGE", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            SegmentBar(stage, MAX_STAGE, Modifier.weight(1f).height(8.dp))
+        }
+        DistanceBar(p, now)
     }
 }
 
@@ -340,3 +378,7 @@ internal fun NameDialog(title: String, initial: String, confirmLabel: String, on
         dismissButton = { TextButton(onClick = onDismiss) { Text("취소") } },
     )
 }
+
+private val SAVED_AT = DateTimeFormatter.ofPattern("MM/dd HH:mm")
+private val REVIEWED_AT = DateTimeFormatter.ofPattern("M월 d일 HH:mm")
+

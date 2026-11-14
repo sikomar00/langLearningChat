@@ -24,7 +24,6 @@ fun NotionSettings(vm: SettingsViewModel) {
     var link by remember(s.notionDatabase) { mutableStateOf(s.notionDatabase) }
     var checking by remember { mutableStateOf(false) }
     var result by remember { mutableStateOf<Pair<String, Boolean>?>(null) }
-    Text("노션", style = MaterialTheme.typography.titleMedium)
     Text(
         "라이브러리에서 고른 문장을 노션 데이터베이스에 한 줄씩 보낼 수 있어요. 노션에서 내부 통합을 만들어 토큰을 붙여 넣고, " +
             "데이터베이스 메뉴의 \"연결\"에서 그 통합을 추가한 뒤 데이터베이스 링크를 붙여 넣어 주세요.",

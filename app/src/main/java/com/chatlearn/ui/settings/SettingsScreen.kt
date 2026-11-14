@@ -1,5 +1,6 @@
 package com.chatlearn.ui.settings
 
+import com.chatlearn.ui.theme.board
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
@@ -65,178 +66,200 @@ fun SettingsScreen(vm: SettingsViewModel, onPreviewVoice: (com.chatlearn.domain.
             })
         }
     }
-    Column(Modifier.fillMaxSize().padding(16.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(24.dp)) {
     if (tab == 0) {
-        Text("Gemini API 키", style = MaterialTheme.typography.titleMedium)
-        Text("Google AI Studio에서 무료 키를 발급받아 붙여넣으세요.", style = MaterialTheme.typography.bodySmall)
         val uriHandler = androidx.compose.ui.platform.LocalUriHandler.current
-        TextButton(onClick = { runCatching { uriHandler.openUri("https://aistudio.google.com/apikey") } }, contentPadding = PaddingValues(horizontal = 4.dp)) {
-            Text("키 발급 페이지 열기")
-        }
         var showKey by remember { mutableStateOf(false) }
-        OutlinedTextField(
-            key, { key = it }, Modifier.fillMaxWidth(), singleLine = true, label = { Text("API 키") },
-            visualTransformation = if (showKey) VisualTransformation.None else PasswordVisualTransformation(),
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-            trailingIcon = {
-                IconButton(onClick = { showKey = !showKey }) {
-                    Icon(if (showKey) Icons.Default.VisibilityOff else Icons.Default.Visibility, contentDescription = if (showKey) "API 키 숨기기" else "API 키 보기")
-                }
-            },
-        )
-        OutlinedTextField(model, { model = it }, Modifier.fillMaxWidth(), singleLine = true, label = { Text("모델 이름") })
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            // -latest는 Google이 알린 뒤 최신으로 바꿔 준다. 번호가 붙은 것은 고정(종료되면 여기서 바꾼다).
-            listOf("gemini-flash-latest", "gemini-flash-lite-latest", "gemini-3.6-flash", "gemini-3.5-flash-lite").forEach { preset ->
-                FilterChip(selected = model == preset, onClick = { model = preset }, label = { Text(preset) })
-            }
-        }
-        Button(shape = MaterialTheme.shapes.medium, onClick = { vm.saveKey(key); vm.saveModel(model); message = "저장했어요." }, modifier = Modifier.fillMaxWidth()) { Text("저장") }
-
         var checking by remember { mutableStateOf(false) }
         var checkResult by remember { mutableStateOf<String?>(null) }
         var checkOk by remember { mutableStateOf(false) }
-        OutlinedButton(shape = MaterialTheme.shapes.medium, enabled = !checking, onClick = {
-            checking = true; checkResult = null
-            scope.launch {
-                // 입력한 값으로 확인하도록 먼저 저장을 끝낸다.
-                vm.saveKey(key).join(); vm.saveModel(model).join()
-                val err = vm.checkConnection()
-                checkOk = err == null
-                checkResult = err?.let(::connectionMessage) ?: "연결됐어요. 키와 모델이 잘 동작해요."
-                checking = false
+        SettingsGroup("Gemini") {
+            SettingItem("API 키", "Google AI Studio에서 무료 키를 발급받아 붙여넣으세요.", first = true) {
+                OutlinedTextField(
+                    key, { key = it }, Modifier.fillMaxWidth(), singleLine = true, label = { Text("붙여넣은 키") },
+                    visualTransformation = if (showKey) VisualTransformation.None else PasswordVisualTransformation(),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                    trailingIcon = {
+                        IconButton(onClick = { showKey = !showKey }) {
+                            Icon(if (showKey) Icons.Default.VisibilityOff else Icons.Default.Visibility, contentDescription = if (showKey) "API 키 숨기기" else "API 키 보기")
+                        }
+                    },
+                )
+                TextButton(onClick = { runCatching { uriHandler.openUri("https://aistudio.google.com/apikey") } }, contentPadding = PaddingValues(horizontal = 4.dp)) {
+                    Text("키 발급 페이지 열기")
+                }
             }
-        }) { Text(if (checking) "확인 중…" else "연결 확인") }
-        Text("입력한 키와 모델을 저장한 뒤 확인해요.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        checkResult?.let { InfoMessage(it, if (checkOk) MessageKind.SUCCESS else MessageKind.ERROR) }
-
+            SettingItem("모델", "-latest는 Google이 알린 뒤 최신으로 바꿔 주고, 번호가 붙은 것은 고정이에요.") {
+                OutlinedTextField(model, { model = it }, Modifier.fillMaxWidth(), singleLine = true, label = { Text("직접 입력") })
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf("gemini-flash-latest", "gemini-flash-lite-latest", "gemini-3.6-flash", "gemini-3.5-flash-lite").forEach { preset ->
+                        FilterChip(selected = model == preset, onClick = { model = preset }, label = { Text(preset) })
+                    }
+                }
+            }
+            SettingItem("저장과 연결 확인", "입력한 키와 모델을 저장한 뒤 확인해요.") {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(shape = MaterialTheme.shapes.medium, onClick = { vm.saveKey(key); vm.saveModel(model); message = "저장했어요." }, modifier = Modifier.weight(1f)) { Text("저장") }
+                    OutlinedButton(shape = MaterialTheme.shapes.medium, enabled = !checking, modifier = Modifier.weight(1f), onClick = {
+                        checking = true; checkResult = null
+                        scope.launch {
+                            // 입력한 값으로 확인하도록 먼저 저장을 끝낸다.
+                            vm.saveKey(key).join(); vm.saveModel(model).join()
+                            val err = vm.checkConnection()
+                            checkOk = err == null
+                            checkResult = err?.let(::connectionMessage) ?: "연결됐어요. 키와 모델이 잘 동작해요."
+                            checking = false
+                        }
+                    }) { Text(if (checking) "확인 중…" else "연결 확인") }
+                }
+                checkResult?.let { InfoMessage(it, if (checkOk) MessageKind.SUCCESS else MessageKind.ERROR) }
+            }
+            SettingItem("오늘 AI 호출") {
+                Text("${s.aiCallsToday}회", style = MaterialTheme.typography.titleLarge.board())
+            }
+        }
     }
     if (tab == 1) {
-        com.chatlearn.ui.components.Stepper("하루 새 카드", s.newPerDay, { vm.saveNewPerDay(it) }, com.chatlearn.ui.components.StepperSpec(0..100, 5))
-        com.chatlearn.ui.components.Stepper("하루 복습 목표", s.dailyGoal, { vm.saveDailyGoal(it) }, com.chatlearn.ui.components.StepperSpec(0..200, 5, "끔"))
-
-        Text("기억 목표", style = MaterialTheme.typography.labelLarge)
-        Text("복습할 때 이만큼은 기억나도록 간격을 정해요. 높일수록 더 자주 복습해요.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            listOf(0.85 to "85% 여유", 0.9 to "90% 보통", 0.95 to "95% 꼼꼼").forEach { (r, label) ->
-                FilterChip(selected = kotlin.math.abs(s.retention - r) < 0.001, onClick = { vm.saveRetention(r) }, label = { Text(label) })
+        SettingsGroup("하루 분량") {
+            com.chatlearn.ui.components.Stepper("하루 새 카드", s.newPerDay, { vm.saveNewPerDay(it) }, com.chatlearn.ui.components.StepperSpec(0..100, 5))
+            ItemDivider()
+            com.chatlearn.ui.components.Stepper("하루 복습 목표", s.dailyGoal, { vm.saveDailyGoal(it) }, com.chatlearn.ui.components.StepperSpec(0..200, 5, "끔"))
+            SettingItem("하루 최대 복습", "이보다 많으면 나머지는 다음 날로 넘겨요.") {
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf(50, 100, 200).forEach { n ->
+                        FilterChip(selected = s.maxReviews == n, onClick = { vm.saveMaxReviews(n) }, label = { Text("${n}장") })
+                    }
+                }
             }
         }
-        Text("하루 최대 복습", style = MaterialTheme.typography.labelLarge)
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            listOf(50, 100, 200).forEach { n ->
-                FilterChip(selected = s.maxReviews == n, onClick = { vm.saveMaxReviews(n) }, label = { Text("${n}장") })
+        SettingsGroup("기억 목표") {
+            SettingItem("얼마나 기억할까요", "복습할 때 이만큼은 기억나도록 간격을 정해요. 높일수록 더 자주 복습해요.", first = true) {
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf(0.85 to "85% 여유", 0.9 to "90% 보통", 0.95 to "95% 꼼꼼").forEach { (r, label) ->
+                        FilterChip(selected = kotlin.math.abs(s.retention - r) < 0.001, onClick = { vm.saveRetention(r) }, label = { Text(label) })
+                    }
+                }
             }
         }
-
         val notifPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
             if (!granted) message = "알림 권한이 꺼져 있어요. 휴대폰 설정 > 앱 > ChatLearn > 알림에서 켜 주세요."
         }
-        SwitchRow("복습 알림", "정해둔 시각에 복습할 카드가 있으면 알려 줘요.", s.reminderEnabled, { on ->
-            vm.saveReminder(on, s.reminderHour)
-            if (on && android.os.Build.VERSION.SDK_INT >= 33 &&
-                androidx.core.content.ContextCompat.checkSelfPermission(ctx, android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED
-            ) notifPermission.launch(android.Manifest.permission.POST_NOTIFICATIONS)
-        })
-        if (s.reminderEnabled) {
-            Text("알림 시각", style = MaterialTheme.typography.labelLarge)
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                listOf(8, 12, 18, 20, 22).forEach { h ->
-                    FilterChip(selected = s.reminderHour == h, onClick = { vm.saveReminder(true, h) }, label = { Text(if (h < 12) "오전 ${h}시" else if (h == 12) "낮 12시" else "오후 ${h - 12}시") })
+        SettingsGroup("알림") {
+            SwitchRow("복습 알림", "정해둔 시각에 복습할 카드가 있으면 알려 줘요.", s.reminderEnabled, { on ->
+                vm.saveReminder(on, s.reminderHour)
+                if (on && android.os.Build.VERSION.SDK_INT >= 33 &&
+                    androidx.core.content.ContextCompat.checkSelfPermission(ctx, android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED
+                ) notifPermission.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+            })
+            if (s.reminderEnabled) {
+                SettingItem("알림 시각") {
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        listOf(8, 12, 18, 20, 22).forEach { h ->
+                            FilterChip(selected = s.reminderHour == h, onClick = { vm.saveReminder(true, h) }, label = { Text(if (h < 12) "오전 ${h}시" else if (h == 12) "낮 12시" else "오후 ${h - 12}시") })
+                        }
+                    }
+                }
+                SettingItem("알림 받을 요일") {
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        listOf("월", "화", "수", "목", "금", "토", "일").forEachIndexed { i, d ->
+                            val on = s.reminderDays and (1 shl i) != 0
+                            FilterChip(selected = on, onClick = {
+                                val next = s.reminderDays xor (1 shl i)
+                                // 전부 끄면 알림이 영영 오지 않으니 최소 하루는 남긴다.
+                                if (next != 0) vm.saveReminderDays(next)
+                            }, label = { Text(d) })
+                        }
+                    }
+                }
+                SettingItem("알림 말투", "예: " + com.chatlearn.reminder.reminderText(5, 0, com.chatlearn.reminder.ReminderTone.fromName(s.reminderTone))) {
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        com.chatlearn.reminder.ReminderTone.entries.forEach { t ->
+                            FilterChip(selected = s.reminderTone == t.name, onClick = { vm.saveReminderTone(t.name) }, label = { Text(t.label) })
+                        }
+                    }
                 }
             }
-            Text("알림 받을 요일", style = MaterialTheme.typography.labelLarge)
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                listOf("월", "화", "수", "목", "금", "토", "일").forEachIndexed { i, d ->
-                    val on = s.reminderDays and (1 shl i) != 0
-                    FilterChip(selected = on, onClick = {
-                        val next = s.reminderDays xor (1 shl i)
-                        // 전부 끄면 알림이 영영 오지 않으니 최소 하루는 남긴다.
-                        if (next != 0) vm.saveReminderDays(next)
-                    }, label = { Text(d) })
-                }
-            }
-            Text("알림 말투", style = MaterialTheme.typography.labelLarge)
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                com.chatlearn.reminder.ReminderTone.entries.forEach { t ->
-                    FilterChip(selected = s.reminderTone == t.name, onClick = { vm.saveReminderTone(t.name) }, label = { Text(t.label) })
-                }
-            }
-            Text(
-                "예: " + com.chatlearn.reminder.reminderText(5, 0, com.chatlearn.reminder.ReminderTone.fromName(s.reminderTone)),
-                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
         }
-
     }
     if (tab == 2) {
-        SwitchRow("저장할 때 다른 언어도 만들기", "영어 문장이면 스페인어 카드도, 스페인어 문장이면 영어 카드도 함께 만들어요.", s.autoExpand, { vm.saveAutoExpand(it) })
-        SwitchRow("보낼 말에 내 표현 쓰기", "보낼 말 후보를 만들 때 내가 저장한 핵심 표현을 자연스러울 때만 넣어 줘요.", s.useSavedExpressions, { vm.saveUseSaved(it) })
-
-        Text("발음", style = MaterialTheme.typography.titleMedium)
-        Text("듣기와 말로 답하기에 쓸 억양이에요. 친구가 쓰는 억양에 맞추면 좋아요.", style = MaterialTheme.typography.bodySmall)
-        Text("영어", style = MaterialTheme.typography.labelLarge)
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp), itemVerticalAlignment = Alignment.CenterVertically) {
-            com.chatlearn.settings.EnAccent.entries.forEach { a ->
-                FilterChip(selected = s.enAccent == a.name, onClick = { vm.saveEnAccent(a.name) }, label = { Text(a.label) })
-            }
-            TextButton(onClick = { onPreviewVoice(com.chatlearn.domain.Lang.EN) }) { Text("들어보기") }
+        SettingsGroup("저장할 때") {
+            SwitchRow("저장할 때 다른 언어도 만들기", "영어 문장이면 스페인어 카드도, 스페인어 문장이면 영어 카드도 함께 만들어요.", s.autoExpand, { vm.saveAutoExpand(it) })
+            ItemDivider()
+            SwitchRow("보낼 말에 내 표현 쓰기", "보낼 말 후보를 만들 때 내가 저장한 핵심 표현을 자연스러울 때만 넣어 줘요.", s.useSavedExpressions, { vm.saveUseSaved(it) })
         }
-        Text("스페인어", style = MaterialTheme.typography.labelLarge)
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp), itemVerticalAlignment = Alignment.CenterVertically) {
-            com.chatlearn.settings.EsAccent.entries.forEach { a ->
-                FilterChip(selected = s.esAccent == a.name, onClick = { vm.saveEsAccent(a.name) }, label = { Text(a.label) })
+        SettingsGroup("발음") {
+            SettingItem("영어 억양", "듣기와 말로 답하기에 쓸 억양이에요. 친구가 쓰는 억양에 맞추면 좋아요.", first = true) {
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp), itemVerticalAlignment = Alignment.CenterVertically) {
+                    com.chatlearn.settings.EnAccent.entries.forEach { a ->
+                        FilterChip(selected = s.enAccent == a.name, onClick = { vm.saveEnAccent(a.name) }, label = { Text(a.label) })
+                    }
+                    TextButton(onClick = { onPreviewVoice(com.chatlearn.domain.Lang.EN) }) { Text("들어보기") }
+                }
             }
-            TextButton(onClick = { onPreviewVoice(com.chatlearn.domain.Lang.ES) }) { Text("들어보기") }
-        }
-        Text("말 빠르기", style = MaterialTheme.typography.labelLarge)
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            listOf(0.8f to "천천히", 1f to "보통", 1.2f to "빠르게").forEach { (rate, label) ->
-                FilterChip(selected = kotlin.math.abs(s.speechRate - rate) < 0.01f, onClick = { vm.saveSpeechRate(rate) }, label = { Text(label) })
+            SettingItem("스페인어 억양") {
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp), itemVerticalAlignment = Alignment.CenterVertically) {
+                    com.chatlearn.settings.EsAccent.entries.forEach { a ->
+                        FilterChip(selected = s.esAccent == a.name, onClick = { vm.saveEsAccent(a.name) }, label = { Text(a.label) })
+                    }
+                    TextButton(onClick = { onPreviewVoice(com.chatlearn.domain.Lang.ES) }) { Text("들어보기") }
+                }
+            }
+            SettingItem("말 빠르기", "느리게 듣기는 고른 빠르기보다 더 천천히 들려줘요.") {
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf(0.8f to "천천히", 1f to "보통", 1.2f to "빠르게").forEach { (rate, label) ->
+                        FilterChip(selected = kotlin.math.abs(s.speechRate - rate) < 0.01f, onClick = { vm.saveSpeechRate(rate) }, label = { Text(label) })
+                    }
+                }
             }
         }
-        Text("느리게 듣기는 고른 빠르기보다 더 천천히 들려줘요.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
     if (tab == 3) {
-        Text("밝기", style = MaterialTheme.typography.titleMedium)
-        val mode = com.chatlearn.settings.ThemeMode.fromName(s.themeMode)
-        SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
-            val modes = com.chatlearn.settings.ThemeMode.entries
-            modes.forEachIndexed { i, m ->
-                SegmentedButton(selected = mode == m, onClick = { vm.saveThemeMode(m.name) }, shape = SegmentedButtonDefaults.itemShape(i, modes.size)) { Text(m.label) }
+        SettingsGroup("밝기와 색") {
+            SettingItem("밝기", first = true) {
+                val mode = com.chatlearn.settings.ThemeMode.fromName(s.themeMode)
+                SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
+                    val modes = com.chatlearn.settings.ThemeMode.entries
+                    modes.forEachIndexed { i, m ->
+                        SegmentedButton(selected = mode == m, onClick = { vm.saveThemeMode(m.name) }, shape = SegmentedButtonDefaults.itemShape(i, modes.size)) { Text(m.label) }
+                    }
+                }
+            }
+            ItemDivider()
+            if (android.os.Build.VERSION.SDK_INT >= 31) {
+                SwitchRow("시스템 색 따르기", "배경화면에서 뽑은 색으로 앱 색을 바꿔요. 끄면 앱 기본 색(안내판 검정과 호박)을 써요.", s.dynamicColor, { vm.saveDynamicColor(it) })
+            } else {
+                SettingItem("시스템 색 따르기", "이 기기(Android 12 미만)에서는 시스템 색을 쓸 수 없어요.", first = true)
             }
         }
-        if (android.os.Build.VERSION.SDK_INT >= 31) {
-            SwitchRow("시스템 색 따르기", "배경화면에서 뽑은 색으로 앱 색을 바꿔요. 끄면 기본 보라색을 써요.", s.dynamicColor, { vm.saveDynamicColor(it) })
-        } else {
-            Text("이 기기(Android 12 미만)에서는 시스템 색을 쓸 수 없어요.", style = MaterialTheme.typography.bodyMedium)
-        }
-
-        Text("홈 화면 위젯", style = MaterialTheme.typography.titleMedium)
-        Text("오늘 복습할 카드 수와 목표, 연속 학습일을 홈 화면에서 보고, 눌러서 바로 복습하거나 복사한 메시지를 번역해요.", style = MaterialTheme.typography.bodySmall)
-        val canPin = remember { com.chatlearn.widget.canPinReviewWidget(ctx) }
-        if (canPin) {
-            OutlinedButton(shape = MaterialTheme.shapes.medium, onClick = {
-                if (!com.chatlearn.widget.requestPinReviewWidget(ctx)) message = "위젯을 추가하지 못했어요. 홈 화면을 길게 눌러 위젯 목록에서 추가해 주세요."
-            }) { Text("홈 화면에 위젯 추가") }
-        } else {
-            Text("홈 화면을 길게 누르고 위젯 > ChatLearn > 오늘의 복습을 골라 추가하세요.", style = MaterialTheme.typography.bodyMedium)
+        SettingsGroup("홈 화면 위젯") {
+            SettingItem("위젯", "오늘의 복습(복습할 카드 수·목표)과 한 장 복습 위젯을 홈 화면에 둘 수 있어요.", first = true) {
+                val canPin = remember { com.chatlearn.widget.canPinReviewWidget(ctx) }
+                if (canPin) {
+                    OutlinedButton(shape = MaterialTheme.shapes.medium, onClick = {
+                        if (!com.chatlearn.widget.requestPinReviewWidget(ctx)) message = "위젯을 추가하지 못했어요. 홈 화면을 길게 눌러 위젯 목록에서 추가해 주세요."
+                    }) { Text("홈 화면에 위젯 추가") }
+                } else {
+                    Text("홈 화면을 길게 누르고 위젯 > ChatLearn에서 골라 추가하세요.", style = MaterialTheme.typography.bodyMedium)
+                }
+            }
         }
     }
     if (tab == 4) {
-        Text("오늘 AI 호출: ${s.aiCallsToday}회")
-
-        Text("백업", style = MaterialTheme.typography.titleMedium)
-        Text(com.chatlearn.settings.backupStatus(s.lastBackupAt, vm.now(), java.time.ZoneId.systemDefault()), style = MaterialTheme.typography.bodyMedium)
-        if (backupDue) InfoMessage("휴대폰의 구글 백업이 꺼져 있거나 앱을 지우면 문장 ${entryCount}개가 사라질 수 있어요. 자동 백업 폴더를 고르거나 내보내기로 파일을 보관해 두세요.", MessageKind.ERROR)
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedButton(shape = MaterialTheme.shapes.medium, onClick = { exportLauncher.launch("chatlearn-backup.json") }) { Text("내보내기") }
-            OutlinedButton(shape = MaterialTheme.shapes.medium, onClick = { importLauncher.launch(arrayOf("application/json", "*/*")) }) { Text("가져오기") }
+        SettingsGroup("백업") {
+            SettingItem("백업 파일", com.chatlearn.settings.backupStatus(s.lastBackupAt, vm.now(), java.time.ZoneId.systemDefault()), first = true) {
+                if (backupDue) InfoMessage("휴대폰의 구글 백업이 꺼져 있거나 앱을 지우면 문장 ${entryCount}개가 사라질 수 있어요. 자동 백업 폴더를 고르거나 내보내기로 파일을 보관해 두세요.", MessageKind.ERROR)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(shape = MaterialTheme.shapes.medium, onClick = { exportLauncher.launch("chatlearn-backup.json") }, modifier = Modifier.weight(1f)) { Text("내보내기") }
+                    OutlinedButton(shape = MaterialTheme.shapes.medium, onClick = { importLauncher.launch(arrayOf("application/json", "*/*")) }, modifier = Modifier.weight(1f)) { Text("가져오기") }
+                }
+                Text("가져오면 지금 있는 데이터가 백업 파일의 내용으로 바뀝니다.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            ItemDivider()
+            Column(Modifier.padding(vertical = 14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) { AutoBackupFolder(s.autoBackupFolder, vm) }
         }
-        Text("가져오면 지금 있는 데이터가 백업 파일의 내용으로 바뀝니다.", style = MaterialTheme.typography.bodySmall)
-        AutoBackupFolder(s.autoBackupFolder, vm)
-        HorizontalDivider()
-        NotionSettings(vm)
+        SettingsGroup("노션") {
+            Column(Modifier.padding(vertical = 14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) { NotionSettings(vm) }
+        }
     }
         message?.let { InfoMessage(it, if (it.contains("못했") || it.contains("꺼져")) MessageKind.ERROR else MessageKind.SUCCESS) }
     }

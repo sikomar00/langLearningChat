@@ -1,5 +1,6 @@
 package com.chatlearn.ui.components
 
+import com.chatlearn.ui.theme.board
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.material3.*
@@ -115,7 +116,7 @@ fun StatRow(label: String, value: String, modifier: Modifier = Modifier, showDiv
     Column(modifier.fillMaxWidth()) {
         Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Text(label, Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
-            Text(value, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
+            Text(value, style = MaterialTheme.typography.titleSmall.board())
         }
         if (showDivider) HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
     }
@@ -133,15 +134,15 @@ fun Stepper(label: String, saved: Int, onChange: (Int) -> Unit, spec: StepperSpe
     fun set(v: Int) { value = v.coerceIn(range); onChange(value) }
     Row(Modifier.fillMaxWidth().heightIn(min = 56.dp), verticalAlignment = Alignment.CenterVertically) {
         Text(label, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
-        FilledTonalIconButton(onClick = { set(value - step) }, enabled = value > range.first) {
+        OutlinedIconButton(onClick = { set(value - step) }, enabled = value > range.first) {
             Icon(androidx.compose.material.icons.Icons.Default.Remove, contentDescription = "$label 줄이기")
         }
         Text(
             if (value == 0 && zeroLabel != null) zeroLabel else "$value",
-            style = MaterialTheme.typography.titleLarge,
+            style = MaterialTheme.typography.titleLarge.board(),
             textAlign = TextAlign.Center, modifier = Modifier.widthIn(min = 56.dp),
         )
-        FilledTonalIconButton(onClick = { set(value + step) }, enabled = value < range.last) {
+        OutlinedIconButton(onClick = { set(value + step) }, enabled = value < range.last) {
             Icon(androidx.compose.material.icons.Icons.Default.Add, contentDescription = "$label 늘리기")
         }
     }
