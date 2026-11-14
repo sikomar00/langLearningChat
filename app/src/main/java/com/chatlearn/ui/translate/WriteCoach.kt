@@ -6,8 +6,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Lightbulb
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.LiveRegionMode
@@ -20,13 +19,15 @@ import com.chatlearn.domain.grammarPoint
 import com.chatlearn.ui.components.ChatBubble
 import com.chatlearn.ui.components.LabeledText
 import com.chatlearn.ui.theme.statusColors
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.launch
 
 /**
  * 써 보기 대화: 내 시도(보낸 말풍선)와 코치의 답(받은 말풍선)이 차례로 쌓인다.
  * 틀리면 정답 대신 힌트가 한 단계씩 구체적이 되고, 맞히거나 "정답 보기"를 누르면 저장할 수 있다.
  */
 @Composable
-fun WriteCoach(vm: TranslateViewModel, onSpeak: (String, Lang) -> Unit, onCopy: (String) -> Unit) {
+fun WriteCoach(vm: TranslateViewModel, onSpeak: (String, Lang) -> Unit, onCopy: (String) -> Unit, onReplace: ((String) -> Unit)? = null) {
     val s by vm.state.collectAsStateWithLifecycle()
     s.attempts.forEach { a ->
         ChatBubble(outgoing = true) { Text(a.text, style = MaterialTheme.typography.bodyLarge) }
@@ -66,6 +67,18 @@ fun WriteCoach(vm: TranslateViewModel, onSpeak: (String, Lang) -> Unit, onCopy: 
         TextButton(onClick = { onSpeak(sentence, s.targetLang) }) { Text("들어보기") }
         TextButton(onClick = { onCopy(sentence) }) { Text("복사") }
         Spacer(Modifier.weight(1f))
-        Button(onClick = { vm.saveAttempt() }) { Text("저장") }
+        // 바꿔 넣기에서는 저장도 함께 하므로 따로 저장 버튼을 두지 않는다(먼저 저장하면 바꿔 넣을 문장이 사라진다).
+        if (onReplace == null) Button(onClick = { vm.saveAttempt() }) { Text("저장") }
+    }
+    if (onReplace != null) ReplaceButton(sentence, vm::saveAttempt, onReplace)
+}
+
+/** 텍스트 선택 메뉴로 왔을 때: 저장을 마친 뒤 [text]를 원래 칸에 돌려준다(먼저 돌아가면 저장이 화면과 함께 취소된다). */
+@Composable
+internal fun ReplaceButton(text: String, save: () -> Job, onReplace: (String) -> Unit) {
+    val scope = rememberCoroutineScope()
+    var replacing by remember { mutableStateOf(false) }
+    Button(onClick = { replacing = true; scope.launch { save().join(); onReplace(text) } }, Modifier.fillMaxWidth(), enabled = !replacing) {
+        Text("이걸로 바꾸고 저장")
     }
 }

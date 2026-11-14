@@ -392,6 +392,32 @@ class TranslateViewModelTest {
         assertEquals(TranslateMode.RECEIVED, vm.state.value.mode)
     }
 
+    @Test fun myOwnDraftSelectedToFixOpensInWriteCoachWithoutAskingYet() = runBlocking {
+        vm.setIntent("내일 보자"); vm.receiveShared("other").join()
+        vm.receiveShared("  Yo fui a la playa ayer ", editable = true).join()
+        val st = vm.state.value
+        assertEquals(TranslateMode.CORRECT, st.mode)
+        assertEquals("Yo fui a la playa ayer", st.input)
+        assertEquals("", st.intent)
+        assertEquals(Lang.ES, st.targetLang)
+        // 언어를 확인하고 "확인"을 누를 때 묻는다.
+        assertEquals(listOf("received"), ai.calls)
+    }
+
+    @Test fun anEditableSelectionWithoutLettersOrInKoreanIsNotADraft() = runBlocking {
+        vm.receiveShared("010-1234-5678", editable = true).join()
+        assertEquals(TranslateMode.RECEIVED, vm.state.value.mode)
+        vm.receiveShared("내일 보자", editable = true).join()
+        assertEquals(TranslateMode.SENT, vm.state.value.mode)
+    }
+
+    @Test fun switchingLanguageDropsFeedbackGivenInTheOtherLanguage() = runBlocking {
+        vm.setMode(TranslateMode.CORRECT); vm.setInput("I go there"); vm.submitAttempt().join()
+        assertTrue(vm.state.value.attempts.isNotEmpty())
+        vm.setTarget(Lang.ES)
+        assertTrue(vm.state.value.attempts.isEmpty())
+    }
+
     @Test fun aPastedKakaoChatSplitsOffSpeakersPicksTheFriendAndKeepsTheContext() = runBlocking {
         vm.setInput("[Ana] [오후 3:15] Hola\n[나] [오후 3:16] Hi\n[Ana] [오후 3:17] Que tal")
         vm.translate().join()

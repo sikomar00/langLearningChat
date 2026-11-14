@@ -12,6 +12,7 @@ import com.chatlearn.domain.EntryKind
 import com.chatlearn.domain.GrammarPoint
 import com.chatlearn.domain.GrammarSource
 import com.chatlearn.domain.contextAround
+import com.chatlearn.domain.guessDraftLang
 import com.chatlearn.domain.looksKorean
 import com.chatlearn.domain.speakersOf
 import com.chatlearn.domain.parseChat
@@ -154,14 +155,31 @@ class TranslateViewModel(
         return translate()
     }
 
-    /** 다른 앱에서 공유한 글: 한국어면 보낼 말로, 아니면 받은 말로 바로 번역한다. */
-    fun receiveShared(text: String): Job {
+    /**
+     * 다른 앱에서 공유한 글: 한국어면 보낼 말로, 아니면 받은 말로 바로 번역한다.
+     * [editable]이면(바꿔 넣을 칸에서 고른 글) 외국어는 친구 말이 아니라 내 초안이라 써 보기로 다듬는다.
+     */
+    fun receiveShared(text: String, editable: Boolean = false): Job {
+        if (editable && !looksKorean(text) && text.any { it in 'a'..'z' || it in 'A'..'Z' }) return polishDraft(text)
         val mode = if (looksKorean(text)) TranslateMode.SENT else TranslateMode.RECEIVED
         _state.update {
             it.copy(mode = mode, input = text.trim(), source = "", received = null, lookup = null, batch = emptyList(), candidates = emptyList(), attempts = emptyList(), revealed = false, error = null, notice = null)
         }
         return translate()
     }
+    // 내 외국어 초안을 써 보기에 넣어 둔다. 언어는 글에서 어림하고(못 하면 지난번 언어), 확인을 누르면 힌트를 받는다.
+    private fun polishDraft(text: String): Job = viewModelScope.launch {
+        targetLoad.join()
+        val lang = guessDraftLang(text)
+        if (lang != null) targetChosen = true // 이번 초안에만: 저장해 둔 보낼 말 언어는 바꾸지 않는다
+        _state.update {
+            it.copy(
+                mode = TranslateMode.CORRECT, input = text.trim(), intent = "", replyTo = null, targetLang = lang ?: it.targetLang, source = "",
+                received = null, lookup = null, batch = emptyList(), candidates = emptyList(), attempts = emptyList(), revealed = false, error = null, notice = null,
+            )
+        }
+    }
+
     /** 받은 말의 단어를 눌렀을 때: 문장 맥락에서의 뜻을 AI에 묻는다. */
     fun lookupWord(chunk: String): Job = viewModelScope.launch {
         val word = cleanWord(chunk) ?: return@launch
@@ -193,7 +211,8 @@ class TranslateViewModel(
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
     fun setTarget(l: Lang) {
         targetChosen = true
-        _state.update { it.copy(targetLang = l, candidates = emptyList()) }
+        // 언어가 바뀌면 앞서 받은 후보·힌트는 다른 언어 것이라 비운다.
+        _state.update { it.copy(targetLang = l, candidates = emptyList(), attempts = emptyList(), revealed = false) }
         viewModelScope.launch { rememberTarget(l) }
     }
 

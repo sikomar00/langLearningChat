@@ -162,7 +162,7 @@ class MainActivity : ComponentActivity() {
                 }
                 LaunchedEffect(pendingLaunch) {
                     when (val r = pendingLaunch ?: return@LaunchedEffect) {
-                        is LaunchRequest.Shared -> { translateVm.receiveShared(r.text); overlay = null; tab = Tab.TRANSLATE }
+                        is LaunchRequest.Shared -> { translateVm.receiveShared(r.text, editable = r.editable && returnsText); overlay = null; tab = Tab.TRANSLATE }
                         LaunchRequest.Review -> openReview { reviewVm.open() }
                         is LaunchRequest.Compose -> { translateVm.setMode(r.mode); overlay = null; tab = Tab.TRANSLATE }
                         LaunchRequest.PasteTranslate -> {
