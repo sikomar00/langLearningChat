@@ -1,6 +1,5 @@
 package com.chatlearn.ui.library
 
-import com.chatlearn.ui.theme.sentence
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
@@ -86,7 +85,7 @@ internal fun DetailDialog(item: LibraryItem, hasAltCard: Boolean, recentTags: Li
             Column(Modifier.fillMaxSize().systemBarsPadding().imePadding()) {
                 Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                     IconButton(onClick = close) { Icon(Icons.Default.Close, contentDescription = "닫기") }
-                    Text(item.texts[item.entry.chatLang].orEmpty(), Modifier.weight(1f), style = MaterialTheme.typography.titleMedium.sentence(), maxLines = 2)
+                    Text(item.texts[item.entry.chatLang].orEmpty(), Modifier.weight(1f), style = MaterialTheme.typography.titleMedium, maxLines = 2)
                     TextButton(onClick = {
                         vm.saveText(item.entry.id, Lang.KO, ko); vm.saveNote(item.entry.id, note)
                         if (hasAltCard && altText != null && alt.isNotBlank() && alt != altText) vm.saveText(item.entry.id, altLang, alt)
@@ -101,7 +100,7 @@ internal fun DetailDialog(item: LibraryItem, hasAltCard: Boolean, recentTags: Li
                 Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 SentenceStatsLine(item.entry.id, vm)
                 SectionCard("문장") {
-                    LabeledText(if (item.entry.chatLang == Lang.EN) "영어 원문" else "스페인어 원문", item.texts[item.entry.chatLang].orEmpty(), valueStyle = MaterialTheme.typography.titleMedium.sentence())
+                    LabeledText(if (item.entry.chatLang == Lang.EN) "영어 원문" else "스페인어 원문", item.texts[item.entry.chatLang].orEmpty(), valueStyle = MaterialTheme.typography.titleMedium)
                     OutlinedTextField(ko, { ko = it }, label = { Text("한국어 뜻") }, modifier = Modifier.fillMaxWidth())
                     if (hasAltCard && altText != null) {
                         OutlinedTextField(
@@ -113,7 +112,7 @@ internal fun DetailDialog(item: LibraryItem, hasAltCard: Boolean, recentTags: Li
                         var making by remember { mutableStateOf(false) }
                         var failed by remember { mutableStateOf(false) }
                         val scope2 = rememberCoroutineScope()
-                        OutlinedButton(enabled = !making, onClick = {
+                        OutlinedButton(shape = MaterialTheme.shapes.medium, enabled = !making, onClick = {
                             making = true; failed = false
                             scope2.launch { failed = !vm.expandOne(item.entry.id).await(); making = false }
                         }) { Text(if (making) "만드는 중…" else "다른 언어 카드 만들기") }
@@ -121,11 +120,11 @@ internal fun DetailDialog(item: LibraryItem, hasAltCard: Boolean, recentTags: Li
                     }
                 }
                 item.entry.contextText?.let { ctx -> SectionCard("대화") { com.chatlearn.ui.review.ContextFold(ctx) } }
-                OutlinedButton(onClick = { vm.sendToNotion(listOf(item.entry.id)); onClose() }, modifier = Modifier.fillMaxWidth()) {
+                OutlinedButton(shape = MaterialTheme.shapes.medium, onClick = { vm.sendToNotion(listOf(item.entry.id)); onClose() }, modifier = Modifier.fillMaxWidth()) {
                     Text(if (item.entry.notionPageId == null) "노션에 보내기" else "노션에 다시 보내기")
                 }
                 if (item.entry.direction == com.chatlearn.domain.Direction.RECEIVED && item.entry.kind == com.chatlearn.domain.EntryKind.SENTENCE) {
-                    FilledTonalButton(onClick = { vm.replyRequest.value = item.texts[item.entry.chatLang].orEmpty() to item.entry.chatLang; onClose() }, modifier = Modifier.fillMaxWidth()) {
+                    FilledTonalButton(shape = MaterialTheme.shapes.medium, onClick = { vm.replyRequest.value = item.texts[item.entry.chatLang].orEmpty() to item.entry.chatLang; onClose() }, modifier = Modifier.fillMaxWidth()) {
                         Text("이 말에 답장 써 보기")
                     }
                 }
@@ -158,7 +157,7 @@ internal fun DetailDialog(item: LibraryItem, hasAltCard: Boolean, recentTags: Li
                     val zone = ZoneId.systemDefault()
                     val learned = Instant.ofEpochMilli(item.entry.createdAt).atZone(zone).toLocalDate()
                     LabeledText("알게 된 날", learned.format(DateTimeFormatter.ofPattern("yyyy년 M월 d일 (E)", java.util.Locale.KOREAN)))
-                    OutlinedButton(onClick = { pickingDate = true }) { Text("날짜 바꾸기") }
+                    OutlinedButton(shape = MaterialTheme.shapes.medium, onClick = { pickingDate = true }) { Text("날짜 바꾸기") }
                     if (pickingDate) PastDatePickerDialog(
                         initial = learned, today = java.time.LocalDate.now(zone), onDismiss = { pickingDate = false },
                         onPick = { d ->
@@ -311,7 +310,7 @@ internal fun FolderPickerDialog(
                     keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(imeAction = androidx.compose.ui.text.input.ImeAction.Done),
                     keyboardActions = androidx.compose.foundation.text.KeyboardActions(onDone = { if (name.isNotBlank()) onCreate(name) }),
                 )
-                Button(enabled = name.isNotBlank(), onClick = { onCreate(name) }) { Text("만들어서 옮기기") }
+                Button(shape = MaterialTheme.shapes.medium, enabled = name.isNotBlank(), onClick = { onCreate(name) }) { Text("만들어서 옮기기") }
             }
         },
         confirmButton = {},

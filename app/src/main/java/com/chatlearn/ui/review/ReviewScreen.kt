@@ -1,5 +1,7 @@
 package com.chatlearn.ui.review
 
+import com.chatlearn.ui.theme.board
+import com.chatlearn.ui.components.SegmentBar
 import android.speech.RecognizerIntent
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -32,7 +34,7 @@ import com.chatlearn.review.specialChars
 import com.chatlearn.review.spokenText
 import com.chatlearn.settings.VoicePrefs
 import com.chatlearn.ui.components.ButtonSpinner
-import com.chatlearn.ui.components.GoalStamp
+import com.chatlearn.ui.components.GoalBoard
 import com.chatlearn.ui.components.StreakBadge
 import com.chatlearn.ui.components.LoadingBox
 import com.chatlearn.ui.components.langLabel
@@ -83,15 +85,15 @@ fun ReviewScreen(vm: ReviewViewModel, voice: VoicePrefs, onClose: () -> Unit) {
 
     val inSession = state is ReviewUi.Prompt || state is ReviewUi.Graded
     Box(Modifier.fillMaxSize()) {
-        Column(Modifier.fillMaxSize().systemBarsPadding().imePadding().padding(horizontal = 16.dp)) {
-            Row(Modifier.fillMaxWidth().heightIn(min = 56.dp), verticalAlignment = Alignment.CenterVertically) {
+        val world = MaterialTheme.statusColors
+        Column(Modifier.fillMaxSize()) {
+          // 출발 안내판 띠: 닫기 · 이번 복습의 불빛 칸 · 몇 번째인지.
+          Surface(color = world.board, contentColor = world.onBoard) {
+            Row(Modifier.fillMaxWidth().statusBarsPadding().heightIn(min = 56.dp).padding(end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                 IconButton(onClick = onClose) { Icon(Icons.Default.Close, contentDescription = "복습 닫기") }
                 if (inSession && progress.total > 0) {
-                    LinearWavyProgressIndicator(
-                        progress = { progress.done.toFloat() / progress.total },
-                        modifier = Modifier.weight(1f).padding(horizontal = 8.dp),
-                    )
-                    Text("${minOf(progress.done + 1, progress.total)}/${progress.total}", style = MaterialTheme.typography.labelLarge)
+                    SegmentBar(progress.done, progress.total, Modifier.weight(1f).height(8.dp).padding(horizontal = 8.dp))
+                    Text("${minOf(progress.done + 1, progress.total)}/${progress.total}", style = MaterialTheme.typography.labelLarge.board())
                 } else Spacer(Modifier.weight(1f))
                 if (state is ReviewUi.Prompt) {
                     Box {
@@ -105,7 +107,9 @@ fun ReviewScreen(vm: ReviewViewModel, voice: VoicePrefs, onClose: () -> Unit) {
                     }
                 }
             }
-            if (inSession) Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+          }
+          Column(Modifier.weight(1f).navigationBarsPadding().imePadding().padding(horizontal = 16.dp)) {
+            if (inSession) Row(Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                 if (custom != null) Text("선택 복습", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
                 if (goal.enabled) Text(
                     if (goal.reached) "오늘 목표 달성" else "오늘 ${goal.done}/${goal.goal}",
@@ -158,6 +162,7 @@ fun ReviewScreen(vm: ReviewViewModel, voice: VoicePrefs, onClose: () -> Unit) {
                         LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                             items(chars) { ch ->
                                 OutlinedButton(
+                                    shape = MaterialTheme.shapes.medium,
                                     onClick = { vm.appendToAnswer(ch, focusedBlank.coerceIn(0, s.answers.lastIndex)) },
                                     modifier = Modifier.defaultMinSize(minWidth = 48.dp, minHeight = 48.dp), contentPadding = PaddingValues(horizontal = 12.dp),
                                 ) { Text(ch) }
@@ -169,7 +174,7 @@ fun ReviewScreen(vm: ReviewViewModel, voice: VoicePrefs, onClose: () -> Unit) {
                         if (progress.total - progress.done > 1) TextButton(enabled = !s.checking, onClick = { vm.postpone() }) { Text("나중에") }
                         Button(
                             onClick = { vm.submit() }, enabled = s.answers.none { it.isBlank() } && !s.checking,
-                            modifier = Modifier.weight(1f).heightIn(min = 52.dp),
+                            modifier = Modifier.weight(1f).heightIn(min = 52.dp), shape = MaterialTheme.shapes.medium,
                         ) { if (s.checking) ButtonSpinner() else Text("확인") }
                     }
                 }
@@ -183,8 +188,8 @@ fun ReviewScreen(vm: ReviewViewModel, voice: VoicePrefs, onClose: () -> Unit) {
                         choices.forEach { r ->
                             Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
                                 val label = ratingLabel(r)
-                                if (r == s.suggested) Button(onClick = { vm.rate(r) }, Modifier.fillMaxWidth().heightIn(min = 52.dp)) { Text(label) }
-                                else OutlinedButton(onClick = { vm.rate(r) }, Modifier.fillMaxWidth().heightIn(min = 52.dp)) { Text(label) }
+                                if (r == s.suggested) Button(shape = MaterialTheme.shapes.medium, onClick = { vm.rate(r) }, modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp)) { Text(label) }
+                                else OutlinedButton(shape = MaterialTheme.shapes.medium, onClick = { vm.rate(r) }, modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp)) { Text(label) }
                                 Text(s.previews[r].orEmpty(), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                         }
@@ -192,8 +197,9 @@ fun ReviewScreen(vm: ReviewViewModel, voice: VoicePrefs, onClose: () -> Unit) {
                 }
                 else -> Unit
             }
+          }
         }
-        if (celebrate) GoalStamp(onFinished = vm::celebrated)
+        if (celebrate) GoalBoard(onFinished = vm::celebrated)
     }
 
     val promptItem = (state as? ReviewUi.Prompt)?.item

@@ -21,6 +21,7 @@ class LibraryFilterTest {
         assertEquals(listOf(b), filterLibrary(listOf(a, b, c), "cómo", null, null))
         assertEquals(listOf(c), filterLibrary(listOf(a, b, c), "곧", null, null))
     }
+    @Test fun queryAlsoFindsFriendNames() = assertEquals(listOf(b), filterLibrary(listOf(a, b, c), "sof", null, null))
     @Test fun langFilterUsesChatLang() = assertEquals(listOf(b), filterLibrary(listOf(a, b, c), "", Lang.ES, null))
     @Test fun tagFilter() = assertEquals(listOf(a), filterLibrary(listOf(a, b, c), "", null, "Alex"))
     @Test fun filtersCombine() = assertEquals(emptyList(), filterLibrary(listOf(a, b, c), "see", null, "Alex"))

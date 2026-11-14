@@ -20,7 +20,7 @@ import com.chatlearn.ui.theme.BubbleOut
 fun ChatBubble(
     outgoing: Boolean,
     modifier: Modifier = Modifier,
-    color: Color = if (outgoing) MaterialTheme.colorScheme.inverseSurface else MaterialTheme.colorScheme.surfaceContainerHigh,
+    color: Color = if (outgoing) MaterialTheme.colorScheme.inverseSurface else MaterialTheme.colorScheme.surfaceContainerLowest,
     fillWidth: Boolean = false,
     content: @Composable ColumnScope.() -> Unit,
 ) {
@@ -28,6 +28,8 @@ fun ChatBubble(
         Surface(
             color = color, contentColor = contentColorFor(color),
             shape = if (outgoing) BubbleOut else BubbleIn,
+            // 받은 말은 탑승권 용지처럼 가는 테두리로 바탕과 나눈다(그림자 대신).
+            border = if (outgoing) null else androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
             modifier = if (fillWidth) Modifier.fillMaxWidth() else Modifier.fillMaxWidth(0.88f).wrapContentWidth(if (outgoing) Alignment.End else Alignment.Start),
         ) {
             Column(Modifier.padding(horizontal = 18.dp, vertical = 14.dp), verticalArrangement = Arrangement.spacedBy(6.dp), content = content)

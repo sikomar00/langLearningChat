@@ -1,6 +1,7 @@
 package com.chatlearn.ui.review
 
-import com.chatlearn.ui.theme.sentence
+import androidx.compose.ui.Alignment
+import com.chatlearn.ui.components.Ticket
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.material.icons.Icons
@@ -19,10 +20,9 @@ import androidx.compose.ui.unit.dp
 import com.chatlearn.domain.ExerciseKind
 import com.chatlearn.review.isLeech
 import com.chatlearn.settings.VoicePrefs
-import com.chatlearn.ui.components.ChatBubble
 import com.chatlearn.ui.components.langLabel
 
-/** 문제: 받은 말풍선으로 묻고, 아래 입력칸에 답한다. */
+/** 문제: 탑승권 머리띠에 문제 종류와 경로, 본문에 문제, 절취선 아래 칸에 답한다. */
 @Composable
 internal fun PromptBody(s: ReviewUi.Prompt, vm: ReviewViewModel, canListen: Boolean, voice: VoicePrefs, onFocusBlank: (Int) -> Unit, onMic: () -> Unit) {
     val lang = s.item.card.answerLang
@@ -44,56 +44,54 @@ internal fun PromptBody(s: ReviewUi.Prompt, vm: ReviewViewModel, canListen: Bool
             }
         }
     }
+    val to = langLabel(lang)
     when (s.item.exercise) {
-        ExerciseKind.TRANSLATE -> {
-            ChatBubble(outgoing = false) {
-                Text("${langLabel(lang)}로 말하면?", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Text(s.item.promptText, style = MaterialTheme.typography.headlineSmall.sentence())
-            }
+        ExerciseKind.TRANSLATE -> Ticket(route = "번역 · ${langLabel(s.item.promptLang)} → $to", stub = {
             OutlinedTextField(
                 s.answers[0], { vm.setAnswer(it) },
                 Modifier.fillMaxWidth().focusRequester(firstField).onFocusChanged { if (it.isFocused) onFocusBlank(0) },
-                minLines = 2, label = { Text("내 답") }, shape = MaterialTheme.shapes.large,
+                minLines = 2, label = { Text("내 답") },
                 trailingIcon = if (canListen) ({ IconButton(onClick = onMic) { Icon(Icons.Default.Mic, contentDescription = "말로 답하기") } }) else null,
                 keyboardOptions = answerKeyboard(ExerciseKind.TRANSLATE, lang, ImeAction.Done, voice), keyboardActions = KeyboardActions(onDone = { vm.submit() }),
             )
+        }) {
+            Text(s.item.promptText, style = MaterialTheme.typography.headlineSmall)
         }
-        ExerciseKind.CLOZE -> {
-            ChatBubble(outgoing = false) {
-                Text("빈칸을 채워 보세요", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Text(s.item.cloze!!.display, style = MaterialTheme.typography.headlineSmall)
-                Text(s.item.hintKo, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
+        ExerciseKind.CLOZE -> Ticket(route = "빈칸 · $to", stub = {
             s.answers.forEachIndexed { i, a ->
                 val last = i == s.answers.lastIndex
                 OutlinedTextField(
                     a, { vm.setAnswer(it, i) },
                     Modifier.fillMaxWidth().then(if (i == 0) Modifier.focusRequester(firstField) else Modifier).onFocusChanged { if (it.isFocused) onFocusBlank(i) },
-                    singleLine = true, label = { Text(if (s.answers.size > 1) "빈칸 ${i + 1}" else "빈칸") }, shape = MaterialTheme.shapes.large,
+                    singleLine = true, label = { Text(if (s.answers.size > 1) "빈칸 ${i + 1}" else "빈칸") },
                     keyboardOptions = answerKeyboard(ExerciseKind.CLOZE, lang, if (last) ImeAction.Done else ImeAction.Next, voice),
                     keyboardActions = KeyboardActions(onDone = { vm.submit() }),
                 )
             }
+        }) {
+            Text(s.item.cloze!!.display, style = MaterialTheme.typography.headlineSmall)
+            Text(s.item.hintKo, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         ExerciseKind.DICTATION -> {
             LaunchedEffect(s.item.card.id, s.shownAt) { vm.speak(false) }
-            ChatBubble(outgoing = false) {
-                Text("들리는 ${langLabel(lang)} 문장을 그대로 써 보세요", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Ticket(route = "받아쓰기 · $to", stub = {
+                OutlinedTextField(
+                    s.answers[0], { vm.setAnswer(it) },
+                    Modifier.fillMaxWidth().focusRequester(firstField).onFocusChanged { if (it.isFocused) onFocusBlank(0) },
+                    minLines = 2, label = { Text("들은 문장") },
+                    keyboardOptions = answerKeyboard(ExerciseKind.DICTATION, lang, ImeAction.Done, voice), keyboardActions = KeyboardActions(onDone = { vm.submit() }),
+                )
+            }) {
+                Text("들리는 $to 문장을 그대로 써 보세요", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    FilledTonalButton(onClick = { vm.speak(false) }) {
+                    FilledTonalButton(shape = MaterialTheme.shapes.medium, onClick = { vm.speak(false) }) {
                         Icon(Icons.AutoMirrored.Filled.VolumeUp, contentDescription = null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("다시 듣기")
                     }
-                    OutlinedButton(onClick = { vm.speak(true) }) {
+                    OutlinedButton(shape = MaterialTheme.shapes.medium, onClick = { vm.speak(true) }) {
                         Icon(Icons.Default.SlowMotionVideo, contentDescription = null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("느리게")
                     }
                 }
             }
-            OutlinedTextField(
-                s.answers[0], { vm.setAnswer(it) },
-                Modifier.fillMaxWidth().focusRequester(firstField).onFocusChanged { if (it.isFocused) onFocusBlank(0) },
-                minLines = 2, label = { Text("들은 문장") }, shape = MaterialTheme.shapes.large,
-                keyboardOptions = answerKeyboard(ExerciseKind.DICTATION, lang, ImeAction.Done, voice), keyboardActions = KeyboardActions(onDone = { vm.submit() }),
-            )
         }
     }
 }

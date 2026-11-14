@@ -1,11 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <!-- 앱이 그려지기 전 창 배경: Compose 테마 배경과 같은 색이라 시작할 때 번쩍이지 않는다 -->
-    <color name="window_background">#FAF7F0</color>
-    <color name="ic_launcher_background">#1C1B19</color>
-    <color name="shortcut_background">#F0EBE1</color>
-    <color name="shortcut_foreground">#1C1B19</color>
-    <color name="widget_background">#F5F1E8</color>
-    <color name="widget_preview_main">#1C1B19</color>
-    <color name="widget_preview_sub">#625D55</color>
+    <color name="window_background">#F2F3F5</color>
+    <color name="ic_launcher_background">#15181D</color>
+    <color name="shortcut_background">#E4E7EB</color>
+    <color name="shortcut_foreground">#15181D</color>
+    <color name="widget_background">#F2F3F5</color>
+    <color name="widget_preview_main">#15181D</color>
+    <color name="widget_preview_sub">#5B616B</color>
 </resources>

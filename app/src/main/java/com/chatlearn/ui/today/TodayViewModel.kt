@@ -1,5 +1,6 @@
 package com.chatlearn.ui.today
 
+import com.chatlearn.ui.library.progressOf
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.chatlearn.data.EntryRepository
@@ -26,6 +27,8 @@ data class TodayUi(
     val streak: Int,
     val forecast: List<DayCount>,
     val recent: List<LibraryItem>,
+    /** 최근 문장별 익힌 단계 0~5(라이브러리와 같은 계산). */
+    val recentStages: Map<Long, Int> = emptyMap(),
     val hasEntries: Boolean,
     /** 가장 많이 틀린 문법(틀린 적이 없으면 null). */
     val weakGrammar: com.chatlearn.stats.GrammarWeakness? = null,
@@ -50,6 +53,7 @@ class TodayViewModel(
         val newCards = queue.count { it.card.lastReviewedAt == null }
         // shortcut: 최근 3개를 보려고 라이브러리 전체를 한 번 읽는다. 문장이 수천 개가 되면 최근 N개 조회로 바꾼다.
         val library = repo.observeLibrary().first()
+        val recent = library.take(3)
         _ui.value = TodayUi(
             reviews = queue.size - newCards,
             newCards = newCards,
@@ -57,7 +61,9 @@ class TodayViewModel(
             goal = session.todayProgress(),
             streak = session.streak(),
             forecast = StatsCalculator.forecast(repo.reviewDueTimes(now + 7 * DAY_MS), now, zone),
-            recent = library.take(3),
+            recent = recent,
+            recentStages = repo.cardsFor(recent.map { it.entry.id }.toSet(), null)
+                .groupBy({ it.card.entryId }, { it.card }).mapValues { (_, cards) -> progressOf(cards, now).stage },
             hasEntries = library.isNotEmpty(),
             weakGrammar = com.chatlearn.stats.GrammarStats.weakest(repo.observeGrammarEvents().first()).firstOrNull { it.errors > 0 },
         )

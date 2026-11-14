@@ -1,5 +1,6 @@
 package com.chatlearn.ui.components
 
+import com.chatlearn.ui.theme.board
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -12,6 +13,7 @@ import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.unit.dp
 import com.chatlearn.stats.DayCount
+import com.chatlearn.ui.theme.statusColors
 import java.time.LocalDate
 
 /** 날짜별 복습 수 막대(지난 7일, 앞으로 7일). [today] 칸만 진하게. 스크린리더에는 한 문장으로 읽힌다. */
@@ -25,9 +27,9 @@ fun DayBars(days: List<DayCount>, label: (DayCount) -> String, today: LocalDate,
     ) {
         days.forEach { d ->
             Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Bottom) {
-                if (d.reviews > 0) Text("${d.reviews}", style = MaterialTheme.typography.labelMedium)
-                // 막대는 그림이라 배경 대비 3:1 이상인 outline, 오늘만 먹색.
-                val color = if (d.date == today) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline
+                if (d.reviews > 0) Text("${d.reviews}", style = MaterialTheme.typography.labelMedium.board())
+                // 막대는 그림이라 배경 대비 3:1 이상인 outline, 오늘만 플랩 호박.
+                val color = if (d.date == today) MaterialTheme.statusColors.flapGraphic else MaterialTheme.colorScheme.outline
                 Box(
                     Modifier.fillMaxWidth().height((4 + 52f * d.reviews / max).dp)
                         .background(color, RoundedCornerShape(topStart = 2.dp, topEnd = 2.dp)),

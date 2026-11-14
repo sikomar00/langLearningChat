@@ -1,35 +1,40 @@
 package com.chatlearn.ui.theme
 
+import com.chatlearn.R
 import androidx.compose.material3.Typography
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
-import com.chatlearn.R
 
-/** 배우는 외국어 문장에만 쓰는 세리프 Literata(OFL, 라틴 글자). 한글은 이 서체에 없어 시스템 글꼴로 대신 그려진다. */
-val Literata = FontFamily(
-    Font(R.font.literata_regular, FontWeight.Normal),
-    Font(R.font.literata_semibold, FontWeight.SemiBold),
+/**
+ * 안내판 글자: 앱에 넣은 Roboto Condensed(OFL). 시간·편(EN/ES)·상태·큰 숫자에만 쓴다.
+ * 기기 글꼴(sans-serif-condensed)은 제조사마다 달라 직접 넣었다. 한글은 시스템 글꼴로 대신 그려진다.
+ */
+val Condensed = FontFamily(
+    Font(R.font.roboto_condensed_regular, FontWeight.Normal),
+    Font(R.font.roboto_condensed_medium, FontWeight.Medium),
+    Font(R.font.roboto_condensed_bold, FontWeight.Bold),
 )
-
-/** 외국어 문장: 화면 글자(고딕)와 구분해 문장이 주인공이 되게 한다. */
-fun TextStyle.sentence(): TextStyle = copy(fontFamily = Literata)
 
 // 숫자는 자릿수가 바뀌어도 흔들리지 않게 폭이 같은 숫자(tnum).
 private const val TABULAR = "tnum"
 
-// 화면 글자는 시스템 글꼴(한글 가독성). 본문 16sp, 행간 1.5배 안팎.
+/** 안내판 표기: 응축체, 폭이 같은 숫자, 살짝 벌린 자간. 라틴 글자는 부르는 쪽에서 대문자로 넘긴다. */
+fun TextStyle.board(): TextStyle = copy(fontFamily = Condensed, fontFeatureSettings = TABULAR, letterSpacing = 0.04.em)
+
+// 화면 글자는 시스템 산세리프 한 가족(한글 가독성), 큰 숫자만 안내판 응축체. 크기 단계는 몇 개만.
 val AppTypography = Typography(
-    displayLarge = TextStyle(fontWeight = FontWeight.SemiBold, fontSize = 80.sp, lineHeight = 84.sp, letterSpacing = (-2).sp, fontFeatureSettings = TABULAR),
-    displayMedium = TextStyle(fontWeight = FontWeight.SemiBold, fontSize = 44.sp, lineHeight = 50.sp, letterSpacing = (-1).sp, fontFeatureSettings = TABULAR),
-    displaySmall = TextStyle(fontWeight = FontWeight.SemiBold, fontSize = 30.sp, lineHeight = 36.sp, letterSpacing = (-0.5).sp),
+    displayLarge = TextStyle(fontFamily = Condensed, fontWeight = FontWeight.Bold, fontSize = 72.sp, lineHeight = 76.sp, fontFeatureSettings = TABULAR),
+    displayMedium = TextStyle(fontFamily = Condensed, fontWeight = FontWeight.Bold, fontSize = 44.sp, lineHeight = 50.sp, fontFeatureSettings = TABULAR),
+    displaySmall = TextStyle(fontWeight = FontWeight.Bold, fontSize = 28.sp, lineHeight = 34.sp),
     headlineMedium = TextStyle(fontSize = 26.sp, lineHeight = 34.sp, fontWeight = FontWeight.Bold),
     headlineSmall = TextStyle(fontSize = 22.sp, lineHeight = 30.sp, fontWeight = FontWeight.Bold),
-    titleLarge = TextStyle(fontSize = 20.sp, lineHeight = 28.sp, fontWeight = FontWeight.SemiBold, fontFeatureSettings = TABULAR),
-    titleMedium = TextStyle(fontSize = 16.sp, lineHeight = 24.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 0.1.sp),
-    titleSmall = TextStyle(fontSize = 14.sp, lineHeight = 20.sp, fontWeight = FontWeight.SemiBold),
+    titleLarge = TextStyle(fontSize = 20.sp, lineHeight = 28.sp, fontWeight = FontWeight.Medium, fontFeatureSettings = TABULAR),
+    titleMedium = TextStyle(fontSize = 16.sp, lineHeight = 24.sp, fontWeight = FontWeight.Medium, letterSpacing = 0.1.sp),
+    titleSmall = TextStyle(fontSize = 14.sp, lineHeight = 20.sp, fontWeight = FontWeight.Medium),
     bodyLarge = TextStyle(fontSize = 16.sp, lineHeight = 24.sp),
     bodyMedium = TextStyle(fontSize = 14.sp, lineHeight = 21.sp),
     bodySmall = TextStyle(fontSize = 12.sp, lineHeight = 18.sp),

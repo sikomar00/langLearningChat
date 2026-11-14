@@ -1,6 +1,5 @@
 package com.chatlearn.ui.review
 
-import com.chatlearn.ui.theme.sentence
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.layout.*
@@ -53,20 +52,20 @@ internal fun GradedBody(s: ReviewUi.Graded, vm: ReviewViewModel, canListen: Bool
     ChatBubble(outgoing = true) {
         val local = s.outcome as? GradeOutcome.Local
         if (local != null && local.marks.isNotEmpty()) MarkedWords(local.marks)
-        else Text(s.answer.ifBlank { "(모르겠어요)" }, style = MaterialTheme.typography.bodyLarge.sentence())
+        else Text(s.answer.ifBlank { "(모르겠어요)" }, style = MaterialTheme.typography.bodyLarge)
     }
     verdict?.let { VerdictBanner(it) }
-    ChatBubble(outgoing = false, color = MaterialTheme.colorScheme.surfaceContainerHighest) {
+    ChatBubble(outgoing = false) {
         when (val o = s.outcome) {
             is GradeOutcome.Ai -> {
-                LabeledText("더 자연스러운 표현", o.result.corrected, valueColor = MaterialTheme.statusColors.success, valueStyle = MaterialTheme.typography.titleMedium.sentence())
+                LabeledText("더 자연스러운 표현", o.result.corrected, valueColor = MaterialTheme.statusColors.success, valueStyle = MaterialTheme.typography.titleMedium)
                 if (o.result.explanationKo.isNotBlank()) Text(o.result.explanationKo, style = MaterialTheme.typography.bodyMedium)
             }
             is GradeOutcome.SelfGrade -> {
-                LabeledText("정답", o.reference, valueColor = MaterialTheme.statusColors.success, valueStyle = MaterialTheme.typography.titleMedium.sentence())
+                LabeledText("정답", o.reference, valueColor = MaterialTheme.statusColors.success, valueStyle = MaterialTheme.typography.titleMedium)
                 Text(if (o.aiError == null) "스스로 채점해 주세요." else "AI를 쓸 수 없어서 스스로 채점해 주세요.", style = MaterialTheme.typography.bodyMedium)
             }
-            is GradeOutcome.Local -> LabeledText("정답", o.reference, valueColor = MaterialTheme.statusColors.success, valueStyle = MaterialTheme.typography.titleMedium.sentence())
+            is GradeOutcome.Local -> LabeledText("정답", o.reference, valueColor = MaterialTheme.statusColors.success, valueStyle = MaterialTheme.typography.titleMedium)
         }
         s.item.keyPhrase?.let { LabeledText("핵심 표현", it, valueColor = MaterialTheme.colorScheme.tertiary) }
         s.item.context?.let { ContextFold(it) }
@@ -79,11 +78,11 @@ internal fun GradedBody(s: ReviewUi.Graded, vm: ReviewViewModel, canListen: Bool
 @Composable
 private fun ShadowingRow(vm: ReviewViewModel, canListen: Boolean, heard: String?, reference: String, onShadow: () -> Unit) {
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-        FilledTonalButton(onClick = { vm.speak(false) }) {
+        FilledTonalButton(shape = MaterialTheme.shapes.medium, onClick = { vm.speak(false) }) {
             Icon(Icons.AutoMirrored.Filled.VolumeUp, contentDescription = null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("듣기")
         }
         IconButton(onClick = { vm.speak(true) }) { Icon(Icons.Default.SlowMotionVideo, contentDescription = "느리게 듣기") }
-        if (canListen) OutlinedButton(onClick = onShadow) {
+        if (canListen) OutlinedButton(shape = MaterialTheme.shapes.medium, onClick = onShadow) {
             Icon(Icons.Default.Mic, contentDescription = null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("따라 말하기")
         }
     }

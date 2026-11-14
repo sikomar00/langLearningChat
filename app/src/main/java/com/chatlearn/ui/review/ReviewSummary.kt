@@ -26,7 +26,7 @@ internal data class SessionSummary(
 @Composable
 internal fun DoneBody(sum: SessionSummary, onLearnMore: () -> Unit, onClose: () -> Unit) {
     val (s, remembered, streak, goal, custom, moreNew) = sum
-    ChatBubble(outgoing = false, color = MaterialTheme.colorScheme.primaryContainer, fillWidth = true) {
+    ChatBubble(outgoing = false, fillWidth = true) {
         Text(if (goal.reached) "오늘 목표 달성!" else "수고했어요", style = MaterialTheme.typography.titleLarge, modifier = Modifier.semantics { heading() })
         Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             Text("${s.cards}", style = MaterialTheme.typography.displayMedium)
@@ -42,7 +42,7 @@ internal fun DoneBody(sum: SessionSummary, onLearnMore: () -> Unit, onClose: () 
     }
     if (!goal.reached && goal.enabled) Text("오늘 목표까지 ${goal.goal - goal.done}장 남았어요.", style = MaterialTheme.typography.bodyMedium)
     if (!custom) LearnMore(moreNew, onLearnMore)
-    Button(onClick = onClose, Modifier.fillMaxWidth().heightIn(min = 52.dp)) { Text("오늘 화면으로") }
+    Button(shape = MaterialTheme.shapes.medium, onClick = onClose, modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp)) { Text("오늘 화면으로") }
 }
 
 @Composable
@@ -59,7 +59,7 @@ internal fun EmptyBody(custom: Boolean, moreNew: Int, vm: ReviewViewModel, onClo
 @Composable
 internal fun LearnMore(waiting: Int, onClick: () -> Unit) {
     if (waiting <= 0) return
-    FilledTonalButton(onClick = onClick, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) { Text("새 카드 ${minOf(LEARN_MORE, waiting)}장 더 배우기") }
+    FilledTonalButton(shape = MaterialTheme.shapes.medium, onClick = onClick, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) { Text("새 카드 ${minOf(LEARN_MORE, waiting)}장 더 배우기") }
     Text(
         "기다리는 새 카드 ${waiting}장. 하루 새 카드 수는 설정 > 복습에서 바꿀 수 있어요.",
         style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,

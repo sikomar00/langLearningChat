@@ -1,6 +1,9 @@
 package com.chatlearn.ui.translate
 
-import com.chatlearn.ui.theme.sentence
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.foundation.background
+import com.chatlearn.ui.components.langLabel
+import com.chatlearn.ui.components.Ticket
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.material.icons.filled.CalendarMonth
@@ -97,45 +100,52 @@ fun TranslateScreen(
                 }
             },
         )
-        var tagFocused by remember { mutableStateOf(false) }
-        var showTag by rememberSaveable { mutableStateOf(false) }
-        val suggestions by vm.tagSuggestions.collectAsStateWithLifecycle()
-        if (showTag || s.tag.isNotBlank()) {
-            OutlinedTextField(
-                value = s.tag, onValueChange = vm::setTag, singleLine = true,
-                modifier = Modifier.fillMaxWidth().onFocusChanged { tagFocused = it.isFocused },
-                label = { Text("태그(선택, 쉼표로 여러 개)") },
-            )
-            if (tagFocused && suggestions.isNotEmpty()) {
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    items(suggestions) { tag ->
-                        SuggestionChip(onClick = { vm.pickTag(tag) }, label = { Text(tag) })
+        // 저장할 때 함께 붙는 정보(친구·나라·태그·알게 된 날): 입력칸과 확인 사이를 막지 않게 결과 탑승권의 떼는 칸에 둔다.
+        val details: @Composable () -> Unit = {
+          Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            var tagFocused by remember { mutableStateOf(false) }
+            var showTag by rememberSaveable { mutableStateOf(false) }
+            val suggestions by vm.tagSuggestions.collectAsStateWithLifecycle()
+            if (showTag || s.tag.isNotBlank()) {
+                OutlinedTextField(
+                    value = s.tag, onValueChange = vm::setTag, singleLine = true,
+                    modifier = Modifier.fillMaxWidth().onFocusChanged { tagFocused = it.isFocused },
+                    label = { Text("태그(선택, 쉼표로 여러 개)") },
+                )
+                if (tagFocused && suggestions.isNotEmpty()) {
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        items(suggestions) { tag ->
+                            SuggestionChip(onClick = { vm.pickTag(tag) }, label = { Text(tag) })
+                        }
                     }
                 }
             }
-        }
-        PeopleCountryPicker(vm)
-        // 알게 된 날: 지난 대화를 옮겨 적을 때 그날로 기록한다. 고른 날짜는 저장 뒤에도 남는다.
-        var pickingDate by remember { mutableStateOf(false) }
-        val today = remember { java.time.LocalDate.now() }
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            if (!(showTag || s.tag.isNotBlank())) TextButton(onClick = { showTag = true }) { Text("+ 태그 추가") }
-            AssistChip(
-                onClick = { pickingDate = true },
-                leadingIcon = { Icon(Icons.Default.CalendarMonth, contentDescription = null, Modifier.size(18.dp)) },
-                label = { Text("알게 된 날 · ${learnedLabel(s.learnedOn, today)}") },
-            )
-            if (s.learnedOn != null && s.learnedOn!!.isBefore(today)) {
-                IconButton(onClick = { vm.setLearnedOn(null) }) { Icon(Icons.Default.Close, contentDescription = "알게 된 날을 오늘로") }
+            PeopleCountryPicker(vm)
+            // 알게 된 날: 지난 대화를 옮겨 적을 때 그날로 기록한다. 고른 날짜는 저장 뒤에도 남는다.
+            var pickingDate by remember { mutableStateOf(false) }
+            val today = remember { java.time.LocalDate.now() }
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (!(showTag || s.tag.isNotBlank())) TextButton(onClick = { showTag = true }) {
+                    Icon(Icons.Default.Add, contentDescription = null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("태그 추가")
+                }
+                AssistChip(
+                    onClick = { pickingDate = true },
+                    leadingIcon = { Icon(Icons.Default.CalendarMonth, contentDescription = null, Modifier.size(18.dp)) },
+                    label = { Text("알게 된 날 · ${learnedLabel(s.learnedOn, today)}") },
+                )
+                if (s.learnedOn != null && s.learnedOn!!.isBefore(today)) {
+                    IconButton(onClick = { vm.setLearnedOn(null) }) { Icon(Icons.Default.Close, contentDescription = "알게 된 날을 오늘로") }
+                }
             }
+            if (pickingDate) com.chatlearn.ui.components.PastDatePickerDialog(
+                initial = s.learnedOn ?: today, today = today, onDismiss = { pickingDate = false },
+                onPick = { d -> vm.setLearnedOn(d.takeIf { it.isBefore(today) }); pickingDate = false },
+            )
+          }
         }
-        if (pickingDate) com.chatlearn.ui.components.PastDatePickerDialog(
-            initial = s.learnedOn ?: today, today = today, onDismiss = { pickingDate = false },
-            onPick = { d -> vm.setLearnedOn(d.takeIf { it.isBefore(today) }); pickingDate = false },
-        )
         // 키보드가 결과와 저장 버튼을 가리지 않게 번역을 누르면 내린다.
         val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
-        Button(onClick = { focusManager.clearFocus(); vm.translate() }, enabled = s.input.isNotBlank() && !s.loading, modifier = Modifier.fillMaxWidth()) {
+        Button(shape = MaterialTheme.shapes.medium, onClick = { focusManager.clearFocus(); vm.translate() }, enabled = s.input.isNotBlank() && !s.loading, modifier = Modifier.fillMaxWidth()) {
             val lineCount = if (s.mode == TranslateMode.RECEIVED) splitMessages(s.input).size else 0
             if (s.loading) ButtonSpinner()
             else Text(if (lineCount >= 2) "문장별로 번역 (${lineCount}개)" else if (s.mode == TranslateMode.CORRECT) "확인" else "번역")
@@ -166,10 +176,10 @@ fun TranslateScreen(
             val settingsFix = it is TranslateError.Ai && (it.kind == AiError.BAD_KEY || it.kind == AiError.BAD_MODEL)
             val hopeless = it is TranslateError.Ai && (it.kind == AiError.DAILY_LIMIT || it.kind == AiError.BLOCKED)
             if (it is TranslateError.Ai && !settingsFix && !hopeless) {
-                OutlinedButton(onClick = { vm.translate() }, enabled = !s.loading) { Text("다시 시도") }
+                OutlinedButton(shape = MaterialTheme.shapes.medium, onClick = { vm.translate() }, enabled = !s.loading) { Text("다시 시도") }
             }
             if (settingsFix) {
-                Button(onClick = onOpenSettings) { Text("설정 열기") }
+                Button(shape = MaterialTheme.shapes.medium, onClick = onOpenSettings) { Text("설정 열기") }
             }
         }
         s.notice?.let {
@@ -205,73 +215,85 @@ fun TranslateScreen(
                     }
                 }
             }
-            Button(onClick = { vm.saveBatch() }, enabled = chosen > 0, modifier = Modifier.fillMaxWidth()) { Text("선택한 ${chosen}개 저장") }
+            details()
+            Button(shape = MaterialTheme.shapes.medium, onClick = { vm.saveBatch() }, enabled = chosen > 0, modifier = Modifier.fillMaxWidth()) { Text("선택한 ${chosen}개 저장") }
         }
 
         s.received?.let { r ->
-            // 친구가 보낸 말은 받은 말풍선으로, 그 아래에 뜻과 저장. 단어를 누르면 그 자리에서 뜻을 본다.
-            com.chatlearn.ui.components.ChatBubble(outgoing = false) {
-                    FlowRow(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-                        textChunks(s.source).forEach { chunk ->
-                            // 글자는 작아도 누를 영역은 48dp 이상으로 확보한다.
-                            Box(
-                                Modifier.defaultMinSize(minWidth = 48.dp, minHeight = 48.dp).clickable(role = Role.Button, onClickLabel = "뜻 보기") { vm.lookupWord(chunk) }.padding(horizontal = 6.dp),
-                                contentAlignment = Alignment.Center,
-                            ) { Text(chunk, style = MaterialTheme.typography.bodyLarge.sentence()) }
-                        }
+            // 친구가 보낸 말 → 한국어 탑승권: 머리띠에 경로, 맨 위 FROM 칸에 원문(단어를 누르면 그 자리에서 뜻), 그 아래 뜻,
+            // 절취선 아래 핵심 표현과 저장.
+            Ticket(route = "${r.detectedLang?.let(::langLabel) ?: "외국어"} → 한국어", stub = {
+                details()
+                OutlinedTextField(
+                    s.keyPhrase, vm::setKeyPhrase, modifier = Modifier.fillMaxWidth(), singleLine = true,
+                    label = { Text("핵심 표현(고칠 수 있어요)") },
+                    supportingText = { Text("복습의 빈칸 채우기에서 이 표현을 맞히게 돼요.") },
+                )
+                Button(shape = MaterialTheme.shapes.medium, onClick = { vm.saveReceived() }, modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp)) { Text("저장") }
+            }) {
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                    textChunks(s.source).forEach { chunk ->
+                        // 글자는 작아도 누를 영역은 48dp 이상으로 확보한다.
+                        Box(
+                            Modifier.defaultMinSize(minWidth = 48.dp, minHeight = 48.dp).clickable(role = Role.Button, onClickLabel = "뜻 보기") { vm.lookupWord(chunk) }.padding(horizontal = 6.dp),
+                            contentAlignment = Alignment.Center,
+                        ) { Text(chunk, style = MaterialTheme.typography.titleMedium) }
                     }
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("단어를 누르면 이 문장에서의 뜻을 볼 수 있어요.", style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
-                        r.detectedLang?.let { l ->
-                            IconButton(onClick = { onSpeak(s.source, l) }) { Icon(Icons.AutoMirrored.Filled.VolumeUp, contentDescription = "원문 듣기") }
-                        }
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("단어를 누르면 이 문장에서의 뜻을 볼 수 있어요.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f))
+                    r.detectedLang?.let { l ->
+                        IconButton(onClick = { onSpeak(s.source, l) }) { Icon(Icons.AutoMirrored.Filled.VolumeUp, contentDescription = "원문 듣기") }
                     }
-            }
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    s.lookup?.let { l ->
-                        Card(Modifier.fillMaxWidth()) {
-                            Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                Text(l.word, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
-                                when (l) {
-                                    is LookupState.Loading -> ButtonSpinner()
-                                    is LookupState.Failed -> Text("뜻을 가져오지 못했어요. 다시 눌러 보세요.", color = MaterialTheme.colorScheme.error)
-                                    is LookupState.Done -> {
-                                        Text(l.info.meaningKo, style = MaterialTheme.typography.bodyLarge)
-                                        if (l.info.baseForm.isNotBlank() && !l.info.baseForm.equals(l.word, ignoreCase = true)) {
-                                            Text("기본형: ${l.info.baseForm}", style = MaterialTheme.typography.bodySmall)
-                                        }
-                                        if (l.info.note.isNotBlank()) Text(l.info.note, style = MaterialTheme.typography.bodySmall)
-                                    }
+                }
+                s.lookup?.let { l ->
+                    Column(Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceContainer, MaterialTheme.shapes.small).padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text(l.word, style = MaterialTheme.typography.titleSmall)
+                        when (l) {
+                            is LookupState.Loading -> ButtonSpinner()
+                            is LookupState.Failed -> Text("뜻을 가져오지 못했어요. 다시 눌러 보세요.", color = MaterialTheme.colorScheme.error)
+                            is LookupState.Done -> {
+                                Text(l.info.meaningKo, style = MaterialTheme.typography.bodyLarge)
+                                if (l.info.baseForm.isNotBlank() && !l.info.baseForm.equals(l.word, ignoreCase = true)) {
+                                    Text("기본형: ${l.info.baseForm}", style = MaterialTheme.typography.bodySmall)
                                 }
-                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    if (l is LookupState.Done) {
-                                        TextButton(onClick = { vm.useAsKeyPhrase(l.word) }) { Text("핵심 표현으로") }
-                                        TextButton(onClick = { vm.saveWord() }) { Text("단어 카드로 저장") }
-                                    }
-                                    TextButton(onClick = { vm.dismissLookup() }) { Text("닫기") }
-                                }
+                                if (l.info.note.isNotBlank()) Text(l.info.note, style = MaterialTheme.typography.bodySmall)
                             }
                         }
-                    }
-                    SelectionContainer {
-                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Text(r.koTranslation, style = MaterialTheme.typography.titleLarge)
-                            Text(r.note, style = MaterialTheme.typography.bodyMedium)
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            if (l is LookupState.Done) {
+                                TextButton(onClick = { vm.useAsKeyPhrase(l.word) }) { Text("핵심 표현으로") }
+                                TextButton(onClick = { vm.saveWord() }) { Text("단어 카드로 저장") }
+                            }
+                            TextButton(onClick = { vm.dismissLookup() }) { Text("닫기") }
                         }
                     }
-                    OutlinedTextField(
-                        s.keyPhrase, vm::setKeyPhrase, modifier = Modifier.fillMaxWidth(), singleLine = true,
-                        label = { Text("핵심 표현(고칠 수 있어요)") },
-                        supportingText = { Text("복습의 빈칸 채우기에서 이 표현을 맞히게 돼요.") },
-                    )
-                    Button(onClick = { vm.saveReceived() }, modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp)) { Text("저장") }
+                }
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                SelectionContainer {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(r.koTranslation, style = MaterialTheme.typography.titleLarge)
+                        Text(r.note, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
             }
         }
-        if (s.mode == TranslateMode.CORRECT) WriteCoach(vm, onSpeak, ::copy, onReplace)
+        if (s.mode == TranslateMode.CORRECT) WriteCoach(vm, onSpeak, ::copy, onReplace, details)
+        if (s.candidates.isNotEmpty()) details()
         s.candidates.forEach { c ->
-            Card(Modifier.fillMaxWidth()) {
-                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    SelectionContainer { Text(c.text, style = MaterialTheme.typography.titleMedium.sentence()) }
+            Ticket(route = "KO → ${s.targetLang.code}", stub = {
+                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
+                        TextButton(onClick = { onSpeak(c.text, s.targetLang) }) { Text("들어보기") }
+                        TextButton(onClick = { copy(c.text) }) { Text("복사만") }
+                        Spacer(Modifier.weight(1f))
+                        OutlinedButton(shape = MaterialTheme.shapes.medium, onClick = {
+                            clipboard.setText(AnnotatedString(c.text))
+                            vm.onCandidateCopied(c)
+                        }) { Text("복사하고 저장") }
+                    }
+                    if (onReplace != null) ReplaceButton(c.text, { vm.onCandidateCopied(c) }, onReplace)
+            }) {
+                    SelectionContainer { Text(c.text, style = MaterialTheme.typography.titleMedium) }
                     Text(c.toneNote, style = MaterialTheme.typography.bodyMedium)
                     if (c.usedPhrase.isNotBlank() && c.text.contains(c.usedPhrase, ignoreCase = true)) {
                         Text("내 표현을 썼어요: ${c.usedPhrase}", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.tertiary)
@@ -279,17 +301,6 @@ fun TranslateScreen(
                     if (c.keyPhrase.isNotBlank() && c.text.contains(c.keyPhrase, ignoreCase = true)) {
                         Text("핵심 표현: ${c.keyPhrase}", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.tertiary)
                     }
-                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
-                        TextButton(onClick = { onSpeak(c.text, s.targetLang) }) { Text("들어보기") }
-                        TextButton(onClick = { copy(c.text) }) { Text("복사만") }
-                        Spacer(Modifier.weight(1f))
-                        OutlinedButton(onClick = {
-                            clipboard.setText(AnnotatedString(c.text))
-                            vm.onCandidateCopied(c)
-                        }) { Text("복사하고 저장") }
-                    }
-                    if (onReplace != null) ReplaceButton(c.text, { vm.onCandidateCopied(c) }, onReplace)
-                }
             }
         }
     }

@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="window_background">#171614</color>
-    <color name="widget_background">#23211E</color>
-    <color name="widget_preview_main">#EDE8DF</color>
-    <color name="widget_preview_sub">#B5AEA3</color>
+    <color name="window_background">#15181C</color>
+    <color name="widget_background">#1A1D22</color>
+    <color name="widget_preview_main">#E8EAED</color>
+    <color name="widget_preview_sub">#A9AFB8</color>
 </resources>

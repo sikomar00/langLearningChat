@@ -11,8 +11,22 @@ import java.util.Locale
 
 enum class EntryState { NEW, DUE, LATER }
 
-/** 문장 하나의 복습 상태. 영어·스페인어 카드가 둘 다 있으면 둘을 합쳐서 본다. */
-data class EntryProgress(val state: EntryState, val nextDueAt: Long?, val lapses: Int)
+/**
+ * 문장 하나의 복습 상태. 영어·스페인어 카드가 둘 다 있으면 둘을 합쳐서 본다.
+ * [stage]는 익힌 단계 0~5: 가장 오래 기억한 카드의 간격으로 정한다(0 새 문장, 5 익힘 = 21일 이상).
+ */
+data class EntryProgress(val state: EntryState, val nextDueAt: Long?, val lapses: Int, val stage: Int = 0)
+
+const val MAX_STAGE = 5
+
+/** 복습 간격(일) → 익힌 단계 1~5. */
+fun stageOf(intervalDays: Double): Int = when {
+    intervalDays < 1 -> 1
+    intervalDays < 3 -> 2
+    intervalDays < 7 -> 3
+    intervalDays < 21 -> 4
+    else -> MAX_STAGE
+}
 
 enum class LibrarySort(val label: String) { RECENT("최근 저장"), DUE("복습 기한"), LAPSES("많이 틀린 순") }
 enum class StatusFilter(val label: String) { ALL("전체"), UNREVIEWED("복습 안 한 것"), STRUGGLING("자주 틀린 것") }
@@ -27,7 +41,8 @@ fun progressOf(cards: List<ReviewCardEntity>, now: Long): EntryProgress {
         cards.any { it.dueAt <= now } -> EntryState.DUE // 아직 안 한 짝 카드가 기한이어도 "복습할 차례"
         else -> EntryState.LATER
     }
-    return EntryProgress(state, nextDue, lapses)
+    val stage = cards.filter { it.lastReviewedAt != null }.maxOfOrNull { stageOf(it.intervalDays) } ?: 0
+    return EntryProgress(state, nextDue, lapses, stage)
 }
 
 fun dueBadge(p: EntryProgress, now: Long): String = when (p.state) {

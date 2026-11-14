@@ -39,7 +39,7 @@ fun NotionSettings(vm: SettingsViewModel) {
         "속성 이름이 문장(제목)·뜻·언어·종류·사람·나라·태그·문법·메모·저장일이면 그 칸을 채워요. 없는 칸은 건너뛰어요.",
         style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
-    Button(enabled = token.isNotBlank() && link.isNotBlank() && !checking, onClick = {
+    Button(shape = MaterialTheme.shapes.medium, enabled = token.isNotBlank() && link.isNotBlank() && !checking, onClick = {
         checking = true
         scope.launch {
             result = try {

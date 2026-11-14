@@ -1,5 +1,6 @@
 package com.chatlearn
 
+import com.chatlearn.ui.components.BoardSearchBar
 import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -35,6 +36,9 @@ import com.chatlearn.ui.review.ReviewScreen
 import com.chatlearn.ui.review.ReviewViewModel
 import com.chatlearn.ui.settings.SettingsScreen
 import com.chatlearn.ui.settings.SettingsViewModel
+import com.chatlearn.ui.components.BoardTopBar
+import com.chatlearn.ui.components.BoardLabel
+import com.chatlearn.ui.theme.statusColors
 import com.chatlearn.ui.translate.TranslateScreen
 import com.chatlearn.ui.translate.TranslateViewModel
 import com.chatlearn.ui.translate.canReturnText
@@ -133,19 +137,22 @@ class MainActivity : ComponentActivity() {
             val settings by c.settings.settings.collectAsStateWithLifecycle(initialValue = null)
             val themeMode = settings?.let { ThemeMode.fromName(it.themeMode) }
             val dark = (themeMode ?: ThemeMode.SYSTEM).isDark(androidx.compose.foundation.isSystemInDarkTheme())
-            // 상태 표시줄·내비게이션 바 아이콘 색도 앱 밝기를 따른다(휴대폰과 다르게 고정했을 때).
-            DisposableEffect(dark) {
-                enableEdgeToEdge(
-                    statusBarStyle = SystemBarStyle.auto(android.graphics.Color.TRANSPARENT, android.graphics.Color.TRANSPARENT) { dark },
-                    navigationBarStyle = SystemBarStyle.auto(LIGHT_NAV_SCRIM, DARK_NAV_SCRIM) { dark },
-                )
-                onDispose {}
-            }
             LaunchedEffect(themeMode) { themeMode?.let(::applyNightMode) }
             AppTheme(darkTheme = dark, dynamicColor = settings?.dynamicColor ?: false) {
                 // 회전·프로세스 재생성 뒤에도 보던 탭과 덮어 연 화면을 유지한다.
                 var tab by rememberSaveable { mutableStateOf(Tab.TODAY) }
                 var overlay by rememberSaveable { mutableStateOf<Overlay?>(null) }
+                // 검은 안내판 막대가 맨 위에 있는 동안(탭·설정·복습) 상태 표시줄 아이콘은 흰색, 첫 안내 화면만 앱 밝기를 따른다.
+                val boardOnTop = overlay != Overlay.ONBOARDING
+                DisposableEffect(dark, boardOnTop, overlay == null) {
+                    enableEdgeToEdge(
+                        statusBarStyle = if (boardOnTop) SystemBarStyle.dark(android.graphics.Color.TRANSPARENT)
+                        else SystemBarStyle.auto(android.graphics.Color.TRANSPARENT, android.graphics.Color.TRANSPARENT) { dark },
+                        navigationBarStyle = if (overlay == null) SystemBarStyle.dark(DARK_NAV_SCRIM)
+                        else SystemBarStyle.auto(LIGHT_NAV_SCRIM, DARK_NAV_SCRIM) { dark },
+                    )
+                    onDispose {}
+                }
                 var firstRunChecked by rememberSaveable { mutableStateOf(false) }
                 val reviewVm: ReviewViewModel = viewModel(factory = factory)
                 val translateVm: TranslateViewModel = viewModel(factory = factory)
@@ -201,24 +208,38 @@ class MainActivity : ComponentActivity() {
                     }
                     Overlay.SETTINGS -> Surface(Modifier.fillMaxSize()) {
                         BackHandler(onBack = closeOverlay)
-                        Column(Modifier.fillMaxSize().systemBarsPadding()) {
-                            Row(Modifier.fillMaxWidth().heightIn(min = 56.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.fillMaxSize().navigationBarsPadding()) {
+                            BoardTopBar("설정", navigationIcon = {
                                 IconButton(onClick = closeOverlay) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "뒤로") }
-                                Text("설정", style = MaterialTheme.typography.titleLarge)
-                            }
+                            })
                             SettingsScreen(viewModel(factory = factory), onPreviewVoice = { lang -> c.tts.speak(voiceSample(lang), lang, false) })
                         }
                     }
                     null -> {
                         // 첫 화면(오늘)이 아닌 탭에서 뒤로가기를 누르면 앱을 끝내지 않고 오늘 탭으로 돌아간다.
                         BackHandler(enabled = tab != Tab.TODAY) { tab = Tab.TODAY }
-                        val due = todayVm.ui.collectAsStateWithLifecycle().value?.due ?: 0
+                        val todayUi = todayVm.ui.collectAsStateWithLifecycle().value
+                        val due = todayUi?.due ?: 0
+                        val world = MaterialTheme.statusColors
+                        val navColors = NavigationBarItemDefaults.colors(
+                            selectedIconColor = world.onFlap, indicatorColor = world.flap,
+                            selectedTextColor = world.flap, unselectedIconColor = world.onBoardMuted, unselectedTextColor = world.onBoardMuted,
+                        )
                         Scaffold(
+                            topBar = {
+                                val query by libraryVm.query.collectAsStateWithLifecycle()
+                                if (tab == Tab.LIBRARY) BoardSearchBar(query, { libraryVm.query.value = it }) {
+                                    IconButton(onClick = { overlay = Overlay.SETTINGS }) { Icon(Icons.Default.Settings, contentDescription = "설정") }
+                                } else BoardTopBar(tab.label) {
+                                    todayUi?.streak?.takeIf { it > 0 && tab == Tab.TODAY }?.let { BoardLabel("${it}일 연속", color = world.onBoardMuted) }
+                                    IconButton(onClick = { overlay = Overlay.SETTINGS }) { Icon(Icons.Default.Settings, contentDescription = "설정") }
+                                }
+                            },
                             bottomBar = {
-                                NavigationBar {
+                                NavigationBar(containerColor = world.board) {
                                     Tab.entries.forEach { t ->
                                         NavigationBarItem(
-                                            selected = tab == t, onClick = { tab = t }, label = { Text(t.label) },
+                                            selected = tab == t, onClick = { tab = t }, label = { Text(t.label) }, colors = navColors,
                                             icon = {
                                                 val icon = when (t) {
                                                     Tab.TODAY -> if (tab == t) Icons.Filled.WbSunny else Icons.Outlined.WbSunny
@@ -226,7 +247,7 @@ class MainActivity : ComponentActivity() {
                                                     Tab.LIBRARY -> if (tab == t) Icons.Filled.Bookmarks else Icons.Outlined.Bookmarks
                                                     Tab.GROWTH -> if (tab == t) Icons.Filled.Insights else Icons.Outlined.Insights
                                                 }
-                                                if (t == Tab.TODAY && due > 0) BadgedBox(badge = { Badge { Text("$due") } }) { Icon(icon, contentDescription = "복습할 카드 ${due}장") }
+                                                if (t == Tab.TODAY && due > 0 && tab != Tab.TODAY) BadgedBox(badge = { Badge(containerColor = world.flap, contentColor = world.onFlap) { Text("$due") } }) { Icon(icon, contentDescription = "복습할 카드 ${due}장") }
                                                 else Icon(icon, contentDescription = null)
                                             },
                                         )
@@ -244,7 +265,6 @@ class MainActivity : ComponentActivity() {
                                                 onLearnMore = { openReview { reviewVm.learnMore(5) } },
                                                 onGoTranslate = { tab = Tab.TRANSLATE },
                                                 onOpenLibrary = { tab = Tab.LIBRARY },
-                                                onOpenSettings = { overlay = Overlay.SETTINGS },
                                                 onPractice = practice,
                                             )
                                             Tab.TRANSLATE -> TranslateScreen(

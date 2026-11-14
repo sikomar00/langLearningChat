@@ -21,6 +21,13 @@ class LibraryOrderTest {
     private fun item(id: Long, created: Long) =
         LibraryItem(EntryEntity(id, created, Direction.RECEIVED, Lang.EN, "", null), mapOf(Lang.EN to "t$id", Lang.KO to "k$id"), emptyList())
 
+    @Test fun learnedStageFollowsTheLongestRememberedInterval() {
+        assertEquals(listOf(1, 2, 3, 4, 5), listOf(0.5, 2.0, 5.0, 14.0, 30.0).map(::stageOf))
+        val c = card(1, now + 9 * day).copy(intervalDays = 9.0)
+        assertEquals(4, progressOf(listOf(card(1, now + day), c, card(1, now, reviewed = null, lang = Lang.ES).copy(intervalDays = 40.0)), now).stage)
+        assertEquals(0, progressOf(listOf(card(1, now - 5, reviewed = null)), now).stage)
+    }
+
     @Test fun unreviewedCardsAreNew() {
         val p = progressOf(listOf(card(1, now - 5, reviewed = null)), now)
         assertEquals(EntryState.NEW, p.state)

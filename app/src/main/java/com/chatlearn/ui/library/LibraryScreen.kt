@@ -1,5 +1,6 @@
 package com.chatlearn.ui.library
 
+import androidx.compose.material.icons.filled.CreateNewFolder
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -76,6 +77,8 @@ fun LibraryScreen(
     }
     LaunchedEffect(pendingDelete) {
         if (pendingDelete != null) {
+            // 처음 안내 알림이 떠 있어도 되돌리기가 그 뒤에 줄 서지 않게 먼저 닫는다.
+            snackbar.currentSnackbarData?.dismiss()
             val r = snackbar.showSnackbar("삭제했어요", actionLabel = "되돌리기", duration = SnackbarDuration.Indefinite)
             if (r == SnackbarResult.ActionPerformed) vm.undoDelete()
         } else snackbar.currentSnackbarData?.dismiss()
@@ -98,12 +101,13 @@ fun LibraryScreen(
             val sendingToNotion by vm.sendingToNotion.collectAsStateWithLifecycle()
             @OptIn(ExperimentalLayoutApi::class)
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Button(enabled = chosen.isNotEmpty(), onClick = { onStartReview(chosen, lang); picked = null }) { Text("선택 복습") }
-                OutlinedButton(enabled = chosen.isNotEmpty() && !sendingToNotion, onClick = { vm.sendToNotion(chosen) }) { Text(if (sendingToNotion) "보내는 중…" else "노션") }
-                OutlinedButton(enabled = chosen.isNotEmpty(), onClick = { moveTargets = chosen }) {
+                Button(shape = MaterialTheme.shapes.medium, enabled = chosen.isNotEmpty(), onClick = { onStartReview(chosen, lang); picked = null }) { Text("선택 복습") }
+                OutlinedButton(shape = MaterialTheme.shapes.medium, enabled = chosen.isNotEmpty() && !sendingToNotion, onClick = { vm.sendToNotion(chosen) }) { Text(if (sendingToNotion) "보내는 중…" else "노션") }
+                OutlinedButton(shape = MaterialTheme.shapes.medium, enabled = chosen.isNotEmpty(), onClick = { moveTargets = chosen }) {
                     Icon(Icons.Default.Folder, contentDescription = null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("폴더로")
                 }
                 OutlinedButton(
+                    shape = MaterialTheme.shapes.medium,
                     enabled = chosen.isNotEmpty(), onClick = { confirmBulkDelete = true },
                     colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
                 ) { Icon(Icons.Default.Delete, contentDescription = null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("삭제") }
@@ -124,12 +128,24 @@ fun LibraryScreen(
         val activeFilters = listOf(lang != null, tag != null, statusFilter != StatusFilter.ALL, sort != LibrarySort.RECENT).count { it }
 
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-            OutlinedTextField(
-                value = query, onValueChange = { vm.query.value = it }, modifier = Modifier.weight(1f), singleLine = true,
-                placeholder = { Text("문장 검색") }, shape = MaterialTheme.shapes.extraLarge,
-                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
-                trailingIcon = if (query.isNotEmpty()) ({ IconButton(onClick = { vm.query.value = "" }) { Icon(Icons.Default.Close, contentDescription = "검색어 지우기") } }) else null,
-            )
+            // 폴더: 전체 / 폴더 없음 / 각 폴더 / 새 폴더
+            LazyRow(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                item { FilterChip(selected = folderFilter == null, onClick = { vm.folderFilter.value = null }, label = { Text("전체") }) }
+                if (folders.isNotEmpty() && (folderCounts[FOLDER_UNFILED] ?: 0) > 0) item {
+                    FilterChip(
+                        selected = folderFilter == FOLDER_UNFILED, onClick = { vm.folderFilter.value = if (folderFilter == FOLDER_UNFILED) null else FOLDER_UNFILED },
+                        label = { Text("폴더 없음 ${folderCounts[FOLDER_UNFILED] ?: 0}") },
+                    )
+                }
+                items(folders, key = { it.id }) { f ->
+                    FilterChip(
+                        selected = folderFilter == f.id, onClick = { vm.folderFilter.value = if (folderFilter == f.id) null else f.id },
+                        leadingIcon = { Icon(if (folderFilter == f.id) Icons.Default.FolderOpen else Icons.Default.Folder, contentDescription = null, Modifier.size(18.dp)) },
+                        label = { Text("${f.name} ${folderCounts[f.id] ?: 0}") },
+                    )
+                }
+                item { AssistChip(onClick = { folderDialog = FolderDialogKind.Create }, label = { Text("새 폴더") }, leadingIcon = { Icon(Icons.Default.CreateNewFolder, contentDescription = null, Modifier.size(18.dp)) }) }
+            }
             TextButton(onClick = { showFilters = !showFilters }) { Text(if (activeFilters > 0) "필터 · $activeFilters" else "필터") }
             if (tags.isNotEmpty() || unexpanded > 0 || missingKeys > 0) {
                 Box {
@@ -159,24 +175,6 @@ fun LibraryScreen(
                     }
                 }
             }
-        }
-        // 폴더: 전체 / 폴더 없음 / 각 폴더 / 새 폴더
-        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-            item { FilterChip(selected = folderFilter == null, onClick = { vm.folderFilter.value = null }, label = { Text("전체") }) }
-            if (folders.isNotEmpty() && (folderCounts[FOLDER_UNFILED] ?: 0) > 0) item {
-                FilterChip(
-                    selected = folderFilter == FOLDER_UNFILED, onClick = { vm.folderFilter.value = if (folderFilter == FOLDER_UNFILED) null else FOLDER_UNFILED },
-                    label = { Text("폴더 없음 ${folderCounts[FOLDER_UNFILED] ?: 0}") },
-                )
-            }
-            items(folders, key = { it.id }) { f ->
-                FilterChip(
-                    selected = folderFilter == f.id, onClick = { vm.folderFilter.value = if (folderFilter == f.id) null else f.id },
-                    leadingIcon = { Icon(if (folderFilter == f.id) Icons.Default.FolderOpen else Icons.Default.Folder, contentDescription = null, Modifier.size(18.dp)) },
-                    label = { Text("${f.name} ${folderCounts[f.id] ?: 0}") },
-                )
-            }
-            item { AssistChip(onClick = { folderDialog = FolderDialogKind.Create }, label = { Text("+ 폴더") }) }
         }
         folders.firstOrNull { it.id == folderFilter }?.let { f ->
             Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -301,12 +299,11 @@ fun LibraryScreen(
             } else if (statusFilter != StatusFilter.ALL || query.isNotBlank() || lang != null || tag != null) {
                 EmptyState("조건에 맞는 문장이 없어요.", icon = Icons.Default.SearchOff)
             } else EmptyState("저장된 문장이 없어요.\n번역 탭에서 문장을 저장해 보세요.", icon = Icons.Default.Book, actionLabel = "번역하러 가기", onAction = onGoTranslate)
-        } else if (picked == null && showGestureHint) {
-            // 한 번 익히면 필요 없는 안내라 닫을 수 있게 한다(닫으면 다시 나오지 않는다).
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("길게 누르면 여러 개 선택 · 오른쪽으로 밀면 폴더 이동 · 왼쪽으로 밀면 삭제", Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
-                IconButton(onClick = onDismissGestureHint) { Icon(Icons.Default.Close, contentDescription = "안내 닫기") }
-            }
+        }
+        // 한 번 익히면 필요 없는 안내: 첫 화면을 차지하지 않게 한 번만 알림으로 띄우고, 닫으면 다시 나오지 않는다.
+        if (items.isNotEmpty() && showGestureHint && picked == null) LaunchedEffect(Unit) {
+            snackbar.showSnackbar("길게 누르면 여러 개 선택 · 오른쪽으로 밀면 폴더 이동 · 왼쪽으로 밀면 삭제", actionLabel = "알겠어요", duration = SnackbarDuration.Long)
+            onDismissGestureHint()
         }
         // 많이 틀린 순으로 볼 때는 순서 자체가 의미라서 묶지 않는다.
         val effective = if (sort == LibrarySort.LAPSES) GroupBy.NONE else groupBy
@@ -314,12 +311,13 @@ fun LibraryScreen(
         val today = java.time.LocalDate.now()
         val groups: List<LibGroup> = remember(effective, items, progress, today) {
             when (effective) {
-                GroupBy.STATE -> groupByState(items, progress).map { (st, l) -> LibGroup("s-$st", stateTitle(st), l, st) }
+                GroupBy.STATE -> groupByState(items, progress).map { (st, l) -> LibGroup("s-$st", boardTitle(st), l, st) }
                 GroupBy.DATE -> groupByDate(items, ZoneId.systemDefault(), today).map { (t, l) -> LibGroup("d-$t", t, l, null) }
                 GroupBy.TAG -> groupByTag(items).map { (t, l) -> LibGroup("t-$t", t, l, null) }
                 GroupBy.NONE -> listOf(LibGroup("all", null, items, null))
             }
         }
+        if (compact && items.isNotEmpty() && picked == null) BoardColumns()
         LazyColumn(state = listState, verticalArrangement = Arrangement.spacedBy(if (compact) 0.dp else 8.dp)) {
             groups.forEach { g ->
                 if (g.title != null) stickyHeader(key = "header-${g.key}") { GroupHeader(g.title, g.items.size) }
@@ -336,7 +334,7 @@ fun LibraryScreen(
                         onMove = { moveTargets = setOf(id) },
                         onDelete = { if (selectedId == id) selectedId = null; vm.delete(id) },
                     ) {
-                        if (compact) CompactRow(item, badge, p?.state == EntryState.DUE, folderName, picked != null, id in chosen, onClick, onLongClick)
+                        if (compact) CompactRow(item, p, now, folderName, picked != null, id in chosen, onClick, onLongClick)
                         else EntryCard(item, badge, p?.state == EntryState.DUE, folderName, picked != null, id in chosen, onClick, onLongClick)
                     }
                 }

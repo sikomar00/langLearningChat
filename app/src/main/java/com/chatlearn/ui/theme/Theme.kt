@@ -11,53 +11,70 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 
 // surfaceContainer 단계까지 모두 정해 둔다. 비워 두면 M3 기본색(보라 기운)이 섞인다.
-// 주 버튼(primary)은 먹색, tertiary는 형광펜, error는 빨간 펜. 선택 표시(secondaryContainer)는 먹으로 진하게(종이와 대비).
+// 주 버튼(primary)은 안내판 검정, 선택 표시(secondaryContainer: 칩·내비게이션)는 플랩 호박,
+// tertiary는 읽을 수 있는 짙은 호박(핵심 표현·거의 맞음·폴더), error는 지연 빨강.
 internal val LightScheme = lightColorScheme(
-    primary = Ink, onPrimary = Paper,
-    primaryContainer = Color(0xFFE9E2D5), onPrimaryContainer = Ink,
-    secondary = Pencil, onSecondary = Paper,
-    secondaryContainer = Color(0xFF3A3732), onSecondaryContainer = Paper,
-    tertiary = Highlighter, onTertiary = Color.White,
-    tertiaryContainer = HighlighterContainer, onTertiaryContainer = OnHighlighterContainer,
-    background = Paper, onBackground = Ink,
-    surface = Paper, onSurface = Ink,
-    surfaceVariant = Color(0xFFEDE7DC), onSurfaceVariant = Pencil,
-    surfaceContainerLowest = Color(0xFFFFFDF8),
-    surfaceContainerLow = Color(0xFFF5F1E8),
-    surfaceContainer = PaperDeep,
-    surfaceContainerHigh = Color(0xFFEAE4D8),
-    surfaceContainerHighest = Color(0xFFE4DDD0),
-    outline = Color(0xFF8A847A), outlineVariant = Rule,
-    inverseSurface = Color(0xFF2E2C29), inverseOnSurface = Paper,
-    error = RedPen, onError = Color.White,
-    errorContainer = RedPenContainer, onErrorContainer = OnRedPenContainer,
+    primary = Ink, onPrimary = Stock,
+    primaryContainer = Color(0xFFE4E7EB), onPrimaryContainer = Ink,
+    secondary = InkSoft, onSecondary = Stock,
+    secondaryContainer = Flap, onSecondaryContainer = Ink,
+    tertiary = FlapInk, onTertiary = Stock,
+    tertiaryContainer = Color(0xFFFFE7A3), onTertiaryContainer = Color(0xFF2B1D00),
+    background = Concourse, onBackground = Ink,
+    surface = Concourse, onSurface = Ink,
+    surfaceVariant = Color(0xFFE4E7EB), onSurfaceVariant = InkSoft,
+    surfaceContainerLowest = Stock,
+    surfaceContainerLow = Color(0xFFF7F8F9),
+    surfaceContainer = Color(0xFFECEEF1),
+    surfaceContainerHigh = Color(0xFFE4E7EB),
+    surfaceContainerHighest = Color(0xFFDADDE2),
+    outline = Color(0xFF7D838C), outlineVariant = Rule,
+    // 알림(스낵바) 동작 글자: 검은 판 위 호박. 비워 두면 M3 기본 보라가 나온다.
+    inverseSurface = Board, inverseOnSurface = Stock, inversePrimary = Flap,
+    error = Delayed, onError = Stock,
+    errorContainer = Color(0xFFFCE1DE), onErrorContainer = Color(0xFF410E0A),
 )
 
 internal val DarkScheme = darkColorScheme(
-    primary = Chalk, onPrimary = Carbon,
-    primaryContainer = Color(0xFF34302B), onPrimaryContainer = Chalk,
-    secondary = ChalkSoft, onSecondary = Carbon,
-    secondaryContainer = Chalk, onSecondaryContainer = Carbon,
-    tertiary = HighlighterLight, onTertiary = Color(0xFF2A1B00),
-    tertiaryContainer = HighlighterDeep, onTertiaryContainer = HighlighterContainer,
-    background = Carbon, onBackground = Chalk,
-    surface = Carbon, onSurface = Chalk,
-    surfaceVariant = Color(0xFF2D2A27), onSurfaceVariant = ChalkSoft,
-    surfaceContainerLowest = Color(0xFF121110),
-    surfaceContainerLow = Color(0xFF1E1C1A),
-    surfaceContainer = Color(0xFF23211E),
-    surfaceContainerHigh = Color(0xFF2D2A27),
-    surfaceContainerHighest = Color(0xFF383430),
-    outline = Color(0xFF8F897F), outlineVariant = CarbonRule,
-    inverseSurface = Chalk, inverseOnSurface = Carbon,
-    error = RedPenLight, onError = OnRedPenLight,
-    errorContainer = RedPenDeep, onErrorContainer = Color(0xFFFFDBCC),
+    primary = NightInk, onPrimary = Ink,
+    primaryContainer = Color(0xFF2A2F37), onPrimaryContainer = NightInk,
+    secondary = NightInkSoft, onSecondary = Ink,
+    secondaryContainer = Flap, onSecondaryContainer = Ink,
+    tertiary = Flap, onTertiary = Ink,
+    tertiaryContainer = Color(0xFF4A3500), onTertiaryContainer = Color(0xFFFFE7A3),
+    background = NightGround, onBackground = NightInk,
+    surface = NightGround, onSurface = NightInk,
+    surfaceVariant = Color(0xFF23272E), onSurfaceVariant = NightInkSoft,
+    // 줄·탑승권(Lowest)은 바탕보다 한 단 밝게: 밤에도 안내판 검정과 줄이 구분된다.
+    surfaceContainerLowest = Color(0xFF1F2329),
+    surfaceContainerLow = Color(0xFF1A1D21),
+    surfaceContainer = Color(0xFF23272D),
+    surfaceContainerHigh = Color(0xFF2A2F36),
+    surfaceContainerHighest = Color(0xFF333840),
+    outline = Color(0xFF7A808A), outlineVariant = NightRule,
+    inverseSurface = NightInk, inverseOnSurface = Ink, inversePrimary = FlapInk,
+    error = DelayedLight, onError = Color(0xFF410E0A),
+    errorContainer = Color(0xFF6B1F18), onErrorContainer = Color(0xFFFFDAD5),
 )
 
-/** M3 스킴에 없는 의미 색: 성공(기억함)과 빨간 펜 도장(목표 달성) 색. */
-data class StatusColors(val success: Color, val accent: Color = RedPen, val onAccent: Color = Color.White)
+/**
+ * M3 스킴에 없는 세계의 색: 맞음(정시 출발 초록), 안내판 검정과 그 위 글자, 플랩 호박(지금 할 일).
+ * 안내판·플랩은 배경화면 색(동적 색)을 켜도 바뀌지 않으므로 그 위 글자색([onFlap])도 함께 고정한다.
+ * [flapGraphic]은 밝은 바탕 위 호박 그림, [segmentOff]는 불빛 칸의 꺼진 칸.
+ */
+data class StatusColors(
+    val success: Color,
+    val board: Color = Board,
+    val boardRaised: Color = BoardRaised,
+    val onBoard: Color = Stock,
+    val onBoardMuted: Color = OnBoardMuted,
+    val flap: Color = Flap,
+    val onFlap: Color = Ink,
+    val flapGraphic: Color = FlapGraphic,
+    val segmentOff: Color = Rule,
+)
 
-private val LocalStatusColors = staticCompositionLocalOf { StatusColors(Leaf) }
+private val LocalStatusColors = staticCompositionLocalOf { StatusColors(OnTime) }
 
 val MaterialTheme.statusColors: StatusColors
     @Composable get() = LocalStatusColors.current
@@ -74,7 +91,8 @@ fun AppTheme(darkTheme: Boolean = isSystemInDarkTheme(), dynamicColor: Boolean =
         darkTheme -> DarkScheme
         else -> LightScheme
     }
-    val status = if (darkTheme) StatusColors(success = LeafLight, accent = RedPenLight, onAccent = OnRedPenLight) else StatusColors(success = Leaf)
+    val status = if (darkTheme) StatusColors(success = OnTimeLight, board = NightBoard, flapGraphic = Flap, segmentOff = NightSegmentOff)
+    else StatusColors(success = OnTime)
     CompositionLocalProvider(LocalStatusColors provides status) {
         // Expressive 모션 스킴: 버튼·칩·내비게이션 등 컴포넌트의 상태 전환이 스프링 물리로 움직인다.
         androidx.compose.material3.MaterialExpressiveTheme(

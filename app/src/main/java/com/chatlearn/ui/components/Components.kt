@@ -47,7 +47,7 @@ fun EmptyState(
     ) {
         icon?.let { Icon(it, contentDescription = null, Modifier.size(40.dp), tint = MaterialTheme.colorScheme.outline) }
         Text(message, style = MaterialTheme.typography.bodyLarge, textAlign = TextAlign.Center, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        if (actionLabel != null && onAction != null) FilledTonalButton(onClick = onAction) { Text(actionLabel) }
+        if (actionLabel != null && onAction != null) FilledTonalButton(shape = MaterialTheme.shapes.medium, onClick = onAction) { Text(actionLabel) }
     }
 }
 
@@ -82,7 +82,7 @@ fun SwitchRow(title: String, description: String?, checked: Boolean, onCheckedCh
     }
 }
 
-/** 제목이 있는 묶음: 공책의 줄처럼 가는 구분선 아래 제목과 내용(바탕을 칠하지 않는다). */
+/** 제목이 있는 묶음: 가는 구분선 아래 제목과 내용(바탕을 칠하지 않는다). */
 @Composable
 fun SectionCard(title: String, modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
     Column(modifier.fillMaxWidth()) {

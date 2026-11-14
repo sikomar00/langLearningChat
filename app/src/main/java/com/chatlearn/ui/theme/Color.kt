@@ -2,32 +2,33 @@ package com.chatlearn.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-// 브랜드: 친구와 나눈 말을 공책에 옮겨 적고 빨간 펜으로 고쳐 가며 배운다.
-// 큰 면은 종이·먹 무채색. 색은 뜻이 있을 때만: 빨간 펜(틀림·고칠 곳·삭제), 형광펜(거의 맞음·핵심 표현·폴더), 초록(맞음).
-// 글자에 쓰는 색은 배경 대비 4.5:1 이상.
+// 세계: 출국장의 출발 안내판과 탑승권. 문장마다 친구에게 가는 탑승권, 라이브러리는 출발 안내판.
+// 안내판 검정이 위·아래 막대와 열 머리를 칠하고, 호박색은 지금 할 일과 선택에만 쓴다.
+// 글자에 쓰는 색은 배경 대비 4.5:1 이상(호박색 바탕 위 글자는 늘 먹색).
 
-// 라이트: 종이와 먹
-internal val Paper = Color(0xFFFAF7F0)
-internal val PaperDeep = Color(0xFFF0EBE1)
-internal val Ink = Color(0xFF1C1B19)
-internal val Pencil = Color(0xFF625D55)
-internal val Rule = Color(0xFFE4DED3)
-internal val RedPen = Color(0xFFB8401F)
-internal val RedPenContainer = Color(0xFFF8E1D6)
-internal val OnRedPenContainer = Color(0xFF3D1204)
-internal val Highlighter = Color(0xFF7A5200)
-internal val HighlighterContainer = Color(0xFFF5E2B8)
-internal val OnHighlighterContainer = Color(0xFF2A1B00)
-internal val Leaf = Color(0xFF2F6B3A)
+// 라이트: 대합실 바탕과 탑승권 용지
+internal val Board = Color(0xFF15181D)
+internal val BoardRaised = Color(0xFF2A2F37)
+internal val OnBoardMuted = Color(0xFFAEB4BD)
+internal val Flap = Color(0xFFF6B400)
+internal val Concourse = Color(0xFFF2F3F5)
+internal val Stock = Color(0xFFFFFFFF)
+internal val Ink = Color(0xFF15181D)
+internal val InkSoft = Color(0xFF5B616B)
+internal val Rule = Color(0xFFE1E3E7)
+internal val FlapInk = Color(0xFF7A5400)
+// 밝은 바탕 위 호박 그림(오늘 막대·켜진 칸·지금 복습 선): 바탕 대비 3.5:1, 꺼진 칸 대비 3:1.
+internal val FlapGraphic = Color(0xFFA87800)
+internal val Delayed = Color(0xFFC0322A)
+internal val OnTime = Color(0xFF2E7D4F)
 
-// 다크: 먹지와 분필
-internal val Carbon = Color(0xFF171614)
-internal val Chalk = Color(0xFFEDE8DF)
-internal val ChalkSoft = Color(0xFFB5AEA3)
-internal val CarbonRule = Color(0xFF3D3934)
-internal val RedPenLight = Color(0xFFF08A5D)
-internal val OnRedPenLight = Color(0xFF3D1204)
-internal val RedPenDeep = Color(0xFF6B2A12)
-internal val LeafLight = Color(0xFF8CC79A)
-internal val HighlighterLight = Color(0xFFE5BE6A)
-internal val HighlighterDeep = Color(0xFF5A3D00)
+// 다크: 밤의 출국장
+internal val NightGround = Color(0xFF15181C)
+internal val NightBoard = Color(0xFF050607)
+internal val NightInk = Color(0xFFE8EAED)
+internal val NightInkSoft = Color(0xFFA9AFB8)
+internal val NightRule = Color(0xFF2C3037)
+// 다크의 꺼진 칸: 줄 바탕에서 보이고 켜진 칸(플랩)과 4.5:1.
+internal val NightSegmentOff = Color(0xFF4A5059)
+internal val DelayedLight = Color(0xFFFF8A7A)
+internal val OnTimeLight = Color(0xFF7FCB98)

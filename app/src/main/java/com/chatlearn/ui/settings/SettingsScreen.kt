@@ -91,12 +91,12 @@ fun SettingsScreen(vm: SettingsViewModel, onPreviewVoice: (com.chatlearn.domain.
                 FilterChip(selected = model == preset, onClick = { model = preset }, label = { Text(preset) })
             }
         }
-        Button(onClick = { vm.saveKey(key); vm.saveModel(model); message = "저장했어요." }, Modifier.fillMaxWidth()) { Text("저장") }
+        Button(shape = MaterialTheme.shapes.medium, onClick = { vm.saveKey(key); vm.saveModel(model); message = "저장했어요." }, modifier = Modifier.fillMaxWidth()) { Text("저장") }
 
         var checking by remember { mutableStateOf(false) }
         var checkResult by remember { mutableStateOf<String?>(null) }
         var checkOk by remember { mutableStateOf(false) }
-        OutlinedButton(enabled = !checking, onClick = {
+        OutlinedButton(shape = MaterialTheme.shapes.medium, enabled = !checking, onClick = {
             checking = true; checkResult = null
             scope.launch {
                 // 입력한 값으로 확인하도록 먼저 저장을 끝낸다.
@@ -216,7 +216,7 @@ fun SettingsScreen(vm: SettingsViewModel, onPreviewVoice: (com.chatlearn.domain.
         Text("오늘 복습할 카드 수와 목표, 연속 학습일을 홈 화면에서 보고, 눌러서 바로 복습하거나 복사한 메시지를 번역해요.", style = MaterialTheme.typography.bodySmall)
         val canPin = remember { com.chatlearn.widget.canPinReviewWidget(ctx) }
         if (canPin) {
-            OutlinedButton(onClick = {
+            OutlinedButton(shape = MaterialTheme.shapes.medium, onClick = {
                 if (!com.chatlearn.widget.requestPinReviewWidget(ctx)) message = "위젯을 추가하지 못했어요. 홈 화면을 길게 눌러 위젯 목록에서 추가해 주세요."
             }) { Text("홈 화면에 위젯 추가") }
         } else {
@@ -230,8 +230,8 @@ fun SettingsScreen(vm: SettingsViewModel, onPreviewVoice: (com.chatlearn.domain.
         Text(com.chatlearn.settings.backupStatus(s.lastBackupAt, vm.now(), java.time.ZoneId.systemDefault()), style = MaterialTheme.typography.bodyMedium)
         if (backupDue) InfoMessage("휴대폰의 구글 백업이 꺼져 있거나 앱을 지우면 문장 ${entryCount}개가 사라질 수 있어요. 자동 백업 폴더를 고르거나 내보내기로 파일을 보관해 두세요.", MessageKind.ERROR)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedButton(onClick = { exportLauncher.launch("chatlearn-backup.json") }) { Text("내보내기") }
-            OutlinedButton(onClick = { importLauncher.launch(arrayOf("application/json", "*/*")) }) { Text("가져오기") }
+            OutlinedButton(shape = MaterialTheme.shapes.medium, onClick = { exportLauncher.launch("chatlearn-backup.json") }) { Text("내보내기") }
+            OutlinedButton(shape = MaterialTheme.shapes.medium, onClick = { importLauncher.launch(arrayOf("application/json", "*/*")) }) { Text("가져오기") }
         }
         Text("가져오면 지금 있는 데이터가 백업 파일의 내용으로 바뀝니다.", style = MaterialTheme.typography.bodySmall)
         AutoBackupFolder(s.autoBackupFolder, vm)
@@ -292,7 +292,7 @@ private fun AutoBackupFolder(folder: String, vm: SettingsViewModel) {
         style = MaterialTheme.typography.bodySmall,
     )
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        OutlinedButton(onClick = { pick.launch(null) }) { Text(if (folder.isBlank()) "폴더 고르기" else "폴더 바꾸기") }
+        OutlinedButton(shape = MaterialTheme.shapes.medium, onClick = { pick.launch(null) }) { Text(if (folder.isBlank()) "폴더 고르기" else "폴더 바꾸기") }
         if (folder.isNotBlank()) TextButton(onClick = { vm.saveAutoBackupFolder("") }) { Text("끄기") }
     }
 }

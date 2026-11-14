@@ -28,7 +28,7 @@ fun filterLibrary(items: List<LibraryItem>, query: String, lang: Lang?, tag: Str
         (folder == null || (if (folder == FOLDER_UNFILED) item.entry.folderId == null else item.entry.folderId == folder)) &&
             (lang == null || item.entry.chatLang == lang) &&
             (tag == null || tag in item.tags) &&
-            (q.isEmpty() || item.texts.values.any { it.contains(q, ignoreCase = true) })
+            (q.isEmpty() || item.texts.values.any { it.contains(q, ignoreCase = true) } || item.tags.any { it.contains(q, ignoreCase = true) })
     }
 }
 
