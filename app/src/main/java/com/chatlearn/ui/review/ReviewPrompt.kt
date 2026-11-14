@@ -1,5 +1,6 @@
 package com.chatlearn.ui.review
 
+import com.chatlearn.ui.theme.sentence
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.material.icons.Icons
@@ -47,7 +48,7 @@ internal fun PromptBody(s: ReviewUi.Prompt, vm: ReviewViewModel, canListen: Bool
         ExerciseKind.TRANSLATE -> {
             ChatBubble(outgoing = false) {
                 Text("${langLabel(lang)}로 말하면?", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Text(s.item.promptText, style = MaterialTheme.typography.headlineSmall)
+                Text(s.item.promptText, style = MaterialTheme.typography.headlineSmall.sentence())
             }
             OutlinedTextField(
                 s.answers[0], { vm.setAnswer(it) },

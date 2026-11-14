@@ -3,7 +3,6 @@ package com.chatlearn.ui.review
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.LocalFireDepartment
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -15,7 +14,6 @@ import androidx.compose.ui.unit.dp
 import com.chatlearn.review.GoalProgress
 import com.chatlearn.ui.components.ChatBubble
 import com.chatlearn.ui.components.EmptyState
-import com.chatlearn.ui.theme.statusColors
 
 internal const val LEARN_MORE = 5
 
@@ -38,7 +36,7 @@ internal fun DoneBody(sum: SessionSummary, onLearnMore: () -> Unit, onClose: () 
     }
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         SummaryStat("기억함", if (s.count > 0) "${remembered * 100 / s.count}%" else "-", Modifier.weight(1f))
-        // 둥근 숫자 서체에 한글 단위를 붙이면 기준선이 어긋나서, 단위는 아래 설명에 둔다.
+        // 큰 숫자에 한글 단위를 붙이면 기준선이 어긋나서, 단위는 아래 설명에 둔다.
         SummaryStat("일 연속", if (streak > 0) "$streak" else "-", Modifier.weight(1f))
         if (goal.enabled) SummaryStat("오늘 목표", "${goal.done}/${goal.goal}", Modifier.weight(1f))
     }

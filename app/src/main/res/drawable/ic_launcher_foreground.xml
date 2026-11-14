@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 겹친 말풍선 두 개: 뒤(흰색)는 받은 말, 앞(민트)은 내가 보낼 말. 글줄은 뚫려 배경색이 보인다.
+<!-- 겹친 말풍선 두 개: 뒤(종이색)는 받은 말, 앞(첨삭 주홍)은 내가 보낼 말. 글줄은 뚫려 배경색이 보인다.
      모양만으로 그려 모노크롬(테마 아이콘)에도 그대로 쓴다. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
@@ -11,19 +11,19 @@
             <!-- 앞 말풍선 둘레(틈 3)만큼 뒤 말풍선을 잘라 낸다 -->
             <clip-path android:pathData="M0,0H108V108H0Z M53,43a12,12 0 0 0 -12,12v10a12,12 0 0 0 12,12h18a12,12 0 0 0 12,-12v-10a12,12 0 0 0 -12,-12z" />
             <path
-                android:fillColor="#FFFFFF"
+                android:fillColor="#FAF7F0"
                 android:fillType="evenOdd"
                 android:pathData="M37,30h18a9,9 0 0 1 9,9v10a9,9 0 0 1 -9,9h-18a9,9 0 0 1 -9,-9v-10a9,9 0 0 1 9,-9z M36,38h18a2,2 0 0 1 0,4h-18a2,2 0 0 1 0,-4z" />
             <path
-                android:fillColor="#FFFFFF"
+                android:fillColor="#FAF7F0"
                 android:pathData="M32,52L29,66L43,57Z" />
         </group>
         <path
-            android:fillColor="#5EEAC0"
+            android:fillColor="#E8693F"
             android:fillType="evenOdd"
             android:pathData="M53,46h18a9,9 0 0 1 9,9v10a9,9 0 0 1 -9,9h-18a9,9 0 0 1 -9,-9v-10a9,9 0 0 1 9,-9z M52,54h20a2,2 0 0 1 0,4h-20a2,2 0 0 1 0,-4z M52,62h13a2,2 0 0 1 0,4h-13a2,2 0 0 1 0,-4z" />
         <path
-            android:fillColor="#5EEAC0"
+            android:fillColor="#E8693F"
             android:pathData="M74,70L77,80L64,73Z" />
     </group>
 </vector>

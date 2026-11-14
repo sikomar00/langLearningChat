@@ -20,7 +20,7 @@ import com.chatlearn.ui.theme.BubbleOut
 fun ChatBubble(
     outgoing: Boolean,
     modifier: Modifier = Modifier,
-    color: Color = if (outgoing) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerHigh,
+    color: Color = if (outgoing) MaterialTheme.colorScheme.inverseSurface else MaterialTheme.colorScheme.surfaceContainerHigh,
     fillWidth: Boolean = false,
     content: @Composable ColumnScope.() -> Unit,
 ) {

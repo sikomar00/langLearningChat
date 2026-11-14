@@ -82,11 +82,12 @@ fun SwitchRow(title: String, description: String?, checked: Boolean, onCheckedCh
     }
 }
 
-/** 제목이 있는 묶음. 강조는 오늘 화면의 말풍선에 맡기고, 여기는 옅은 바탕에 제목만 둔다. */
+/** 제목이 있는 묶음: 공책의 줄처럼 가는 구분선 아래 제목과 내용(바탕을 칠하지 않는다). */
 @Composable
 fun SectionCard(title: String, modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
-    Surface(modifier.fillMaxWidth(), color = MaterialTheme.colorScheme.surfaceContainerLow, shape = MaterialTheme.shapes.large) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    Column(modifier.fillMaxWidth()) {
+        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+        Column(Modifier.padding(vertical = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text(title, style = MaterialTheme.typography.titleMedium, modifier = Modifier.semantics { heading() })
             content()
         }
@@ -137,7 +138,7 @@ fun Stepper(label: String, saved: Int, onChange: (Int) -> Unit, spec: StepperSpe
         }
         Text(
             if (value == 0 && zeroLabel != null) zeroLabel else "$value",
-            style = MaterialTheme.typography.titleLarge.copy(fontFamily = com.chatlearn.ui.theme.Rounded),
+            style = MaterialTheme.typography.titleLarge,
             textAlign = TextAlign.Center, modifier = Modifier.widthIn(min = 56.dp),
         )
         FilledTonalIconButton(onClick = { set(value + step) }, enabled = value < range.last) {

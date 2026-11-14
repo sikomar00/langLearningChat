@@ -2,39 +2,22 @@ package com.chatlearn.ui.library
 
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Book
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.SearchOff
-import androidx.compose.foundation.background
-import com.chatlearn.ui.theme.statusColors
 import com.chatlearn.ui.components.EmptyState
-import com.chatlearn.ui.components.LabeledText
-import com.chatlearn.ui.components.SectionCard
 import com.chatlearn.ui.components.LoadingBox
-import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.FolderOpen
-import com.chatlearn.data.FolderEntity
-import com.chatlearn.ui.components.PastDatePickerDialog
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
-import com.chatlearn.data.RenameResult
-import com.chatlearn.domain.TextOrigin
-import com.chatlearn.stats.StatsCalculator
-import java.time.Instant
 import java.time.ZoneId
-import java.time.format.DateTimeFormatter
-import com.chatlearn.ui.translate.parseTags
-import com.chatlearn.ui.translate.suggestTags
 import kotlinx.coroutines.launch
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -44,8 +27,6 @@ import androidx.compose.runtime.*
 import androidx.activity.compose.BackHandler
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.chatlearn.data.LibraryItem
 import com.chatlearn.domain.Lang
@@ -355,8 +336,8 @@ fun LibraryScreen(
                         onMove = { moveTargets = setOf(id) },
                         onDelete = { if (selectedId == id) selectedId = null; vm.delete(id) },
                     ) {
-                        if (compact) CompactRow(item, badge, p?.state == EntryState.DUE, p?.state ?: EntryState.NEW, folderName, picked != null, id in chosen, onClick, onLongClick)
-                        else EntryCard(item, badge, p?.state == EntryState.DUE, p?.state ?: EntryState.NEW, folderName, picked != null, id in chosen, onClick, onLongClick)
+                        if (compact) CompactRow(item, badge, p?.state == EntryState.DUE, folderName, picked != null, id in chosen, onClick, onLongClick)
+                        else EntryCard(item, badge, p?.state == EntryState.DUE, folderName, picked != null, id in chosen, onClick, onLongClick)
                     }
                 }
             }

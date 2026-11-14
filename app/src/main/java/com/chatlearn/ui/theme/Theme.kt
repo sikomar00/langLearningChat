@@ -10,51 +10,54 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 
-// 카드·내비게이션이 쓰는 surfaceContainer 단계까지 모두 정해 둔다. 비워 두면 M3 기본 회색이 섞여 브랜드 색과 따로 논다.
+// surfaceContainer 단계까지 모두 정해 둔다. 비워 두면 M3 기본색(보라 기운)이 섞인다.
+// 주 버튼(primary)은 먹색, tertiary는 형광펜, error는 빨간 펜. 선택 표시(secondaryContainer)는 먹으로 진하게(종이와 대비).
 internal val LightScheme = lightColorScheme(
-    primary = Grape, onPrimary = Color.White,
-    primaryContainer = GrapeContainer, onPrimaryContainer = OnGrapeContainer,
-    secondary = MintInk, onSecondary = Color.White,
-    secondaryContainer = MintContainer, onSecondaryContainer = OnMintContainer,
-    tertiary = SunInk, onTertiary = Color.White,
-    tertiaryContainer = SunContainer, onTertiaryContainer = OnSunContainer,
+    primary = Ink, onPrimary = Paper,
+    primaryContainer = Color(0xFFE9E2D5), onPrimaryContainer = Ink,
+    secondary = Pencil, onSecondary = Paper,
+    secondaryContainer = Color(0xFF3A3732), onSecondaryContainer = Paper,
+    tertiary = Highlighter, onTertiary = Color.White,
+    tertiaryContainer = HighlighterContainer, onTertiaryContainer = OnHighlighterContainer,
     background = Paper, onBackground = Ink,
     surface = Paper, onSurface = Ink,
-    surfaceVariant = Color(0xFFE7DFF5), onSurfaceVariant = InkSoft,
-    surfaceContainerLowest = Color.White,
-    surfaceContainerLow = Color(0xFFF6F1FE),
-    surfaceContainer = Color(0xFFF1EBFC),
-    surfaceContainerHigh = Color(0xFFEBE4F8),
-    surfaceContainerHighest = Color(0xFFE5DDF4),
-    outline = Color(0xFF7B7392), outlineVariant = Color(0xFFCFC6E0),
-    error = Coral, onError = Color.White,
-    errorContainer = CoralContainer, onErrorContainer = OnCoralContainer,
+    surfaceVariant = Color(0xFFEDE7DC), onSurfaceVariant = Pencil,
+    surfaceContainerLowest = Color(0xFFFFFDF8),
+    surfaceContainerLow = Color(0xFFF5F1E8),
+    surfaceContainer = PaperDeep,
+    surfaceContainerHigh = Color(0xFFEAE4D8),
+    surfaceContainerHighest = Color(0xFFE4DDD0),
+    outline = Color(0xFF8A847A), outlineVariant = Rule,
+    inverseSurface = Color(0xFF2E2C29), inverseOnSurface = Paper,
+    error = RedPen, onError = Color.White,
+    errorContainer = RedPenContainer, onErrorContainer = OnRedPenContainer,
 )
 
 internal val DarkScheme = darkColorScheme(
-    primary = GrapeLight, onPrimary = OnGrapeLight,
-    primaryContainer = GrapeDeep, onPrimaryContainer = GrapeContainer,
-    secondary = MintLight, onSecondary = OnMintLight,
-    secondaryContainer = MintDeep, onSecondaryContainer = MintContainer,
-    tertiary = SunLight, onTertiary = OnSunLight,
-    tertiaryContainer = SunDeep, onTertiaryContainer = SunContainer,
-    background = Night, onBackground = NightInk,
-    surface = Night, onSurface = NightInk,
-    surfaceVariant = Color(0xFF3A3150), onSurfaceVariant = NightInkSoft,
-    surfaceContainerLowest = Color(0xFF0F0B1C),
-    surfaceContainerLow = Color(0xFF1C1630),
-    surfaceContainer = Color(0xFF211A36),
-    surfaceContainerHigh = Color(0xFF2B2342),
-    surfaceContainerHighest = Color(0xFF362D4E),
-    outline = Color(0xFF958DA9), outlineVariant = Color(0xFF4A4160),
-    error = CoralLight, onError = OnCoralLight,
-    errorContainer = CoralDeep, onErrorContainer = CoralContainer,
+    primary = Chalk, onPrimary = Carbon,
+    primaryContainer = Color(0xFF34302B), onPrimaryContainer = Chalk,
+    secondary = ChalkSoft, onSecondary = Carbon,
+    secondaryContainer = Chalk, onSecondaryContainer = Carbon,
+    tertiary = HighlighterLight, onTertiary = Color(0xFF2A1B00),
+    tertiaryContainer = HighlighterDeep, onTertiaryContainer = HighlighterContainer,
+    background = Carbon, onBackground = Chalk,
+    surface = Carbon, onSurface = Chalk,
+    surfaceVariant = Color(0xFF2D2A27), onSurfaceVariant = ChalkSoft,
+    surfaceContainerLowest = Color(0xFF121110),
+    surfaceContainerLow = Color(0xFF1E1C1A),
+    surfaceContainer = Color(0xFF23211E),
+    surfaceContainerHigh = Color(0xFF2D2A27),
+    surfaceContainerHighest = Color(0xFF383430),
+    outline = Color(0xFF8F897F), outlineVariant = CarbonRule,
+    inverseSurface = Chalk, inverseOnSurface = Carbon,
+    error = RedPenLight, onError = OnRedPenLight,
+    errorContainer = RedPenDeep, onErrorContainer = Color(0xFFFFDBCC),
 )
 
-/** M3 스킴에 없는 의미 색: 성공(기억함)과 축하·연속 기록용 햇살 채우기. */
-data class StatusColors(val success: Color, val sun: Color = SunFill, val onSun: Color = OnSunFill)
+/** M3 스킴에 없는 의미 색: 성공(기억함)과 빨간 펜 도장(목표 달성) 색. */
+data class StatusColors(val success: Color, val accent: Color = RedPen, val onAccent: Color = Color.White)
 
-private val LocalStatusColors = staticCompositionLocalOf { StatusColors(MintInk) }
+private val LocalStatusColors = staticCompositionLocalOf { StatusColors(Leaf) }
 
 val MaterialTheme.statusColors: StatusColors
     @Composable get() = LocalStatusColors.current
@@ -71,7 +74,7 @@ fun AppTheme(darkTheme: Boolean = isSystemInDarkTheme(), dynamicColor: Boolean =
         darkTheme -> DarkScheme
         else -> LightScheme
     }
-    val status = if (darkTheme) StatusColors(success = MintLight, sun = SunLight, onSun = OnSunLight) else StatusColors(success = MintInk)
+    val status = if (darkTheme) StatusColors(success = LeafLight, accent = RedPenLight, onAccent = OnRedPenLight) else StatusColors(success = Leaf)
     CompositionLocalProvider(LocalStatusColors provides status) {
         // Expressive 모션 스킴: 버튼·칩·내비게이션 등 컴포넌트의 상태 전환이 스프링 물리로 움직인다.
         androidx.compose.material3.MaterialExpressiveTheme(

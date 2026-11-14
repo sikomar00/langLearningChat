@@ -152,7 +152,7 @@ private fun GrammarSection(items: List<GrammarWeakness>, onPractice: (com.chatle
                         style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
-                if (w.errors > 0) Text("${w.errors}", style = MaterialTheme.typography.titleLarge.copy(fontFamily = com.chatlearn.ui.theme.Rounded), color = MaterialTheme.colorScheme.error)
+                if (w.errors > 0) Text("${w.errors}", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.error)
             }
         }
     }

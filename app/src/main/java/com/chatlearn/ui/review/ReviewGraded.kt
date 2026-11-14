@@ -1,5 +1,6 @@
 package com.chatlearn.ui.review
 
+import com.chatlearn.ui.theme.sentence
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.layout.*
@@ -52,22 +53,22 @@ internal fun GradedBody(s: ReviewUi.Graded, vm: ReviewViewModel, canListen: Bool
     ChatBubble(outgoing = true) {
         val local = s.outcome as? GradeOutcome.Local
         if (local != null && local.marks.isNotEmpty()) MarkedWords(local.marks)
-        else Text(s.answer.ifBlank { "(모르겠어요)" }, style = MaterialTheme.typography.bodyLarge)
+        else Text(s.answer.ifBlank { "(모르겠어요)" }, style = MaterialTheme.typography.bodyLarge.sentence())
     }
     verdict?.let { VerdictBanner(it) }
     ChatBubble(outgoing = false, color = MaterialTheme.colorScheme.surfaceContainerHighest) {
         when (val o = s.outcome) {
             is GradeOutcome.Ai -> {
-                LabeledText("더 자연스러운 표현", o.result.corrected, valueColor = MaterialTheme.statusColors.success, valueStyle = MaterialTheme.typography.titleMedium)
+                LabeledText("더 자연스러운 표현", o.result.corrected, valueColor = MaterialTheme.statusColors.success, valueStyle = MaterialTheme.typography.titleMedium.sentence())
                 if (o.result.explanationKo.isNotBlank()) Text(o.result.explanationKo, style = MaterialTheme.typography.bodyMedium)
             }
             is GradeOutcome.SelfGrade -> {
-                LabeledText("정답", o.reference, valueColor = MaterialTheme.statusColors.success, valueStyle = MaterialTheme.typography.titleMedium)
+                LabeledText("정답", o.reference, valueColor = MaterialTheme.statusColors.success, valueStyle = MaterialTheme.typography.titleMedium.sentence())
                 Text(if (o.aiError == null) "스스로 채점해 주세요." else "AI를 쓸 수 없어서 스스로 채점해 주세요.", style = MaterialTheme.typography.bodyMedium)
             }
-            is GradeOutcome.Local -> LabeledText("정답", o.reference, valueColor = MaterialTheme.statusColors.success, valueStyle = MaterialTheme.typography.titleMedium)
+            is GradeOutcome.Local -> LabeledText("정답", o.reference, valueColor = MaterialTheme.statusColors.success, valueStyle = MaterialTheme.typography.titleMedium.sentence())
         }
-        s.item.keyPhrase?.let { LabeledText("핵심 표현", it, valueColor = MaterialTheme.colorScheme.primary) }
+        s.item.keyPhrase?.let { LabeledText("핵심 표현", it, valueColor = MaterialTheme.colorScheme.tertiary) }
         s.item.context?.let { ContextFold(it) }
         if (s.item.note.isNotBlank()) LabeledText("설명", s.item.note, valueStyle = MaterialTheme.typography.bodyMedium)
     }

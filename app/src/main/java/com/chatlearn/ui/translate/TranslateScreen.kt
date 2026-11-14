@@ -1,20 +1,11 @@
 package com.chatlearn.ui.translate
 
+import com.chatlearn.ui.theme.sentence
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.selection.toggleable
-import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.CalendarMonth
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.ContentPaste
 import androidx.compose.foundation.text.selection.SelectionContainer
-import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.buildAnnotatedString
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextDecoration
-import androidx.compose.ui.text.withStyle
-import com.chatlearn.ui.components.LabeledText
-import com.chatlearn.ui.theme.statusColors
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
@@ -226,7 +217,7 @@ fun TranslateScreen(
                             Box(
                                 Modifier.defaultMinSize(minWidth = 48.dp, minHeight = 48.dp).clickable(role = Role.Button, onClickLabel = "뜻 보기") { vm.lookupWord(chunk) }.padding(horizontal = 6.dp),
                                 contentAlignment = Alignment.Center,
-                            ) { Text(chunk, style = MaterialTheme.typography.bodyLarge) }
+                            ) { Text(chunk, style = MaterialTheme.typography.bodyLarge.sentence()) }
                         }
                     }
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -280,16 +271,13 @@ fun TranslateScreen(
         s.candidates.forEach { c ->
             Card(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    SelectionContainer { Text(c.text, style = MaterialTheme.typography.titleMedium) }
+                    SelectionContainer { Text(c.text, style = MaterialTheme.typography.titleMedium.sentence()) }
                     Text(c.toneNote, style = MaterialTheme.typography.bodyMedium)
                     if (c.usedPhrase.isNotBlank() && c.text.contains(c.usedPhrase, ignoreCase = true)) {
-                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Icon(Icons.Default.AutoAwesome, contentDescription = null, Modifier.size(16.dp), tint = MaterialTheme.colorScheme.tertiary)
-                            Text("내가 저장한 표현을 썼어요: ${c.usedPhrase}", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.tertiary)
-                        }
+                        Text("내 표현을 썼어요: ${c.usedPhrase}", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.tertiary)
                     }
                     if (c.keyPhrase.isNotBlank() && c.text.contains(c.keyPhrase, ignoreCase = true)) {
-                        Text("핵심 표현: ${c.keyPhrase}", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+                        Text("핵심 표현: ${c.keyPhrase}", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.tertiary)
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
                         TextButton(onClick = { onSpeak(c.text, s.targetLang) }) { Text("들어보기") }

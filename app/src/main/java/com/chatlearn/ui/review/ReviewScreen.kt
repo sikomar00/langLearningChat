@@ -32,7 +32,7 @@ import com.chatlearn.review.specialChars
 import com.chatlearn.review.spokenText
 import com.chatlearn.settings.VoicePrefs
 import com.chatlearn.ui.components.ButtonSpinner
-import com.chatlearn.ui.components.Confetti
+import com.chatlearn.ui.components.GoalStamp
 import com.chatlearn.ui.components.StreakBadge
 import com.chatlearn.ui.components.LoadingBox
 import com.chatlearn.ui.components.langLabel
@@ -193,7 +193,7 @@ fun ReviewScreen(vm: ReviewViewModel, voice: VoicePrefs, onClose: () -> Unit) {
                 else -> Unit
             }
         }
-        if (celebrate) Confetti(onFinished = vm::celebrated)
+        if (celebrate) GoalStamp(onFinished = vm::celebrated)
     }
 
     val promptItem = (state as? ReviewUi.Prompt)?.item

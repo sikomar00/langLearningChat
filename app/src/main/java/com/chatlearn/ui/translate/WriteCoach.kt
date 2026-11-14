@@ -1,5 +1,6 @@
 package com.chatlearn.ui.translate
 
+import com.chatlearn.ui.theme.sentence
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
@@ -30,11 +31,11 @@ import kotlinx.coroutines.launch
 fun WriteCoach(vm: TranslateViewModel, onSpeak: (String, Lang) -> Unit, onCopy: (String) -> Unit, onReplace: ((String) -> Unit)? = null) {
     val s by vm.state.collectAsStateWithLifecycle()
     s.attempts.forEach { a ->
-        ChatBubble(outgoing = true) { Text(a.text, style = MaterialTheme.typography.bodyLarge) }
+        ChatBubble(outgoing = true) { Text(a.text, style = MaterialTheme.typography.bodyLarge.sentence()) }
         val f = a.feedback
         ChatBubble(
             outgoing = false, modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
-            color = if (f.correct) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surfaceContainerHigh,
+            color = if (f.correct) MaterialTheme.colorScheme.tertiaryContainer else MaterialTheme.colorScheme.surfaceContainerHigh,
         ) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 Icon(if (f.correct) Icons.Default.CheckCircle else Icons.Default.Lightbulb, contentDescription = null, Modifier.size(20.dp))
@@ -62,7 +63,7 @@ fun WriteCoach(vm: TranslateViewModel, onSpeak: (String, Lang) -> Unit, onCopy: 
             if (f.explanationKo.isNotBlank()) Text(f.explanationKo, style = MaterialTheme.typography.bodyMedium)
         }
     }
-    SelectionContainer { Text(sentence, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.statusColors.success) }
+    SelectionContainer { Text(sentence, style = MaterialTheme.typography.titleMedium.sentence(), color = MaterialTheme.statusColors.success) }
     Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
         TextButton(onClick = { onSpeak(sentence, s.targetLang) }) { Text("들어보기") }
         TextButton(onClick = { onCopy(sentence) }) { Text("복사") }

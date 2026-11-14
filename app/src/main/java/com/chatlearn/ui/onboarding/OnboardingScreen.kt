@@ -20,7 +20,6 @@ import com.chatlearn.ui.components.InfoMessage
 import com.chatlearn.ui.components.MessageKind
 import com.chatlearn.ui.settings.SettingsViewModel
 import com.chatlearn.ui.settings.connectionMessage
-import com.chatlearn.ui.theme.statusColors
 import kotlinx.coroutines.launch
 
 /** 첫 실행 안내에서 마지막에 번역해 볼 예시 문장. */
@@ -54,12 +53,11 @@ fun OnboardingScreen(vm: SettingsViewModel, onFinish: (tryExample: Boolean) -> U
             0, 1 -> Button(onClick = { step++ }, Modifier.fillMaxWidth().heightIn(min = 56.dp)) { Text(if (step == 0) "시작하기" else "알겠어요") }
             2 -> OutlinedButton(onClick = { step = 3 }, Modifier.fillMaxWidth().heightIn(min = 52.dp)) { Text("키는 나중에 넣을게요") }
             else -> {
-                val sun = ButtonDefaults.buttonColors(containerColor = MaterialTheme.statusColors.sun, contentColor = MaterialTheme.statusColors.onSun)
                 // 키가 없으면 번역이 오류로 끝나므로 예시 번역은 키를 연결했을 때만.
                 if (connected) {
-                    Button(onClick = { onFinish(true) }, colors = sun, modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp)) { Text("이 문장 번역해 보기") }
+                    Button(onClick = { onFinish(true) }, modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp)) { Text("이 문장 번역해 보기") }
                     TextButton(onClick = { onFinish(false) }, Modifier.fillMaxWidth()) { Text("바로 시작할게요") }
-                } else Button(onClick = { onFinish(false) }, colors = sun, modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp)) { Text("시작하기") }
+                } else Button(onClick = { onFinish(false) }, modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp)) { Text("시작하기") }
             }
         }
     }
