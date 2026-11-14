@@ -202,4 +202,61 @@ class ReviewSessionTest {
         ai.grade = { Result.success(GradeResult(Verdict.CORRECT, it.reference, "좋아요")) }
         assertTrue(s.grade(s.prepare(s.loadQueue().single()), "x") is GradeOutcome.Ai)
     }
+
+    @Test fun forgettingASentenceCountsAgainstItsGrammarAndRememberingCountsFor() = runBlocking {
+        val id = (repo.saveEntry(EntryDraft(Direction.RECEIVED, Lang.ES, "Estoy cansado", "피곤해", "", null, emptyList(), grammar = listOf("es.ser_estar")), now - 1, expand = false) as SaveResult.Saved).id
+        val s = sessionWith(ExerciseKind.CLOZE)
+        val item = s.prepare(s.loadQueue().single())
+        s.rate(item, Rating.AGAIN, GradeOutcome.SelfGrade(item.reference, null), "x")
+        val e = db.dao().allGrammarEvents().single()
+        assertEquals("es.ser_estar", e.pointKey); assertTrue(e.isError); assertEquals(id, e.entryId)
+        assertEquals(GrammarSource.REVIEW, e.source)
+    }
+
+    @Test fun theAiNamesTheGrammarThatWasWrongInATranslation() = runBlocking {
+        saveSentence("I have been there", "가 봤어")
+        ai.grade = { Result.success(GradeResult(Verdict.CLOSE, it.reference, "경험", listOf("en.present_perfect"))) }
+        val s = sessionWith(ExerciseKind.TRANSLATE)
+        val item = s.prepare(s.loadQueue().single())
+        s.rate(item, Rating.HARD, s.grade(item, "I went there"), "I went there")
+        assertEquals(listOf("en.present_perfect" to true), db.dao().allGrammarEvents().map { it.pointKey to it.isError })
+    }
+
+    @Test fun aWordCardIsAlwaysRecalledFromItsMeaning() = runBlocking {
+        repo.saveEntry(EntryDraft(Direction.RECEIVED, Lang.EN, "tomorrow", "내일", "", null, emptyList(), kind = EntryKind.WORD), now - 1, expand = false)
+        val s = sessionWith(ExerciseKind.CLOZE)
+        val item = s.prepare(s.loadQueue().single())
+        assertEquals(ExerciseKind.TRANSLATE, item.exercise)
+        assertEquals(Lang.KO, item.promptLang)
+    }
+
+    @Test fun startingACardOverClearsItsMistakes() = runBlocking {
+        saveSentence("See you tomorrow")
+        val s = sessionWith(ExerciseKind.CLOZE)
+        var item = s.prepare(s.loadQueue().single())
+        repeat(3) { item = item.copy(card = s.rate(item, Rating.AGAIN, GradeOutcome.SelfGrade(item.reference, null), "x")!!) }
+        val card = db.dao().allCards().single()
+        assertEquals(3, card.lapses)
+        s.restart(card)
+        val fresh = db.dao().allCards().single()
+        assertEquals(0, fresh.lapses); assertNull(fresh.stability); assertNull(fresh.lastReviewedAt)
+    }
+
+    @Test fun theOtherLanguagesCardDoesNotCountAgainstThisLanguagesGrammar() = runBlocking {
+        repo.saveEntry(EntryDraft(Direction.RECEIVED, Lang.EN, "I have a dog", "개가 있어", "", null, emptyList(), altText = "Tengo un perro", grammar = listOf("en.articles")), now - 1)
+        val s = sessionWith(ExerciseKind.CLOZE)
+        val es = s.loadQueue().first { it.card.answerLang == Lang.ES }
+        val item = s.prepare(es)
+        s.rate(item, Rating.AGAIN, GradeOutcome.SelfGrade(item.reference, null), "x")
+        assertTrue(db.dao().allGrammarEvents().isEmpty())
+    }
+
+    @Test fun undoingARatingTakesBackItsGrammarRecord() = runBlocking {
+        repo.saveEntry(EntryDraft(Direction.RECEIVED, Lang.ES, "Estoy cansado", "피곤해", "", null, emptyList(), grammar = listOf("es.ser_estar")), now - 1, expand = false)
+        val s = sessionWith(ExerciseKind.CLOZE)
+        val item = s.prepare(s.loadQueue().single())
+        s.rate(item, Rating.AGAIN, GradeOutcome.SelfGrade(item.reference, null), "x")
+        assertTrue(s.undoLast())
+        assertTrue(db.dao().allGrammarEvents().isEmpty())
+    }
 }

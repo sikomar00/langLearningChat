@@ -47,28 +47,6 @@ class GeminiAiServiceTest {
         assertEquals(1, calls)
     }
 
-    @Test fun parsesCorrectionOfLearnersOwnSentence() = runBlocking {
-        server.enqueue(ok("""{"detectedLang":"en","corrected":"I don't know.","natural":false,"explanationKo":"don't로 줄여 써요.","koTranslation":"몰라.","alternatives":["No idea."],"keyPhrase":"don't know","altText":"No lo sé.","altKeyPhrase":"No lo sé"}"""))
-        val r = ai.correctSentence("i dont know").getOrThrow()
-        assertEquals(Lang.EN, r.detectedLang)
-        assertEquals("I don't know.", r.corrected)
-        assertFalse(r.natural)
-        assertEquals("don't로 줄여 써요.", r.explanationKo)
-        assertEquals("몰라.", r.koTranslation)
-        assertEquals(listOf("No idea."), r.alternatives)
-        assertEquals("don't know", r.keyPhrase)
-        assertEquals("No lo sé.", r.altText)
-        val sent = Json.parseToJsonElement(server.takeRequest().body.readUtf8()).jsonObject
-        val props = sent["generationConfig"]!!.jsonObject["responseSchema"]!!.jsonObject["properties"]!!.jsonObject
-        assertEquals("BOOLEAN", props["natural"]!!.jsonObject["type"]!!.jsonPrimitive.content)
-        assertTrue(sent["contents"].toString().contains("i dont know"))
-    }
-
-    @Test fun correctionOfOtherLanguageMapsToNull() = runBlocking {
-        server.enqueue(ok("""{"detectedLang":"other","corrected":"Olá","natural":true,"explanationKo":"","koTranslation":"","alternatives":[],"keyPhrase":"","altText":"","altKeyPhrase":""}"""))
-        assertNull(ai.correctSentence("Olá").getOrThrow().detectedLang)
-    }
-
     @Test fun unsupportedLanguageMapsToNull() = runBlocking {
         server.enqueue(ok("""{"detectedLang":"other","koTranslation":"x","note":"y"}"""))
         assertNull(ai.translateReceived("Olá, tudo bem?").getOrThrow().detectedLang)
@@ -425,5 +403,35 @@ class GeminiAiServiceTest {
         val started = System.currentTimeMillis()
         assertEquals(AiError.OFFLINE, (offline.translateReceived("hi").exceptionOrNull() as AiException).kind)
         assertTrue(System.currentTimeMillis() - started < 5_000)
+    }
+
+    @Test fun coachingAnAttemptKeepsOnlyKnownGrammarKeysAndSendsTheHintLevel() = runBlocking {
+        server.enqueue(ok("""{"correct":false,"hint":"ser와 estar 중 어느 쪽일까요?","grammarErrors":["es.ser_estar","made.up"],""" +
+            """"answer":"Estoy cansado","explanationKo":"상태라 estar","koMeaning":"피곤해","altText":"I'm tired","keyPhrase":"Estoy cansado"}"""))
+        val f = ai.coachAttempt(AttemptRequest(Lang.ES, "Soy cansado", koIntent = "피곤해", hintLevel = 2)).getOrThrow()
+        assertFalse(f.correct)
+        assertEquals(listOf("es.ser_estar"), f.grammarErrors)
+        assertEquals("Estoy cansado", f.answer)
+        val sent = server.takeRequest().body.readUtf8()
+        assertTrue(sent.contains("es.ser_estar")) // 정해진 목록이 enum으로 간다
+        assertTrue(sent.contains("hint level 2") || sent.contains("level 2"))
+    }
+
+    @Test fun gradingReportsWhichGrammarWasWrong() = runBlocking {
+        server.enqueue(ok("""{"verdict":"close","corrected":"I have been there","explanationKo":"경험","grammarErrors":["en.present_perfect"]}"""))
+        val r = ai.gradeAnswer(GradeRequest("가 봤어", Lang.KO, "I went there", Lang.EN, "I've been there")).getOrThrow()
+        assertEquals(listOf("en.present_perfect"), r.grammarErrors)
+    }
+
+    @Test fun receivedAndSentResultsCarryTheirGrammar() = runBlocking {
+        server.enqueue(ok("""{"detectedLang":"es","koTranslation":"a","note":"b","grammar":["es.subjunctive_present"]}"""))
+        assertEquals(listOf("es.subjunctive_present"), ai.translateReceived("Ojalá vengas").getOrThrow().grammar)
+        server.enqueue(ok("""{"candidates":[{"text":"Ojalá vengas","toneNote":"n","grammar":["es.subjunctive_present"]}]}"""))
+        assertEquals(listOf("es.subjunctive_present"), ai.suggestSent("너 오면 좋겠다", Lang.ES).getOrThrow().single().grammar)
+    }
+
+    @Test fun practicePromptIsAKoreanSentence() = runBlocking {
+        server.enqueue(ok("""{"ko":"내일 비가 오면 집에 있을 거야"}"""))
+        assertEquals("내일 비가 오면 집에 있을 거야", ai.practicePrompt(com.chatlearn.domain.grammarPoint("en.conditionals")!!).getOrThrow())
     }
 }

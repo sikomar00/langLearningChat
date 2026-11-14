@@ -134,9 +134,12 @@ interface AppDao {
     @Query("DELETE FROM tag") suspend fun deleteAllTags()
 
     @Insert suspend fun insertGrammarEvent(e: GrammarEventEntity): Long
-    @Insert suspend fun insertGrammarEvents(e: List<GrammarEventEntity>)
+    @Insert suspend fun insertGrammarEvents(e: List<GrammarEventEntity>): List<Long>
+    @Query("DELETE FROM grammar_event WHERE id IN (:ids)") suspend fun deleteGrammarEvents(ids: List<Long>)
     @Query("SELECT * FROM grammar_event") suspend fun allGrammarEvents(): List<GrammarEventEntity>
     @Query("DELETE FROM grammar_event") suspend fun deleteAllGrammarEvents()
     @Insert(onConflict = OnConflictStrategy.IGNORE) suspend fun insertEntryGrammar(rows: List<EntryGrammarEntity>)
     @Query("SELECT * FROM entry_grammar") suspend fun allEntryGrammar(): List<EntryGrammarEntity>
+    @Query("SELECT pointKey FROM entry_grammar WHERE entryId = :entryId") suspend fun grammarKeysFor(entryId: Long): List<String>
+    @Query("SELECT * FROM grammar_event") fun observeGrammarEvents(): Flow<List<GrammarEventEntity>>
 }

@@ -1,6 +1,7 @@
 package com.chatlearn.stats
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -24,14 +25,16 @@ import java.util.Locale
 fun percent(r: Retention): String = r.rate?.let { String.format(Locale.US, "%d%%", Math.round(it * 100)) } ?: "-"
 
 @Composable
-fun StatsScreen(vm: StatsViewModel) {
+fun StatsScreen(vm: StatsViewModel, onPractice: (com.chatlearn.domain.GrammarPoint) -> Unit = {}) {
     val stats by vm.stats.collectAsStateWithLifecycle()
+    val grammar by vm.grammar.collectAsStateWithLifecycle()
     val s = stats
     if (s == null) {
         LoadingBox()
         return
     }
     Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        GrammarSection(grammar, onPractice)
         SectionCard("오늘") {
             Text("복습 ${s.today.reviews}회 · 정답률 ${percent(s.today)}", style = MaterialTheme.typography.titleMedium)
             Text("연속 학습 ${s.streak}일")
@@ -122,6 +125,45 @@ private fun Heatmap(days: List<DayCount>) {
         Text("적음", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         (0..4).forEach { Box(Modifier.size(10.dp).clip(RoundedCornerShape(2.dp)).background(cellColor(it))) }
         Text("많음", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+/** 내 문법 약점: 써 보기·복습에서 틀린 문법과 보낼 말에서 자주 필요했던 문법. 누르면 설명과 연습. */
+@Composable
+private fun GrammarSection(items: List<GrammarWeakness>, onPractice: (com.chatlearn.domain.GrammarPoint) -> Unit) {
+    var open by remember { mutableStateOf<GrammarWeakness?>(null) }
+    SectionCard("내 문법 약점") {
+        if (items.isEmpty()) {
+            Text("써 보기와 복습을 하면 내가 자주 틀리는 문법이 여기에 모여요.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        items.take(5).forEach { w ->
+            Row(
+                Modifier.fillMaxWidth().heightIn(min = 48.dp).clickable(onClickLabel = "설명 보기") { open = w },
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text(w.point.nameKo, style = MaterialTheme.typography.bodyLarge)
+                    Text(
+                        listOfNotNull(
+                            "${if (w.point.lang == com.chatlearn.domain.Lang.EN) "영어" else "스페인어"}",
+                            w.errors.takeIf { it > 0 }?.let { "${it}번 틀림" },
+                            w.needed.takeIf { it > 0 }?.let { "${it}번 필요했음" },
+                        ).joinToString(", "),
+                        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                if (w.errors > 0) Text("${w.errors}", style = MaterialTheme.typography.titleLarge.copy(fontFamily = com.chatlearn.ui.theme.Rounded), color = MaterialTheme.colorScheme.error)
+            }
+        }
+    }
+    open?.let { w ->
+        AlertDialog(
+            onDismissRequest = { open = null },
+            title = { Text(w.point.nameKo) },
+            text = { Text(w.point.explainKo) },
+            confirmButton = { TextButton(onClick = { open = null; onPractice(w.point) }) { Text("이 문법으로 써 보기") } },
+            dismissButton = { TextButton(onClick = { open = null }) { Text("닫기") } },
+        )
     }
 }
 

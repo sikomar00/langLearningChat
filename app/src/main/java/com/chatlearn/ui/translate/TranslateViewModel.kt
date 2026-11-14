@@ -8,6 +8,9 @@ import com.chatlearn.domain.Direction
 import com.chatlearn.domain.Lang
 import com.chatlearn.domain.normalizeKeyPhrase
 import com.chatlearn.domain.ChatLine
+import com.chatlearn.domain.EntryKind
+import com.chatlearn.domain.GrammarPoint
+import com.chatlearn.domain.GrammarSource
 import com.chatlearn.domain.contextAround
 import com.chatlearn.domain.looksKorean
 import com.chatlearn.domain.speakersOf
@@ -24,7 +27,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
-/** 받은 말(번역), 보낼 말(한국어 → 후보), 첨삭(내가 쓴 영어·스페인어 고치기). */
+/** 받은 말(번역), 보낼 말(한국어 → 후보), 써 보기(CORRECT: 내가 써 보고 힌트를 받으며 고치기). */
 enum class TranslateMode { RECEIVED, SENT, CORRECT }
 
 sealed interface TranslateError {
@@ -44,6 +47,7 @@ sealed interface Notice {
     /** 이미 저장된 문장. [text]로 라이브러리에서 찾아 보여 준다. */
     data class Duplicate(val text: String) : Notice
     data class BatchSaved(val saved: Int, val duplicates: Int) : Notice
+    data class WordSaved(val word: String) : Notice
 }
 
 data class TranslateUiState(
@@ -61,13 +65,20 @@ data class TranslateUiState(
     val lookup: LookupState? = null, // 눌러 본 단어의 뜻
     val batch: List<BatchItem> = emptyList(), // 여러 줄을 붙여넣었을 때 줄별 번역 결과
     val learnedOn: java.time.LocalDate? = null, // 이 표현을 알게 된 날. null이면 오늘(저장하는 날)
-    val correction: CorrectionResult? = null, // 첨삭 결과
+    // 써 보기: 하고 싶은 말(한국어), 지금까지의 시도와 피드백, 정답을 열어 봤는지, 답장할 친구의 말
+    val intent: String = "",
+    val attempts: List<Attempt> = emptyList(),
+    val revealed: Boolean = false,
+    val replyTo: String? = null,
     // 저장할 때 붙일 사람·나라. 다음 문장도 같은 친구일 때가 많아 저장해도 남겨 둔다.
     val people: Set<String> = emptySet(),
     val countries: Set<String> = emptySet(),
     val truncated: Boolean = false, // 붙여넣은 대화가 길어 뒤를 잘랐다
     val speakers: List<String> = emptyList(), // 붙여넣은 대화에서 알아낸 사람(칩 후보로 먼저 보인다)
 )
+
+/** 써 보기 한 번: 내가 쓴 문장과 받은 피드백. */
+data class Attempt(val text: String, val feedback: AttemptFeedback)
 
 /** 붙여넣은 대화의 한 줄. [result]가 null이거나 지원하지 않는 언어면 저장할 수 없다. [context]는 앞뒤 대화. */
 data class BatchItem(
@@ -115,7 +126,7 @@ class TranslateViewModel(
     private fun draftTags(d: EntryDraft, s: TranslateUiState) = d.copy(people = s.people.toList(), countries = s.countries.toList())
 
     fun setMode(m: TranslateMode) = _state.update {
-        it.copy(mode = m, received = null, lookup = null, batch = emptyList(), candidates = emptyList(), correction = null, error = null, notice = null)
+        it.copy(mode = m, replyTo = null, received = null, lookup = null, batch = emptyList(), candidates = emptyList(), attempts = emptyList(), revealed = false, error = null, notice = null)
     }
     fun setInput(s: String) = _state.update { it.copy(input = s) }
 
@@ -130,12 +141,12 @@ class TranslateViewModel(
 
     /** 입력과 결과, 안내 문구를 모두 비운다. 태그와 모드는 그대로 둔다. */
     fun clearInput() = _state.update {
-        it.copy(input = "", source = "", received = null, lookup = null, batch = emptyList(), candidates = emptyList(), correction = null, error = null, notice = null)
+        it.copy(input = "", source = "", received = null, lookup = null, batch = emptyList(), candidates = emptyList(), attempts = emptyList(), revealed = false, error = null, notice = null)
     }
 
     /** 붙여넣기: 입력을 통째로 바꾸고, 이전 입력의 결과는 지운다. */
     fun replaceInput(text: String) = _state.update {
-        it.copy(input = text.trim(), source = "", received = null, lookup = null, batch = emptyList(), candidates = emptyList(), correction = null, error = null, notice = null)
+        it.copy(input = text.trim(), source = "", received = null, lookup = null, batch = emptyList(), candidates = emptyList(), attempts = emptyList(), revealed = false, error = null, notice = null)
     }
     /** 붙여넣기 버튼: 입력을 클립보드 내용으로 바꾸고 지금 모드로 바로 번역(첨삭)한다. */
     fun pasteAndTranslate(text: String): Job {
@@ -147,7 +158,7 @@ class TranslateViewModel(
     fun receiveShared(text: String): Job {
         val mode = if (looksKorean(text)) TranslateMode.SENT else TranslateMode.RECEIVED
         _state.update {
-            it.copy(mode = mode, input = text.trim(), source = "", received = null, lookup = null, batch = emptyList(), candidates = emptyList(), correction = null, error = null, notice = null)
+            it.copy(mode = mode, input = text.trim(), source = "", received = null, lookup = null, batch = emptyList(), candidates = emptyList(), attempts = emptyList(), revealed = false, error = null, notice = null)
         }
         return translate()
     }
@@ -187,11 +198,13 @@ class TranslateViewModel(
     }
 
     fun translate(): Job = viewModelScope.launch {
+        // 써 보기는 시도를 쌓아 가며 힌트를 키운다(결과를 비우지 않는다).
+        if (_state.value.mode == TranslateMode.CORRECT) { submitAttempt().join(); return@launch }
         targetLoad.join() // 첫 번역도 저장해 둔 보낼 말 언어로
         val s = _state.value
         val text = s.input.trim()
         if (text.isEmpty() || s.loading) return@launch
-        _state.update { it.copy(loading = true, source = text, error = null, notice = null, received = null, lookup = null, batch = emptyList(), candidates = emptyList(), correction = null, truncated = false) }
+        _state.update { it.copy(loading = true, source = text, error = null, notice = null, received = null, lookup = null, batch = emptyList(), candidates = emptyList(), attempts = emptyList(), revealed = false, truncated = false) }
         val parsed = if (s.mode == TranslateMode.RECEIVED) parseChat(text) else null
         val lines = parsed?.lines.orEmpty()
         // 대화에서 친구가 한 명으로 정해지면 사람 칩에 미리 골라 둔다. 여럿이면(내 이름이 섞였을 수 있다) 칩 후보로만.
@@ -215,14 +228,6 @@ class TranslateViewModel(
                 onSuccess = { r ->
                     if (r.detectedLang == null) _state.update { it.copy(loading = false, error = TranslateError.UnsupportedLang) }
                     else _state.update { it.copy(loading = false, received = r, keyPhrase = normalizeKeyPhrase(single, r.keyPhrase).orEmpty()) }
-                },
-                onFailure = { e -> _state.update { it.copy(loading = false, error = e.toUiError()) } },
-            )
-        } else if (s.mode == TranslateMode.CORRECT) {
-            ai.correctSentence(text).fold(
-                onSuccess = { r ->
-                    if (r.detectedLang == null) _state.update { it.copy(loading = false, error = TranslateError.UnsupportedLang) }
-                    else _state.update { it.copy(loading = false, correction = r) }
                 },
                 onFailure = { e -> _state.update { it.copy(loading = false, error = e.toUiError()) } },
             )
@@ -267,7 +272,7 @@ class TranslateViewModel(
             val r = b.result!!
             val draft = EntryDraft(
                 Direction.RECEIVED, r.detectedLang!!, b.text, r.koTranslation, r.note, null, parseTags(s.tag), r.altText,
-                keyPhrase = b.keyPhrase.ifBlank { null }, altKeyPhrase = r.altKeyPhrase, learnedAt = learnedAt(), contextText = b.context,
+                keyPhrase = b.keyPhrase.ifBlank { null }, altKeyPhrase = r.altKeyPhrase, learnedAt = learnedAt(), contextText = b.context, grammar = r.grammar,
             )
             if (repo.saveEntry(draftTags(draft, s), clock(), expand) is SaveResult.Saved) saved++ else dup++
         }
@@ -282,25 +287,96 @@ class TranslateViewModel(
         val r = s.received ?: return@launch
         val lang = r.detectedLang ?: return@launch
         val draft = EntryDraft(Direction.RECEIVED, lang, s.source, r.koTranslation, r.note, null, parseTags(s.tag), r.altText,
-            keyPhrase = s.keyPhrase.ifBlank { null }, altKeyPhrase = r.altKeyPhrase, learnedAt = learnedAt())
+            keyPhrase = s.keyPhrase.ifBlank { null }, altKeyPhrase = r.altKeyPhrase, learnedAt = learnedAt(), grammar = r.grammar)
         report(repo.saveEntry(draftTags(draft, s), clock(), autoExpand()), s.source)
     }
 
     fun onCandidateCopied(c: SentCandidate): Job = viewModelScope.launch {
         val s = _state.value
         val draft = EntryDraft(Direction.SENT, s.targetLang, c.text, s.source, c.toneNote, null, parseTags(s.tag), c.altText,
-            keyPhrase = c.keyPhrase, altKeyPhrase = c.altKeyPhrase, learnedAt = learnedAt())
-        report(repo.saveEntry(draftTags(draft, s), clock(), autoExpand()), c.text)
+            keyPhrase = c.keyPhrase, altKeyPhrase = c.altKeyPhrase, learnedAt = learnedAt(), grammar = c.grammar)
+        val r = repo.saveEntry(draftTags(draft, s), clock(), autoExpand())
+        // 보내려고 고른 후보의 문법 = 내가 말하려면 필요했던 문법. 이미 저장된 후보를 다시 복사하면 세지 않는다.
+        if (r is SaveResult.Saved) {
+            repo.recordGrammar(c.grammar.map { GrammarEventEntity(lang = s.targetLang, pointKey = it, source = GrammarSource.REQUEST, isError = false, entryId = r.id, at = clock()) })
+        }
+        report(r, c.text)
     }
 
-    /** 첨삭 결과를 보낸 말로 저장한다: 고친 문장, 한국어 뜻, 해설(설명), 다른 언어 문장. */
-    fun saveCorrection(): Job = viewModelScope.launch {
+    // ---- 써 보기 ----
+
+    // 하고 싶은 말이 바뀌면 새 문장: 시도와 힌트 단계를 처음부터.
+    fun setIntent(t: String) = _state.update { if (t == it.intent) it else it.copy(intent = t, attempts = emptyList(), revealed = false) }
+
+    /** 내 시도를 보내 피드백을 받는다. 틀릴수록 힌트가 한 단계씩 구체적이 된다(최대 3). */
+    fun submitAttempt(): Job = viewModelScope.launch {
+        targetLoad.join()
         val s = _state.value
-        val c = s.correction ?: return@launch
-        val lang = c.detectedLang ?: return@launch
-        val draft = EntryDraft(Direction.SENT, lang, c.corrected, c.koTranslation, c.explanationKo, null, parseTags(s.tag), c.altText.ifBlank { null },
-            keyPhrase = normalizeKeyPhrase(c.corrected, c.keyPhrase), altKeyPhrase = c.altKeyPhrase.ifBlank { null }, learnedAt = learnedAt())
-        report(repo.saveEntry(draftTags(draft, s), clock(), autoExpand()), c.corrected)
+        val text = s.input.trim()
+        if (text.isEmpty() || s.loading) return@launch
+        // 마지막으로 맞힌 뒤로 틀린 횟수만큼 힌트를 키운다(앞 문장의 실수는 세지 않는다).
+        val level = (s.attempts.takeLastWhile { !it.feedback.correct }.size + 1).coerceAtMost(3)
+        _state.update { it.copy(loading = true, error = null, notice = null, revealed = false) }
+        ai.coachAttempt(AttemptRequest(s.targetLang, text, s.intent.trim(), s.replyTo, level)).fold(
+            onSuccess = { f ->
+                _state.update { it.copy(loading = false, attempts = it.attempts + Attempt(text, f)) }
+                repo.recordGrammar(f.grammarErrors.map {
+                    GrammarEventEntity(lang = s.targetLang, pointKey = it, source = GrammarSource.ATTEMPT, isError = true, entryId = null, at = clock())
+                })
+            },
+            onFailure = { e -> _state.update { it.copy(loading = false, error = e.toUiError()) } },
+        )
+    }
+
+    /** 정답 보기: 마지막 피드백의 자연스러운 문장과 설명을 연다. */
+    fun reveal() = _state.update { it.copy(revealed = true) }
+
+    /** 맞혔으면 내가 쓴 문장을, 정답을 열었으면 그 문장을 보낸 말로 저장한다. */
+    fun saveAttempt(): Job = viewModelScope.launch {
+        val s = _state.value
+        val last = s.attempts.lastOrNull() ?: return@launch
+        val f = last.feedback
+        if (!f.correct && !s.revealed) return@launch
+        val text = if (f.correct) last.text else f.answer
+        // 맞힌 문장이 정답과 다를 수 있어, 다른 언어 문장·설명은 정답을 저장할 때만 함께 둔다.
+        val draft = EntryDraft(
+            Direction.SENT, s.targetLang, text, s.intent.trim().ifEmpty { f.koMeaning }, if (f.correct) "" else f.explanationKo, null, parseTags(s.tag),
+            if (f.correct) null else f.altText.ifBlank { null },
+            keyPhrase = normalizeKeyPhrase(text, f.keyPhrase), learnedAt = learnedAt(), contextText = s.replyTo,
+        )
+        report(repo.saveEntry(draftTags(draft, s), clock(), autoExpand()), text)
+    }
+
+    /** 받은 문장에 답장을 써 본다: 그 문장을 대화 맥락으로 두고 써 보기를 연다. */
+    fun startReply(friendMessage: String, lang: Lang) {
+        setMode(TranslateMode.CORRECT)
+        targetChosen = true
+        _state.update { it.copy(replyTo = friendMessage, intent = "", input = "", targetLang = lang) }
+    }
+
+    /** 약한 문법 하나를 골라 연습한다: 그 문법이 필요한 한국어 문장을 받아 써 보기를 연다. */
+    fun startPractice(point: GrammarPoint): Job = viewModelScope.launch {
+        setMode(TranslateMode.CORRECT)
+        targetChosen = true
+        _state.update { it.copy(targetLang = point.lang, input = "", intent = "", loading = true) }
+        ai.practicePrompt(point).fold(
+            onSuccess = { ko -> _state.update { it.copy(loading = false, intent = ko) } },
+            onFailure = { e -> _state.update { it.copy(loading = false, error = e.toUiError()) } },
+        )
+    }
+
+    /** 눌러 본 단어를 단어 카드로 저장한다. 그 단어가 나온 문장을 맥락으로 둔다. 다른 언어 카드는 만들지 않는다. */
+    fun saveWord(): Job = viewModelScope.launch {
+        val s = _state.value
+        val l = s.lookup as? LookupState.Done ?: return@launch
+        val lang = s.received?.detectedLang ?: return@launch
+        val word = l.info.baseForm.ifBlank { l.word }
+        val draft = EntryDraft(
+            Direction.RECEIVED, lang, word, l.info.meaningKo, l.info.note, null, parseTags(s.tag),
+            learnedAt = learnedAt(), contextText = s.source, kind = EntryKind.WORD,
+        )
+        val r = repo.saveEntry(draftTags(draft, s), clock(), expand = false)
+        _state.update { it.copy(lookup = null, notice = if (r is SaveResult.Saved) Notice.WordSaved(word) else Notice.Duplicate(word)) }
     }
 
     // 저장에 성공하면 다음 표현을 바로 입력할 수 있게 입력과 결과를 비운다. 중복이면 그대로 둔다.
@@ -308,7 +384,7 @@ class TranslateViewModel(
         val cards = if (r is SaveResult.Saved) repo.cardCount(r.id) else 0
         _state.update {
             if (r is SaveResult.Saved) {
-                it.copy(input = "", source = "", received = null, lookup = null, batch = emptyList(), candidates = emptyList(), correction = null, error = null, notice = Notice.Saved(cards), keyPhrase = "")
+                it.copy(input = "", source = "", received = null, lookup = null, batch = emptyList(), candidates = emptyList(), attempts = emptyList(), revealed = false, error = null, notice = Notice.Saved(cards), keyPhrase = "", intent = "", replyTo = null)
             } else {
                 it.copy(notice = Notice.Duplicate(text.trim()))
             }

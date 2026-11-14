@@ -21,4 +21,10 @@ class StatsViewModel(
         .map { StatsCalculator.compute(it.logs, it.cards, it.items, clock(), zone) }
         .flowOn(Dispatchers.Default)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
+
+    /** 약한 문법(많이 틀린 순). */
+    val grammar: StateFlow<List<GrammarWeakness>> = repo.observeGrammarEvents()
+        .map { GrammarStats.weakest(it) }
+        .flowOn(Dispatchers.Default)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 }

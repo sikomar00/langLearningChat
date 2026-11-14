@@ -61,23 +61,33 @@ fun TranslateScreen(vm: TranslateViewModel, onSpeak: (String, Lang) -> Unit = { 
                 SegmentedButton(
                     selected = s.mode == m, onClick = { vm.setMode(m) },
                     shape = SegmentedButtonDefaults.itemShape(i, TranslateMode.entries.size),
-                ) { Text(when (m) { TranslateMode.RECEIVED -> "받은 말"; TranslateMode.SENT -> "보낼 말"; TranslateMode.CORRECT -> "첨삭" }) }
+                ) { Text(when (m) { TranslateMode.RECEIVED -> "받은 말"; TranslateMode.SENT -> "보낼 말"; TranslateMode.CORRECT -> "써 보기" }) }
             }
         }
-        if (s.mode == TranslateMode.SENT) {
+        if (s.mode != TranslateMode.RECEIVED) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 listOf(Lang.EN to "영어", Lang.ES to "스페인어").forEach { (l, label) ->
                     FilterChip(selected = s.targetLang == l, onClick = { vm.setTarget(l) }, label = { Text(label) })
                 }
             }
         }
+        if (s.mode == TranslateMode.CORRECT) {
+            s.replyTo?.let { friend ->
+                Text("친구에게 답장을 써 보세요", style = MaterialTheme.typography.labelLarge)
+                com.chatlearn.ui.components.ChatBubble(outgoing = false) { Text(friend, style = MaterialTheme.typography.bodyLarge) }
+            }
+            OutlinedTextField(
+                value = s.intent, onValueChange = vm::setIntent, modifier = Modifier.fillMaxWidth(), minLines = 1,
+                label = { Text("하고 싶은 말(한국어, 비워도 돼요)") },
+            )
+        }
         OutlinedTextField(
-            value = s.input, onValueChange = vm::setInput, modifier = Modifier.fillMaxWidth(), minLines = 3,
+            value = s.input, onValueChange = vm::setInput, modifier = Modifier.fillMaxWidth(), minLines = if (s.mode == TranslateMode.CORRECT) 2 else 3,
             label = {
                 Text(when (s.mode) {
                     TranslateMode.RECEIVED -> "친구가 보낸 메시지를 붙여넣기"
                     TranslateMode.SENT -> "하고 싶은 말(한국어)"
-                    TranslateMode.CORRECT -> "내가 쓴 영어·스페인어 문장"
+                    TranslateMode.CORRECT -> "${com.chatlearn.ui.components.langLabel(s.targetLang)}로 써 보기"
                 })
             },
             trailingIcon = {
@@ -89,7 +99,7 @@ fun TranslateScreen(vm: TranslateViewModel, onSpeak: (String, Lang) -> Unit = { 
                         val clip = clipboard.getText()?.text?.takeIf { it.isNotBlank() }
                         if (clip != null) vm.pasteAndTranslate(clip)
                         else android.widget.Toast.makeText(ctx, "클립보드가 비어 있어요", android.widget.Toast.LENGTH_SHORT).show()
-                    }) { Icon(Icons.Default.ContentPaste, contentDescription = if (s.mode == TranslateMode.CORRECT) "붙여넣고 첨삭" else "붙여넣고 번역") }
+                    }) { Icon(Icons.Default.ContentPaste, contentDescription = if (s.mode == TranslateMode.CORRECT) "붙여넣고 확인" else "붙여넣고 번역") }
                 }
             },
         )
@@ -134,10 +144,10 @@ fun TranslateScreen(vm: TranslateViewModel, onSpeak: (String, Lang) -> Unit = { 
         Button(onClick = { focusManager.clearFocus(); vm.translate() }, enabled = s.input.isNotBlank() && !s.loading, modifier = Modifier.fillMaxWidth()) {
             val lineCount = if (s.mode == TranslateMode.RECEIVED) splitMessages(s.input).size else 0
             if (s.loading) ButtonSpinner()
-            else Text(if (lineCount >= 2) "문장별로 번역 (${lineCount}개)" else if (s.mode == TranslateMode.CORRECT) "첨삭 받기" else "번역")
+            else Text(if (lineCount >= 2) "문장별로 번역 (${lineCount}개)" else if (s.mode == TranslateMode.CORRECT) "확인" else "번역")
         }
 
-        if (s.input.isBlank() && s.received == null && s.candidates.isEmpty() && s.batch.isEmpty() && s.correction == null && s.error == null) {
+        if (s.input.isBlank() && s.received == null && s.candidates.isEmpty() && s.batch.isEmpty() && s.attempts.isEmpty() && s.error == null) {
             SectionCard("이렇게 써 보세요") {
                 when (s.mode) {
                     TranslateMode.RECEIVED -> {
@@ -150,8 +160,8 @@ fun TranslateScreen(vm: TranslateViewModel, onSpeak: (String, Lang) -> Unit = { 
                         Text("내가 저장해 둔 표현이 어울리면 후보에 함께 써 줘요.", style = MaterialTheme.typography.bodyMedium)
                     }
                     TranslateMode.CORRECT -> {
-                        Text("보내기 전에 영어나 스페인어로 직접 써 보세요. 어색한 곳을 고치고 이유를 알려 줘요.", style = MaterialTheme.typography.bodyMedium)
-                        Text("고친 단어는 색으로 표시돼요. 마음에 들면 복사해서 보내고 저장해 두세요.", style = MaterialTheme.typography.bodyMedium)
+                        Text("하고 싶은 말을 한국어로 적고, 영어나 스페인어로 직접 써 보세요.", style = MaterialTheme.typography.bodyMedium)
+                        Text("틀리면 정답 대신 힌트를 줘요. 다시 써 볼수록 힌트가 구체적이 되고, 언제든 정답을 볼 수 있어요.", style = MaterialTheme.typography.bodyMedium)
                     }
                 }
             }
@@ -173,6 +183,7 @@ fun TranslateScreen(vm: TranslateViewModel, onSpeak: (String, Lang) -> Unit = { 
                 when (it) {
                     is Notice.Saved -> if (it.cards >= 2) "저장했어요. 영어·스페인어 카드 ${it.cards}장을 만들었어요." else "저장했어요."
                     is Notice.Duplicate -> "이미 저장된 문장이에요. 라이브러리에서 볼 수 있어요."
+                    is Notice.WordSaved -> "단어 카드로 저장했어요: ${it.word}"
                     is Notice.BatchSaved -> "${it.saved}개를 저장했어요." + if (it.duplicates > 0) " (이미 있는 ${it.duplicates}개는 건너뛰었어요)" else ""
                 },
                 MessageKind.SUCCESS,
@@ -239,7 +250,10 @@ fun TranslateScreen(vm: TranslateViewModel, onSpeak: (String, Lang) -> Unit = { 
                                     }
                                 }
                                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    if (l is LookupState.Done) TextButton(onClick = { vm.useAsKeyPhrase(l.word) }) { Text("핵심 표현으로 지정") }
+                                    if (l is LookupState.Done) {
+                                        TextButton(onClick = { vm.useAsKeyPhrase(l.word) }) { Text("핵심 표현으로") }
+                                        TextButton(onClick = { vm.saveWord() }) { Text("단어 카드로 저장") }
+                                    }
                                     TextButton(onClick = { vm.dismissLookup() }) { Text("닫기") }
                                 }
                             }
@@ -259,10 +273,7 @@ fun TranslateScreen(vm: TranslateViewModel, onSpeak: (String, Lang) -> Unit = { 
                     Button(onClick = { vm.saveReceived() }, modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp)) { Text("저장") }
             }
         }
-        s.correction?.let { c -> CorrectionCard(c, s.source, onSpeak = { onSpeak(c.corrected, c.detectedLang ?: Lang.EN) }, onCopy = ::copy) {
-            clipboard.setText(AnnotatedString(c.corrected))
-            vm.saveCorrection()
-        } }
+        if (s.mode == TranslateMode.CORRECT) WriteCoach(vm, onSpeak, ::copy)
         s.candidates.forEach { c ->
             Card(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -287,52 +298,6 @@ fun TranslateScreen(vm: TranslateViewModel, onSpeak: (String, Lang) -> Unit = { 
                         }) { Text("복사하고 저장") }
                     }
                 }
-            }
-        }
-    }
-}
-
-/** 첨삭 결과: 고친 문장(바뀐 단어 강조), 내가 쓴 문장, 뜻, 이유, 다른 표현, 복사·저장. */
-@Composable
-private fun CorrectionCard(c: com.chatlearn.ai.CorrectionResult, original: String, onSpeak: () -> Unit, onCopy: (String) -> Unit, onCopyAndSave: () -> Unit) {
-    Card(Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            if (c.natural) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Icon(Icons.Default.CheckCircle, contentDescription = null, tint = MaterialTheme.statusColors.success)
-                    Text("자연스러워요! 그대로 보내도 돼요.", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.statusColors.success)
-                }
-                SelectionContainer { Text(c.corrected, style = MaterialTheme.typography.titleMedium) }
-            } else {
-                Text("고친 문장 (바뀐 곳은 색으로 표시)", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                val accent = MaterialTheme.colorScheme.primary
-                SelectionContainer {
-                    Text(buildAnnotatedString {
-                        wordDiff(original, c.corrected).forEachIndexed { i, w ->
-                            if (i > 0) append(" ")
-                            if (w.changed) withStyle(SpanStyle(color = accent, fontWeight = FontWeight.Bold, textDecoration = TextDecoration.Underline)) { append(w.text) }
-                            else append(w.text)
-                        }
-                    }, style = MaterialTheme.typography.titleMedium)
-                }
-                LabeledText("내가 쓴 문장", original, valueStyle = MaterialTheme.typography.bodyMedium, valueColor = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-            if (c.koTranslation.isNotBlank()) LabeledText("뜻", c.koTranslation)
-            if (c.explanationKo.isNotBlank()) LabeledText(if (c.natural) "한마디" else "왜 고쳤나요", c.explanationKo, valueStyle = MaterialTheme.typography.bodyMedium)
-            if (c.alternatives.isNotEmpty()) {
-                Text("이렇게도 말해요", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                c.alternatives.forEach { alt ->
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        SelectionContainer(Modifier.weight(1f)) { Text(alt, style = MaterialTheme.typography.bodyLarge) }
-                        IconButton(onClick = { onCopy(alt) }) { Icon(Icons.Default.ContentCopy, contentDescription = "이 표현 복사") }
-                    }
-                }
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
-                TextButton(onClick = onSpeak) { Text("들어보기") }
-                TextButton(onClick = { onCopy(c.corrected) }) { Text("복사만") }
-                Spacer(Modifier.weight(1f))
-                Button(onClick = onCopyAndSave) { Text("복사하고 저장") }
             }
         }
     }

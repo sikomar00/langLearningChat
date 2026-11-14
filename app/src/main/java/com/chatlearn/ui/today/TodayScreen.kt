@@ -39,6 +39,7 @@ fun TodayScreen(
     onGoTranslate: () -> Unit,
     onOpenLibrary: () -> Unit,
     onOpenSettings: () -> Unit,
+    onPractice: (com.chatlearn.domain.GrammarPoint) -> Unit = {},
 ) {
     val ui by vm.ui.collectAsStateWithLifecycle()
     LaunchedEffect(Unit) { vm.refresh() }
@@ -51,6 +52,18 @@ fun TodayScreen(
         val s = ui ?: return@Column LoadingBox()
         Hero(s, onStartReview, onLearnMore, onGoTranslate)
         if (s.goal.enabled) GoalRow(s)
+        s.weakGrammar?.let { w ->
+            Surface(color = MaterialTheme.colorScheme.tertiaryContainer, shape = MaterialTheme.shapes.large) {
+                Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text("다시 볼 문법", style = MaterialTheme.typography.labelLarge)
+                        Text(w.point.nameKo, style = MaterialTheme.typography.titleMedium)
+                        Text("${w.errors}번 틀렸어요", style = MaterialTheme.typography.bodySmall)
+                    }
+                    FilledTonalButton(onClick = { onPractice(w.point) }) { Text("써 보기") }
+                }
+            }
+        }
         if (s.hasEntries) Forecast(s.forecast)
         if (s.recent.isNotEmpty()) Recent(s, onOpenLibrary)
     }

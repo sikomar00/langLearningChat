@@ -189,6 +189,13 @@ class ReviewViewModel(private val session: ReviewSession) : ViewModel() {
         showNext()
     }
 
+    /** 자주 틀리는 카드를 처음부터 다시 배운다: 틀린 횟수와 일정을 지우고 지금 카드를 새 카드로 낸다. */
+    fun restartCurrent(): Job = viewModelScope.launch {
+        val p = _state.value as? ReviewUi.Prompt ?: return@launch
+        if (p.checking) return@launch
+        _state.value = p.copy(item = p.item.copy(card = session.restart(p.item.card)))
+    }
+
     /** 자주 틀리는 카드를 한 달 쉰다(평가 기록 없이). */
     fun snoozeMonth(): Job = viewModelScope.launch {
         val p = _state.value as? ReviewUi.Prompt ?: return@launch

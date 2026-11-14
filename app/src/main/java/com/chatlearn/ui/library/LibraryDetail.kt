@@ -120,6 +120,11 @@ internal fun DetailDialog(item: LibraryItem, hasAltCard: Boolean, recentTags: Li
                     }
                 }
                 item.entry.contextText?.let { ctx -> SectionCard("대화") { com.chatlearn.ui.review.ContextFold(ctx) } }
+                if (item.entry.direction == com.chatlearn.domain.Direction.RECEIVED && item.entry.kind == com.chatlearn.domain.EntryKind.SENTENCE) {
+                    FilledTonalButton(onClick = { vm.replyRequest.value = item.texts[item.entry.chatLang].orEmpty() to item.entry.chatLang; onClose() }, modifier = Modifier.fillMaxWidth()) {
+                        Text("이 말에 답장 써 보기")
+                    }
+                }
                 SectionCard("핵심 표현") {
                     Text("빈칸 채우기에서 이 표현이 빈칸이 돼요. 문장 안에 있는 그대로 적어야 해요.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     OutlinedTextField(

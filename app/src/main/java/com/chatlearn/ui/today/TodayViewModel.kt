@@ -27,6 +27,8 @@ data class TodayUi(
     val forecast: List<DayCount>,
     val recent: List<LibraryItem>,
     val hasEntries: Boolean,
+    /** 가장 많이 틀린 문법(틀린 적이 없으면 null). */
+    val weakGrammar: com.chatlearn.stats.GrammarWeakness? = null,
 ) {
     val due: Int get() = reviews + newCards
 }
@@ -57,6 +59,7 @@ class TodayViewModel(
             forecast = StatsCalculator.forecast(repo.reviewDueTimes(now + 7 * DAY_MS), now, zone),
             recent = library.take(3),
             hasEntries = library.isNotEmpty(),
+            weakGrammar = com.chatlearn.stats.GrammarStats.weakest(repo.observeGrammarEvents().first()).firstOrNull { it.errors > 0 },
         )
     }
 

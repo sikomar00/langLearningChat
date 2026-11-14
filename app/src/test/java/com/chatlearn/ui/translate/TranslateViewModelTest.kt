@@ -63,41 +63,6 @@ class TranslateViewModelTest {
         assertEquals("Hi!", vm.state.value.candidates.single().text)
     }
 
-    @Test fun correctionModeShowsTheFixAndSavesTheCorrectedSentenceAsSent() = runBlocking {
-        vm.setMode(TranslateMode.CORRECT)
-        vm.setInput("i dont know")
-        vm.translate().join()
-        assertEquals(listOf("correct"), ai.calls)
-        assertEquals("I don't know.", vm.state.value.correction?.corrected)
-        vm.saveCorrection().join()
-        assertEquals(Notice.Saved(2), vm.state.value.notice)
-        assertNull(vm.state.value.correction)
-        val item = repo.observeLibrary().first().single()
-        assertEquals(Direction.SENT, item.entry.direction)
-        assertEquals("I don't know.", item.texts[Lang.EN])
-        assertEquals("몰라.", item.texts[Lang.KO])
-        assertEquals("No lo sé.", item.texts[Lang.ES])
-        assertEquals("don't로 줄여 써요.", item.entry.note)
-        assertEquals("don't know", item.keyPhrases[Lang.EN])
-    }
-
-    @Test fun correctionOfUnsupportedLanguageShowsError() = runBlocking {
-        ai.correct = { Result.success(CorrectionResult(null, "Olá", true, "", "", emptyList(), "", "", "")) }
-        vm.setMode(TranslateMode.CORRECT)
-        vm.setInput("Olá")
-        vm.translate().join()
-        assertEquals(TranslateError.UnsupportedLang, vm.state.value.error)
-        assertNull(vm.state.value.correction)
-    }
-
-    @Test fun switchingModeClearsTheCorrection() = runBlocking {
-        vm.setMode(TranslateMode.CORRECT)
-        vm.setInput("i dont know")
-        vm.translate().join()
-        vm.setMode(TranslateMode.RECEIVED)
-        assertNull(vm.state.value.correction)
-    }
-
     @Test fun pickedPastDateIsSavedAsLearnedDateAndKeptForTheNextSave() = runBlocking {
         val zone = java.time.ZoneId.systemDefault()
         val day = java.time.Instant.ofEpochMilli(1_000L).atZone(zone).toLocalDate().minusDays(5)
@@ -497,5 +462,102 @@ class TranslateViewModelTest {
         assertEquals(Lang.ES, ai.lastSentTarget)
         v.setTarget(Lang.EN)
         assertEquals(Lang.EN, v.state.value.targetLang)
+    }
+
+    @Test fun writingItYourselfGivesStrongerHintsThenTheAnswerAndSaves() = runBlocking {
+        vm.setMode(TranslateMode.CORRECT)
+        vm.setIntent("개가 있어")
+        vm.setInput("I have dog"); vm.submitAttempt().join()
+        assertEquals(1, ai.lastCoach!!.hintLevel)
+        assertEquals("힌트 1", vm.state.value.attempts.last().feedback.hint)
+        vm.setInput("I has a dog"); vm.submitAttempt().join()
+        assertEquals(2, ai.lastCoach!!.hintLevel)
+        assertFalse(vm.state.value.revealed)
+        vm.reveal()
+        assertTrue(vm.state.value.revealed)
+        vm.saveAttempt().join()
+        val item = repo.observeLibrary().first().single()
+        assertEquals("I have a dog.", item.texts[Lang.EN])
+        assertEquals("개가 있어", item.texts[Lang.KO])
+        assertEquals(Direction.SENT, item.entry.direction)
+        // 시도마다 틀린 문법이 약점 기록으로 남는다.
+        assertEquals(2, db.dao().allGrammarEvents().count { it.source == com.chatlearn.domain.GrammarSource.ATTEMPT && it.isError })
+    }
+
+    @Test fun aCorrectAttemptIsSavedAsWritten() = runBlocking {
+        ai.coach = { Result.success(AttemptFeedback(true, "좋아요!", emptyList(), "I have a dog.", "", "개가 있어", "", "")) }
+        vm.setMode(TranslateMode.CORRECT); vm.setIntent("개가 있어")
+        vm.setInput("I've got a dog"); vm.submitAttempt().join()
+        assertTrue(vm.state.value.attempts.last().feedback.correct)
+        vm.saveAttempt().join()
+        assertEquals("I've got a dog", repo.observeLibrary().first().single().texts[Lang.EN])
+    }
+
+    @Test fun replyPracticeSendsTheFriendsMessageAsContextAndKeepsIt() = runBlocking {
+        vm.startReply("Want to grab coffee later?", Lang.EN)
+        assertEquals(TranslateMode.CORRECT, vm.state.value.mode)
+        vm.setInput("Sure, sounds good"); vm.submitAttempt().join()
+        assertEquals("Want to grab coffee later?", ai.lastCoach!!.context)
+        vm.reveal(); vm.saveAttempt().join()
+        assertEquals("Want to grab coffee later?", db.dao().allEntries().single().contextText)
+    }
+
+    @Test fun practisingAGrammarPointStartsWithAPromptInThatLanguage() = runBlocking {
+        vm.startPractice(com.chatlearn.domain.grammarPoint("es.ser_estar")!!).join()
+        assertEquals("연습 문장", vm.state.value.intent)
+        assertEquals(Lang.ES, vm.state.value.targetLang)
+        assertEquals(TranslateMode.CORRECT, vm.state.value.mode)
+    }
+
+    @Test fun aLookedUpWordCanBeSavedAsAWordCardWithItsSentence() = runBlocking {
+        vm.setInput("See you tomorrow"); vm.translate().join()
+        vm.lookupWord("tomorrow").join()
+        vm.saveWord().join()
+        val e = db.dao().allEntries().single()
+        assertEquals(com.chatlearn.domain.EntryKind.WORD, e.kind)
+        assertEquals("See you tomorrow", e.contextText)
+        assertEquals("tomorrow", repo.observeLibrary().first().single().texts[Lang.EN])
+        assertEquals(1, db.dao().allCards().size) // 단어는 다른 언어 카드를 만들지 않는다
+    }
+
+    @Test fun grammarOfSavedSentencesAndCopiedRepliesIsRecorded() = runBlocking {
+        ai.received = { Result.success(ReceivedResult(Lang.ES, "번역", "설명", grammar = listOf("es.ser_estar"))) }
+        vm.setInput("Estoy cansado"); vm.translate().join(); vm.saveReceived().join()
+        assertEquals(listOf("es.ser_estar"), db.dao().allEntryGrammar().map { it.pointKey })
+        ai.sent = { _, _ -> Result.success(listOf(SentCandidate("Ojalá vengas", "n", grammar = listOf("es.subjunctive_present")))) }
+        vm.setMode(TranslateMode.SENT); vm.setTarget(Lang.ES); vm.setInput("너 오면 좋겠다"); vm.translate().join()
+        vm.onCandidateCopied(vm.state.value.candidates.single()).join()
+        assertTrue(db.dao().allGrammarEvents().any { it.source == com.chatlearn.domain.GrammarSource.REQUEST && it.pointKey == "es.subjunctive_present" })
+    }
+
+    @Test fun aNewTryAfterSeeingTheAnswerStartsHidingItAgain() = runBlocking {
+        vm.setMode(TranslateMode.CORRECT); vm.setIntent("개가 있어")
+        vm.setInput("I have dog"); vm.submitAttempt().join(); vm.reveal()
+        vm.setInput("I has dog"); vm.submitAttempt().join()
+        assertFalse(vm.state.value.revealed)
+    }
+
+    @Test fun aNewSentenceStartsAtTheFirstHintAndForgetsTheLastIntent() = runBlocking {
+        vm.setMode(TranslateMode.CORRECT); vm.setIntent("개가 있어")
+        vm.setInput("I have dog"); vm.submitAttempt().join()
+        vm.setInput("I has dog"); vm.submitAttempt().join()
+        vm.setIntent("배고파")
+        vm.setInput("I hungry"); vm.submitAttempt().join()
+        assertEquals(1, ai.lastCoach!!.hintLevel)
+        vm.reveal(); vm.saveAttempt().join()
+        assertEquals("", vm.state.value.intent)
+        assertNull(vm.state.value.replyTo)
+    }
+
+    @Test fun aReplyIsWrittenInTheFriendsLanguage() = runBlocking {
+        vm.startReply("¿Vienes mañana?", Lang.ES)
+        assertEquals(Lang.ES, vm.state.value.targetLang)
+    }
+
+    @Test fun copyingAnAlreadySavedReplyDoesNotCountItsGrammarAgain() = runBlocking {
+        ai.sent = { _, _ -> Result.success(listOf(SentCandidate("Ojalá vengas", "n", grammar = listOf("es.subjunctive_present")))) }
+        vm.setMode(TranslateMode.SENT); vm.setTarget(Lang.ES)
+        repeat(2) { vm.setInput("너 오면 좋겠다"); vm.translate().join(); vm.onCandidateCopied(vm.state.value.candidates.single()).join() }
+        assertEquals(1, db.dao().allGrammarEvents().size)
     }
 }

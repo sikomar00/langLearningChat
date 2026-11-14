@@ -25,6 +25,9 @@ data class EntryDraft(
     val countries: List<String> = emptyList(),
     /** 이 문장 앞뒤 대화. */
     val contextText: String? = null,
+    val kind: EntryKind = EntryKind.SENTENCE,
+    /** 이 문장에 쓰인 문법 항목 키. 복습에서 틀리면 이 항목들의 약점으로 센다. */
+    val grammar: List<String> = emptyList(),
 )
 
 sealed interface SaveResult {
@@ -40,6 +43,7 @@ data class DueCard(
     val card: ReviewCardEntity, val texts: Map<Lang, String>, val keyPhrases: Map<Lang, String> = emptyMap(), val note: String = "",
     /** 이 문장을 저장할 때 함께 둔 앞뒤 대화. */
     val context: String? = null,
+    val kind: EntryKind = EntryKind.SENTENCE,
 )
 data class KeyPhrasePending(val entryId: Long, val lang: Lang, val text: String)
 data class LibraryItem(
@@ -92,8 +96,9 @@ class EntryRepository(internal val db: AppDatabase) {
         dao.findEntryIdByChatText(d.chatLang, text)?.let { return@withTransaction SaveResult.Duplicate(it) }
         val id = dao.insertEntry(EntryEntity(
             createdAt = d.learnedAt ?: now, direction = d.direction, chatLang = d.chatLang, note = d.note, tone = d.tone,
-            contextText = d.contextText?.trim()?.ifEmpty { null },
+            contextText = d.contextText?.trim()?.ifEmpty { null }, kind = d.kind,
         ))
+        if (d.grammar.isNotEmpty()) dao.insertEntryGrammar(d.grammar.distinct().map { EntryGrammarEntity(id, it) })
         val (chatOrigin, koOrigin) =
             if (d.direction == Direction.RECEIVED) TextOrigin.ORIGINAL to TextOrigin.AI
             else TextOrigin.AI to TextOrigin.USER
@@ -211,7 +216,7 @@ class EntryRepository(internal val db: AppDatabase) {
             val mine = texts[card.entryId].orEmpty()
             val e = entries[card.entryId]
             DueCard(card, mine.associate { it.lang to it.text }, mine.mapNotNull { t -> t.keyPhrase?.takeIf { it.isNotEmpty() }?.let { t.lang to it } }.toMap(),
-                e?.note.orEmpty(), e?.contextText)
+                e?.note.orEmpty(), e?.contextText, e?.kind ?: EntryKind.SENTENCE)
         }
     }
 
@@ -315,4 +320,15 @@ class EntryRepository(internal val db: AppDatabase) {
         dao.insertGrammarEvents(d.grammarEvents)
         dao.insertEntryGrammar(d.entryGrammar)
     }
+
+    // ---- 문법 약점 ----
+
+    suspend fun recordGrammar(events: List<GrammarEventEntity>): List<Long> = if (events.isEmpty()) emptyList() else dao.insertGrammarEvents(events)
+    suspend fun deleteGrammarEvents(ids: List<Long>) { if (ids.isNotEmpty()) dao.deleteGrammarEvents(ids) }
+    suspend fun entryGrammar(entryId: Long): List<String> = dao.grammarKeysFor(entryId)
+    fun observeGrammarEvents(): Flow<List<GrammarEventEntity>> = dao.observeGrammarEvents()
+
+    /** 끈질기게 틀리는 카드를 처음 보는 카드처럼 되돌린다(틀린 횟수·일정 모두). 기록(review_log)은 남긴다. */
+    suspend fun restartCard(card: ReviewCardEntity, now: Long): ReviewCardEntity =
+        newCard(card.entryId, card.answerLang, now).copy(id = card.id).also { dao.updateCard(it) }
 }

@@ -21,9 +21,10 @@ data class ReviewItem(
     val keyPhrases: Map<Lang, String> = emptyMap(),
     val note: String = "",
     val context: String? = null,
+    val kind: EntryKind = EntryKind.SENTENCE,
 ) {
     /** 같은 카드를 큐에 다시 넣을 때(나중에, 다시, 평가 취소). */
-    fun toDue(card: ReviewCardEntity = this.card) = DueCard(card, texts, keyPhrases, note, context)
+    fun toDue(card: ReviewCardEntity = this.card) = DueCard(card, texts, keyPhrases, note, context, kind)
 
     /** 정답 언어 문장의 핵심 표현. 없으면 null. */
     val keyPhrase: String? get() = keyPhrases[card.answerLang]
@@ -81,13 +82,14 @@ class ReviewSession(
     /** 오늘 한도 때문에 아직 못 낸 새 카드 수. */
     suspend fun newCardsWaiting(): Int = repo.countDueNew(clock())
 
-    private data class Undo(val before: ReviewCardEntity, val logId: Long)
+    private data class Undo(val before: ReviewCardEntity, val logId: Long, val grammarIds: List<Long> = emptyList())
     private var lastUndo: Undo? = null
 
     /** 마지막 평가를 취소한다. 취소할 게 없으면 false. */
     suspend fun undoLast(): Boolean {
         val u = lastUndo ?: return false
         repo.undoReview(u.before, u.logId)
+        repo.deleteGrammarEvents(u.grammarIds)
         lastUndo = null
         return true
     }
@@ -129,10 +131,12 @@ class ReviewSession(
         val answerLang = due.card.answerLang
         val reference = due.texts.getValue(answerLang)
         val cloze = ClozeBuilder.build(reference, seed = due.card.id * 31 + due.card.reps, keyPhrase = due.keyPhrases[answerLang])
+        // 단어 카드는 빈칸(단어 전체가 빈칸이 된다)·받아쓰기 대신 뜻을 보고 떠올린다.
+        if (due.kind == EntryKind.WORD) return ReviewItem(due.card, due.texts, Lang.KO, keyPhrases = due.keyPhrases, note = due.note, context = due.context, kind = due.kind)
         val kind = policy(due.card, cloze != null, tts.isAvailable(answerLang), roll())
         if (kind != ExerciseKind.TRANSLATE) {
             // 빈칸 채우기와 받아쓰기는 한국어 뜻이 힌트다.
-            return ReviewItem(due.card, due.texts, Lang.KO, kind, cloze.takeIf { kind == ExerciseKind.CLOZE }, due.keyPhrases, due.note, due.context)
+            return ReviewItem(due.card, due.texts, Lang.KO, kind, cloze.takeIf { kind == ExerciseKind.CLOZE }, due.keyPhrases, due.note, due.context, due.kind)
         }
         val otherLang = answerLang.otherForeign()
         var texts = due.texts
@@ -146,7 +150,7 @@ class ReviewSession(
             }
             if (otherLang in texts) promptLang = otherLang
         }
-        return ReviewItem(due.card, texts, promptLang, keyPhrases = due.keyPhrases, note = due.note, context = due.context)
+        return ReviewItem(due.card, texts, promptLang, keyPhrases = due.keyPhrases, note = due.note, context = due.context, kind = due.kind)
     }
 
     fun speak(item: ReviewItem, slow: Boolean) = tts.speak(item.reference, item.card.answerLang, slow)
@@ -194,9 +198,26 @@ class ReviewSession(
                 responseMs = responseMs, exercise = item.exercise,
             ),
         ) ?: return null
-        lastUndo = Undo(item.card, logId)
+        lastUndo = Undo(item.card, logId, recordGrammar(item, rating, outcome, now))
         return item.card.withState(next)
     }
+
+    /**
+     * 복습 결과를 문법 기록으로 남긴다. AI가 틀린 문법을 짚었으면 그것을, 아니면 이 문장에 쓰인 문법 전체를
+     * "다시"면 틀림, 아니면 맞음으로 센다(빈칸·받아쓰기도 AI 호출 없이 문법 약점에 반영된다).
+     */
+    private suspend fun recordGrammar(item: ReviewItem, rating: Rating, outcome: GradeOutcome, now: Long): List<Long> {
+        val named = (outcome as? GradeOutcome.Ai)?.result?.grammarErrors.orEmpty()
+        val events = if (named.isNotEmpty()) named.map { it to true }
+        // 문장의 문법은 원문 언어 것이라 다른 언어 카드에는 세지 않는다.
+        else repo.entryGrammar(item.card.entryId).filter { grammarPoint(it)?.lang == item.card.answerLang }.map { it to (rating == Rating.AGAIN) }
+        return repo.recordGrammar(events.map { (key, error) ->
+            GrammarEventEntity(lang = item.card.answerLang, pointKey = key, source = GrammarSource.REVIEW, isError = error, entryId = item.card.entryId, at = now)
+        })
+    }
+
+    /** 여러 번 틀린 카드를 처음부터 다시 배운다. */
+    suspend fun restart(card: ReviewCardEntity): ReviewCardEntity = repo.restartCard(card, clock())
 
     companion object {
         /** 다음 카드에서도 그대로일 실패. 일시적인 한도·과부하·시간 초과는 다음 카드에서 다시 시도한다. */

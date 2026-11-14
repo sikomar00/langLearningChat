@@ -156,6 +156,9 @@ class LibraryViewModel(
         }
     }
 
+    /** 상세에서 "답장 연습"을 누른 친구의 말. 앱이 써 보기로 옮겨 가며 비운다. */
+    val replyRequest = MutableStateFlow<Pair<String, Lang>?>(null)
+
     /** 다른 화면에서 문장 하나를 보여 달라고 할 때: 걸려 있던 필터를 풀고 그 글자로 찾는다. */
     fun showOnly(text: String) {
         langFilter.value = null; tagFilter.value = null; folderFilter.value = null; statusFilter.value = StatusFilter.ALL

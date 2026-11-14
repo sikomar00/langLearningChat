@@ -108,17 +108,22 @@ def answer(prompt, props):
         s = similarity(ref, got)
         verdict = "correct" if s >= 0.95 else "close" if s >= 0.6 else "wrong"
         return {"verdict": verdict, "corrected": ref, "explanationKo": f"가짜 채점이에요. 일치도 {round(s * 100)}%."}
-    if "corrected" in keys and "alternatives" in keys:
-        text = between(prompt)
-        lang = lang_of(text)
+    if "hint" in keys:
+        got = re.search(r"Their attempt: <<<(.*?)>>>", prompt, re.S)
+        text = got.group(1).strip() if got else ""
         fixed = corrected_version(text)
-        natural = fixed == text.strip()
+        level = re.search(r"hint level (\d)", prompt)
+        es = "Spanish chat message" in prompt
+        ok = fixed == text
         return {
-            "detectedLang": lang, "corrected": fixed, "natural": natural,
-            "explanationKo": "이미 자연스러워요." if natural else "문장 첫 글자는 대문자로 쓰고, 끝에 마침표를 찍어요. 'I'는 늘 대문자예요.",
-            "koTranslation": f"(가짜 뜻) {fixed}", "alternatives": [f"Honestly, {fixed[0].lower() + fixed[1:]}" if fixed else ""],
-            "keyPhrase": key_phrase(fixed), "altText": alt_of(fixed, lang), "altKeyPhrase": key_phrase(alt_of(fixed, lang)),
+            "correct": ok,
+            "hint": "좋아요! 그대로 보내도 돼요." if ok else f"(가짜 힌트 {level.group(1) if level else 1}단계) 문장 첫 글자와 끝 문장부호를 다시 보세요.",
+            "grammarErrors": [] if ok else (["es.spelling_accents"] if es else ["en.spelling"]),
+            "answer": fixed or "Hi.", "explanationKo": "첫 글자는 대문자, 끝에는 마침표.",
+            "koMeaning": f"(가짜 뜻) {fixed}", "altText": alt_of(fixed, "es" if es else "en"), "keyPhrase": key_phrase(fixed),
         }
+    if "ko" in keys and len(keys) == 1:
+        return {"ko": "내일 비가 오면 집에 있을 거야"}
     if "meaningKo" in keys:
         word = re.search(r'word "(.*?)"', prompt)
         w = word.group(1) if word else "?"

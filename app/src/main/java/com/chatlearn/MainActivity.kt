@@ -145,6 +145,12 @@ class MainActivity : ComponentActivity() {
                 val windowInfo = androidx.compose.ui.platform.LocalWindowInfo.current
                 val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
                 fun openReview(start: () -> Unit) { start(); overlay = Overlay.REVIEW }
+                // 약한 문법 연습과 답장 연습은 번역 탭의 써 보기로 연다.
+                val practice: (com.chatlearn.domain.GrammarPoint) -> Unit = { p -> translateVm.startPractice(p); tab = Tab.TRANSLATE }
+                val replyTo by libraryVm.replyRequest.collectAsStateWithLifecycle()
+                LaunchedEffect(replyTo) {
+                    replyTo?.let { (text, lang) -> translateVm.startReply(text, lang); libraryVm.replyRequest.value = null; tab = Tab.TRANSLATE }
+                }
                 LaunchedEffect(pendingLaunch) {
                     when (val r = pendingLaunch ?: return@LaunchedEffect) {
                         is LaunchRequest.Shared -> { translateVm.receiveShared(r.text); overlay = null; tab = Tab.TRANSLATE }
@@ -230,6 +236,7 @@ class MainActivity : ComponentActivity() {
                                                 onGoTranslate = { tab = Tab.TRANSLATE },
                                                 onOpenLibrary = { tab = Tab.LIBRARY },
                                                 onOpenSettings = { overlay = Overlay.SETTINGS },
+                                                onPractice = practice,
                                             )
                                             Tab.TRANSLATE -> TranslateScreen(
                                                 translateVm, onSpeak = { text, lang -> c.tts.speak(text, lang, false) }, onOpenSettings = { overlay = Overlay.SETTINGS },
@@ -240,7 +247,7 @@ class MainActivity : ComponentActivity() {
                                                 showGestureHint = settings?.libraryHintDismissed == false,
                                                 onDismissGestureHint = { lifecycleScope.launch { c.settings.dismissLibraryHint() } },
                                             ) { ids, lang -> openReview { reviewVm.startWith(ids, lang) } }
-                                            Tab.GROWTH -> Box(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) { StatsScreen(viewModel(factory = factory)) }
+                                            Tab.GROWTH -> Box(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) { StatsScreen(viewModel(factory = factory), onPractice = practice) }
                                         }
                                     }
                                 }

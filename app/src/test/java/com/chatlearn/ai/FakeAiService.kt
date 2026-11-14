@@ -20,9 +20,10 @@ class FakeAiService : AiService {
     }
     var lookup: (String, String, Lang) -> Result<WordInfo> =
         { w, _, _ -> Result.success(WordInfo("뜻:$w", w, "설명")) }
-    var correct: (String) -> Result<CorrectionResult> = { t ->
-        Result.success(CorrectionResult(Lang.EN, "I don't know.", false, "don't로 줄여 써요.", "몰라.", listOf("No idea."), "don't know", "No lo sé.", "No lo sé"))
+    var coach: (AttemptRequest) -> Result<AttemptFeedback> = { r ->
+        Result.success(AttemptFeedback(false, "힌트 ${r.hintLevel}", listOf("en.articles"), "I have a dog.", "a가 필요해요", "개가 있어", "Tengo un perro.", "a dog"))
     }
+    var practice: (com.chatlearn.domain.GrammarPoint) -> Result<String> = { Result.success("연습 문장") }
     var lastKnown: List<KnownExpression> = emptyList()
     var lastSentTarget: Lang? = null
     val calls = mutableListOf<String>()
@@ -40,5 +41,7 @@ class FakeAiService : AiService {
         keyPhrases(items, lang).also { calls += "keyphrases" }
     override suspend fun translateBatch(items: List<String>, from: Lang, to: Lang) =
         batch(items, from, to).also { calls += "batch" }
-    override suspend fun correctSentence(text: String) = correct(text).also { calls += "correct" }
+    var lastCoach: AttemptRequest? = null
+    override suspend fun coachAttempt(req: AttemptRequest) = coach(req).also { calls += "coach"; lastCoach = req }
+    override suspend fun practicePrompt(point: com.chatlearn.domain.GrammarPoint) = practice(point).also { calls += "practice" }
 }
