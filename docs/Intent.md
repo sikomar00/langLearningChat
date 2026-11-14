@@ -72,3 +72,20 @@
 
 **상태**: 완료. 테스트 489개 통과. 계획: `docs/superpowers/plans/2026-11-14-design-refresh.md`.
 
+## 단계 11. impeccable로 디자인 근본부터 다시 (2026-11-14)
+
+1. **문제:** 단계 10의 "종이 노트 + 빨간 펜"(크림 바탕·세리프·주홍)도 AI가 고르는 "단정한 기본값"이었다. 사용자가 impeccable 스킬로 근본부터 다시 하자고 했다.
+2. **기대 결과:**
+   - impeccable 절차를 따른다: init(PRODUCT.md) → 세계 후보 7개 → 주사위(concept-seed) → 결정 페이지에서 사용자 선택 → 방향 계약 → 구현 → 따로 띄운 리뷰어의 판정 → DESIGN.md.
+   - 사용자가 고른 세계는 "출국장: 출발 안내판과 탑승권"이다.
+     - 라이브러리는 출발 안내판(시간·목적지·편·상태, 익힌 단계, 다음 복습까지의 거리)이다.
+     - 번역·써 보기·복습은 탑승권(경로 머리띠, 절취선 아래 떼는 칸)이다.
+3. **영향 범위:** `ui/theme/*`, `ui/components/{Board,Bubble,GoalBoard,DayBars}.kt`, 라이브러리·번역·써 보기·복습·오늘 화면, `MainActivity` 골격, `LibraryOrder`(익힌 단계), 친구 이름 검색, 아이콘·위젯 색, 번들 글꼴 Roboto Condensed.
+4. **제약:**
+   - Operate 화면이라 세계는 글꼴·색·밀도·대표 동작만 빌리고, 조작은 Material 3 표준을 쓴다.
+   - 새 글꼴(Roboto Condensed, OFL)은 사용자가 승인했다.
+   - 새 라이브러리는 없다.
+5. **열린 질문:** 실기기 취향, 플랩 움직임 체감, 삼성 폰 렌더링.
+
+**상태:** 리뷰어 최종 판정 ship, 코드 리뷰 지적 9개 반영. 테스트 491개 통과. 기록: `PRODUCT.md`, `DESIGN.md`, `.impeccable/design.json`, `.impeccable/surfaces/`.
+

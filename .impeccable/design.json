@@ -1,0 +1,169 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-11-14T00:00:00+09:00",
+  "title": "Design System: ChatLearn",
+  "extensions": {
+    "colorMeta": {
+      "board": { "role": "primary", "displayName": "안내판 검정", "canonical": "#15181D", "tonalRamp": ["#050607", "#15181D", "#2A2F37", "#5B616B", "#7D838C", "#AEB4BD", "#DADDE2", "#F2F3F5"] },
+      "board-raised": { "role": "primary", "displayName": "한 단 밝은 판", "canonical": "#2A2F37", "tonalRamp": ["#050607", "#15181D", "#2A2F37", "#5B616B", "#7D838C", "#AEB4BD", "#DADDE2", "#F2F3F5"] },
+      "on-board-muted": { "role": "neutral", "displayName": "판 위 흐린 글자", "canonical": "#AEB4BD", "tonalRamp": ["#050607", "#15181D", "#2A2F37", "#5B616B", "#7D838C", "#AEB4BD", "#DADDE2", "#F2F3F5"] },
+      "flap": { "role": "secondary", "displayName": "플랩 호박", "canonical": "#F6B400", "tonalRamp": ["#2B1D00", "#4A3500", "#7A5400", "#A87600", "#D39A00", "#F6B400", "#FFD25C", "#FFE7A3"] },
+      "flap-ink": { "role": "tertiary", "displayName": "읽을 수 있는 짙은 호박", "canonical": "#7A5400", "tonalRamp": ["#2B1D00", "#4A3500", "#7A5400", "#A87600", "#D39A00", "#F6B400", "#FFD25C", "#FFE7A3"] },
+      "flap-container": { "role": "tertiary", "displayName": "옅은 호박 칸", "canonical": "#FFE7A3", "tonalRamp": ["#2B1D00", "#4A3500", "#7A5400", "#A87600", "#D39A00", "#F6B400", "#FFD25C", "#FFE7A3"] },
+      "concourse": { "role": "neutral", "displayName": "대합실 회색", "canonical": "#F2F3F5", "tonalRamp": ["#050607", "#15181D", "#2A2F37", "#5B616B", "#7D838C", "#AEB4BD", "#DADDE2", "#F2F3F5"] },
+      "stock": { "role": "neutral", "displayName": "탑승권 용지", "canonical": "#FFFFFF", "tonalRamp": ["#15181D", "#2A2F37", "#5B616B", "#7D838C", "#AEB4BD", "#DADDE2", "#F2F3F5", "#FFFFFF"] },
+      "ink": { "role": "neutral", "displayName": "먹색", "canonical": "#15181D", "tonalRamp": ["#050607", "#15181D", "#2A2F37", "#5B616B", "#7D838C", "#AEB4BD", "#DADDE2", "#F2F3F5"] },
+      "ink-soft": { "role": "neutral", "displayName": "먹색 보조", "canonical": "#5B616B", "tonalRamp": ["#050607", "#15181D", "#2A2F37", "#5B616B", "#7D838C", "#AEB4BD", "#DADDE2", "#F2F3F5"] },
+      "rule": { "role": "neutral", "displayName": "가는 구분선", "canonical": "#E1E3E7", "tonalRamp": ["#050607", "#15181D", "#2A2F37", "#5B616B", "#7D838C", "#AEB4BD", "#E1E3E7", "#F2F3F5"] },
+      "outline": { "role": "neutral", "displayName": "윤곽", "canonical": "#7D838C", "tonalRamp": ["#050607", "#15181D", "#2A2F37", "#5B616B", "#7D838C", "#AEB4BD", "#DADDE2", "#F2F3F5"] },
+      "surface-high": { "role": "neutral", "displayName": "옅은 칸", "canonical": "#E4E7EB", "tonalRamp": ["#050607", "#15181D", "#2A2F37", "#5B616B", "#7D838C", "#AEB4BD", "#E4E7EB", "#F2F3F5"] },
+      "delayed": { "role": "error", "displayName": "지연 빨강", "canonical": "#C0322A", "tonalRamp": ["#410E0A", "#6B1F18", "#96271F", "#C0322A", "#E0594C", "#FF8A7A", "#FFB4A9", "#FCE1DE"] },
+      "delayed-container": { "role": "error", "displayName": "옅은 빨강 칸", "canonical": "#FCE1DE", "tonalRamp": ["#410E0A", "#6B1F18", "#96271F", "#C0322A", "#E0594C", "#FF8A7A", "#FFB4A9", "#FCE1DE"] },
+      "on-time": { "role": "success", "displayName": "정시 초록", "canonical": "#2E7D4F", "tonalRamp": ["#0B2A18", "#154A2C", "#1F6340", "#2E7D4F", "#4E9E6D", "#7FCB98", "#B5E3C4", "#E3F5E9"] },
+      "night-ground": { "role": "neutral", "displayName": "밤의 대합실", "canonical": "#15181C", "tonalRamp": ["#050607", "#15181C", "#1F2329", "#2C3037", "#333840", "#7A808A", "#A9AFB8", "#E8EAED"] },
+      "night-board": { "role": "primary", "displayName": "밤의 안내판", "canonical": "#050607", "tonalRamp": ["#050607", "#15181C", "#1F2329", "#2C3037", "#333840", "#7A808A", "#A9AFB8", "#E8EAED"] },
+      "night-stock": { "role": "neutral", "displayName": "밤의 용지", "canonical": "#1F2329", "tonalRamp": ["#050607", "#15181C", "#1F2329", "#2C3037", "#333840", "#7A808A", "#A9AFB8", "#E8EAED"] },
+      "night-ink": { "role": "neutral", "displayName": "밤의 글자", "canonical": "#E8EAED", "tonalRamp": ["#050607", "#15181C", "#1F2329", "#2C3037", "#333840", "#7A808A", "#A9AFB8", "#E8EAED"] },
+      "night-ink-soft": { "role": "neutral", "displayName": "밤의 보조 글자", "canonical": "#A9AFB8", "tonalRamp": ["#050607", "#15181C", "#1F2329", "#2C3037", "#333840", "#7A808A", "#A9AFB8", "#E8EAED"] },
+      "night-rule": { "role": "neutral", "displayName": "밤의 구분선", "canonical": "#2C3037", "tonalRamp": ["#050607", "#15181C", "#1F2329", "#2C3037", "#333840", "#7A808A", "#A9AFB8", "#E8EAED"] },
+      "night-flap-container": { "role": "tertiary", "displayName": "밤의 호박 칸", "canonical": "#4A3500", "tonalRamp": ["#2B1D00", "#4A3500", "#7A5400", "#A87600", "#D39A00", "#F6B400", "#FFD25C", "#FFE7A3"] },
+      "delayed-light": { "role": "error", "displayName": "밤의 지연 빨강", "canonical": "#FF8A7A", "tonalRamp": ["#410E0A", "#6B1F18", "#96271F", "#C0322A", "#E0594C", "#FF8A7A", "#FFB4A9", "#FCE1DE"] },
+      "on-time-light": { "role": "success", "displayName": "밤의 정시 초록", "canonical": "#7FCB98", "tonalRamp": ["#0B2A18", "#154A2C", "#1F6340", "#2E7D4F", "#4E9E6D", "#7FCB98", "#B5E3C4", "#E3F5E9"] }
+    },
+    "typographyMeta": {
+      "board-number": { "displayName": "Board Number", "purpose": "복습 요약의 큰 장수. 응축체, 폭이 같은 숫자." },
+      "headline": { "displayName": "Headline", "purpose": "오늘 화면의 큰 안내. 안내판 표기를 입혀 '지금 탑승 N장' 숫자에도 쓴다." },
+      "headline-small": { "displayName": "Headline Small", "purpose": "복습 문제 문장, '오늘 목표 완료'." },
+      "title": { "displayName": "Title", "purpose": "위 막대의 화면 이름, 숫자 설정값." },
+      "title-medium": { "displayName": "Title Medium", "purpose": "탑승권 안의 완성 문장, 구역 제목, 큰 버튼 글자." },
+      "body": { "displayName": "Body", "purpose": "라이브러리 줄의 외국어 문장, 힌트." },
+      "body-medium": { "displayName": "Body Medium", "purpose": "뜻(보조 색), 설명." },
+      "label": { "displayName": "Label", "purpose": "보조 글자, 목적지(친구·나라). 가장 작은 글자도 12sp." },
+      "board-label": { "displayName": "Board Label", "purpose": "시간·편 코드·상태 알약·열 머리·탑승권 경로. 응축체, tnum, 자간 0.04em, 라틴 대문자. 한글은 시스템 산세리프로 대신 그려진다." }
+    },
+    "shadows": [],
+    "motion": [
+      { "name": "flap-in", "value": "slideInVertically(from -height) + fadeIn, tween 180ms", "purpose": "FlapText: 상태·개수 글자가 바뀔 때 새 글자가 위에서 넘어 들어온다." },
+      { "name": "flap-out", "value": "slideOutVertically(to +height) 140ms + fadeOut 100ms", "purpose": "FlapText: 옛 글자가 아래로 빠진다." },
+      { "name": "goal-board-unfold", "value": "scaleY 0→1 from top, 260ms, cubic-bezier(0.4, 0, 0.2, 1); hold 1100ms; fade 240ms", "purpose": "GoalBoard: 오늘 목표를 채운 순간 안내판 한 칸이 펼쳐진다. 시스템 애니메이션이 꺼지면 펼치지 않는다." },
+      { "name": "expressive-spring", "value": "MaterialExpressiveTheme(motionScheme = MotionScheme.expressive())", "purpose": "버튼·칩·내비게이션 등 M3 컴포넌트의 상태 전환." }
+    ],
+    "breakpoints": []
+  },
+  "components": [
+    {
+      "name": "Board Top Bar + Search",
+      "kind": "nav",
+      "refersTo": "board-top-bar",
+      "description": "검은 안내판 위 막대. 라이브러리에서는 한 단 밝은 검색칸이 들어간다.",
+      "html": "<div class=\"ds-topbar\"><div class=\"ds-search\"><svg width=\"20\" height=\"20\" viewBox=\"0 0 24 24\" fill=\"currentColor\"><path d=\"M15.5 14h-.79l-.28-.27A6.47 6.47 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z\"/></svg><input placeholder=\"문장, 뜻, 친구 이름 검색\"></div></div>",
+      "css": ".ds-topbar { background: #15181D; padding: 8px 16px; } .ds-search { display: flex; align-items: center; gap: 12px; background: #2A2F37; color: #AEB4BD; border-radius: 12px; padding: 12px 16px; } .ds-search input { flex: 1; background: transparent; border: none; outline: none; color: #FFFFFF; font: 400 16px/24px sans-serif; caret-color: #F6B400; } .ds-search input::placeholder { color: #AEB4BD; } .ds-search:focus-within { box-shadow: inset 0 0 0 2px #F6B400; }"
+    },
+    {
+      "name": "Departures Board Row",
+      "kind": "custom",
+      "refersTo": "departure-row",
+      "description": "라이브러리 촘촘히 보기: 검은 열 머리 아래 시간·문장·편·상태·거리 막대가 한 줄에.",
+      "html": "<div class=\"ds-board\"><div class=\"ds-cols\"><span class=\"ds-c-time\">시간</span><span class=\"ds-c-dest\">목적지 · 편</span><span>상태</span></div><div class=\"ds-row\"><div class=\"ds-c-time ds-bl\">05:09<br><span class=\"ds-soft\">11/14</span></div><div class=\"ds-c-dest\"><div class=\"ds-sent\">Thanks a lot</div><div class=\"ds-mean\">고마워</div><div class=\"ds-meta\"><span class=\"ds-code\">EN</span><span class=\"ds-soft ds-small\">Lucia · 스페인</span></div><div class=\"ds-dist-due\"></div></div><div><span class=\"ds-due\">복습할 차례</span></div></div><div class=\"ds-row\"><div class=\"ds-c-time ds-bl\">05:09<br><span class=\"ds-soft\">11/14</span></div><div class=\"ds-c-dest\"><div class=\"ds-sent\">See you soon</div><div class=\"ds-mean\">곧 봐</div><div class=\"ds-meta\"><span class=\"ds-code\">EN</span></div><div class=\"ds-dist-later\"></div></div><div class=\"ds-later\"><i></i><span class=\"ds-bl\">3일 후</span></div></div></div>",
+      "css": ".ds-board { background: #F2F3F5; padding: 12px 16px; font-family: sans-serif; color: #15181D; } .ds-cols { display: flex; gap: 12px; background: #15181D; color: #F6B400; border-radius: 4px; padding: 6px 12px; font: 500 12px/16px 'Roboto Condensed', 'Arial Narrow', sans-serif; letter-spacing: 0.04em; } .ds-c-time { width: 44px; flex: none; } .ds-c-dest { flex: 1; min-width: 0; } .ds-row { display: flex; gap: 12px; background: #FFFFFF; padding: 12px; border-bottom: 1px solid #E1E3E7; margin-top: 8px; } .ds-row:hover { background: #F7F8F9; } .ds-row:focus-visible { outline: 2px solid #15181D; outline-offset: -2px; } .ds-bl { font: 500 12px/16px 'Roboto Condensed', 'Arial Narrow', sans-serif; letter-spacing: 0.04em; font-variant-numeric: tabular-nums; } .ds-soft { color: #5B616B; } .ds-small { font-size: 12px; } .ds-sent { font: 400 16px/24px sans-serif; } .ds-mean { font: 400 14px/21px sans-serif; color: #5B616B; } .ds-meta { display: flex; gap: 8px; align-items: center; padding-top: 6px; } .ds-code { background: #15181D; color: #FFFFFF; border-radius: 4px; padding: 1px 6px; font: 500 12px/16px 'Roboto Condensed', 'Arial Narrow', sans-serif; letter-spacing: 0.04em; } .ds-dist-due { margin-top: 8px; height: 2px; background: #F6B400; } .ds-dist-later { margin-top: 8px; height: 2px; width: 22%; background: repeating-linear-gradient(90deg, #7D838C 0 8px, transparent 8px 14px); } .ds-due { display: inline-block; background: #F6B400; color: #15181D; border-radius: 9999px; padding: 3px 8px; font: 500 12px/16px 'Roboto Condensed', 'Arial Narrow', sans-serif; letter-spacing: 0.04em; } .ds-later { display: flex; align-items: center; gap: 6px; } .ds-later i { width: 8px; height: 8px; border-radius: 50%; background: #2E7D4F; }"
+    },
+    {
+      "name": "Ticket",
+      "kind": "card",
+      "refersTo": "ticket",
+      "description": "번역 결과·써 보기 검사·복습 문제. 검은 머리띠 경로, 본문, 절취선 아래 떼어 가는 칸.",
+      "html": "<div class=\"ds-ticket-ground\"><div class=\"ds-ticket\"><div class=\"ds-ticket-head\">한국어 → 스페인어 · 보낼 문장</div><div class=\"ds-ticket-body\"><div class=\"ds-pass\">Me encanta tu idea.</div><div class=\"ds-soft-t\">첫 글자는 대문자, 끝에는 마침표.</div></div><div class=\"ds-perf\"></div><div class=\"ds-stub\"><button class=\"ds-btn-text\">들어보기</button><button class=\"ds-btn-primary\">저장</button></div></div></div>",
+      "css": ".ds-ticket-ground { background: #F2F3F5; padding: 16px; } .ds-ticket { background: #FFFFFF; border: 1px solid #E1E3E7; border-radius: 8px; overflow: hidden; font-family: sans-serif; color: #15181D; } .ds-ticket-head { background: #15181D; color: #F6B400; padding: 8px 16px; font: 500 12px/16px 'Roboto Condensed', 'Arial Narrow', sans-serif; letter-spacing: 0.04em; } .ds-ticket-body { padding: 16px; display: flex; flex-direction: column; gap: 8px; } .ds-pass { color: #2E7D4F; font: 500 16px/24px sans-serif; } .ds-soft-t { color: #5B616B; font: 400 14px/21px sans-serif; } .ds-perf { position: relative; height: 16px; margin: 0 -1px; background: linear-gradient(#7D838C, #7D838C) center / calc(100% - 24px) 1px no-repeat; } .ds-perf::before, .ds-perf::after { content: ''; position: absolute; top: 0; width: 16px; height: 16px; border-radius: 50%; background: #F2F3F5; } .ds-perf::before { left: -8px; } .ds-perf::after { right: -8px; } .ds-stub { display: flex; justify-content: space-between; align-items: center; padding: 4px 16px 16px; } .ds-btn-text { background: none; border: none; color: #15181D; font: 500 14px/20px sans-serif; padding: 10px 12px; border-radius: 8px; } .ds-btn-text:hover { background: #ECEEF1; } .ds-btn-primary { background: #15181D; color: #FFFFFF; border: none; border-radius: 8px; padding: 0 24px; height: 48px; font: 500 14px/20px sans-serif; } .ds-btn-primary:hover { background: #2A2F37; } .ds-btn-primary:focus-visible, .ds-btn-text:focus-visible { outline: 2px solid #F6B400; outline-offset: 2px; }"
+    },
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "먹색 바탕, 흰 글자, 8dp 모서리. 확인·저장.",
+      "html": "<button class=\"ds-btn-primary-wide\">확인</button>",
+      "css": ".ds-btn-primary-wide { width: 100%; height: 52px; background: #15181D; color: #FFFFFF; border: none; border-radius: 8px; font: 500 14px/20px sans-serif; transition: background 0.2s; } .ds-btn-primary-wide:hover { background: #2A2F37; } .ds-btn-primary-wide:focus-visible { outline: 2px solid #F6B400; outline-offset: 2px; } .ds-btn-primary-wide:active { transform: scale(0.98); }"
+    },
+    {
+      "name": "Now Button (on board)",
+      "kind": "button",
+      "refersTo": "button-now",
+      "description": "검은 안내판 칸 안의 화면에 하나뿐인 지금 할 일: 플랩 호박 바탕, 먹색 글자.",
+      "html": "<div class=\"ds-hero\"><div class=\"ds-hero-line\"><span class=\"ds-hero-tag\">지금 탑승</span><span class=\"ds-hero-num\">12</span><span>장</span></div><button class=\"ds-btn-now\">복습 시작</button></div>",
+      "css": ".ds-hero { background: #15181D; color: #FFFFFF; border-radius: 8px; padding: 16px; display: flex; flex-direction: column; gap: 10px; font-family: sans-serif; } .ds-hero-line { display: flex; align-items: baseline; gap: 12px; } .ds-hero-tag { color: #F6B400; font: 500 12px/16px 'Roboto Condensed', 'Arial Narrow', sans-serif; letter-spacing: 0.04em; } .ds-hero-num { font: 700 26px/34px 'Roboto Condensed', 'Arial Narrow', sans-serif; font-variant-numeric: tabular-nums; } .ds-btn-now { height: 56px; background: #F6B400; color: #15181D; border: none; border-radius: 8px; font: 500 16px/24px sans-serif; transition: filter 0.2s; } .ds-btn-now:hover { filter: brightness(1.06); } .ds-btn-now:focus-visible { outline: 2px solid #FFFFFF; outline-offset: 2px; }"
+    },
+    {
+      "name": "Filter Chips",
+      "kind": "chip",
+      "refersTo": "chip-selected",
+      "description": "4dp 칩. 선택되면 플랩 호박 바탕에 먹색 글자.",
+      "html": "<div class=\"ds-chips\"><button class=\"ds-chip ds-chip-on\">전체</button><button class=\"ds-chip\">영어</button><button class=\"ds-chip\">스페인어</button></div>",
+      "css": ".ds-chips { display: flex; gap: 8px; background: #F2F3F5; padding: 12px; } .ds-chip { height: 32px; padding: 0 16px; border-radius: 4px; border: 1px solid #7D838C; background: transparent; color: #15181D; font: 500 14px/20px sans-serif; } .ds-chip:hover { background: #ECEEF1; } .ds-chip:focus-visible { outline: 2px solid #15181D; outline-offset: 2px; } .ds-chip-on { background: #F6B400; border-color: #F6B400; } .ds-chip-on:hover { background: #F6B400; filter: brightness(1.05); }"
+    },
+    {
+      "name": "Bottom Navigation",
+      "kind": "nav",
+      "refersTo": "nav-bar",
+      "description": "검은 판 아래 탭 4개. 선택 탭은 호박 알약 위 먹색 아이콘과 호박 이름.",
+      "html": "<nav class=\"ds-nav\"><a class=\"ds-nav-item\"><span class=\"ds-nav-ind\"><svg width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"currentColor\"><path d=\"M12 7a5 5 0 1 0 0 10 5 5 0 0 0 0-10z\"/></svg></span>오늘</a><a class=\"ds-nav-item\"><span class=\"ds-nav-ind\"><svg width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"currentColor\"><path d=\"M4 4h16v12H6l-2 2z\"/></svg></span>번역</a><a class=\"ds-nav-item ds-nav-on\" aria-current=\"page\"><span class=\"ds-nav-ind\"><svg width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"currentColor\"><path d=\"M7 3h10v18l-5-3-5 3z\"/></svg></span>라이브러리</a><a class=\"ds-nav-item\"><span class=\"ds-nav-ind\"><svg width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"currentColor\"><path d=\"M3 17l6-6 4 4 8-8v3h1V5h-5v1h3l-7 7-4-4-7 7z\"/></svg></span>성장</a></nav>",
+      "css": ".ds-nav { display: flex; background: #15181D; padding: 12px 0 16px; font: 500 12px/16px sans-serif; } .ds-nav-item { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; color: #AEB4BD; text-decoration: none; cursor: pointer; } .ds-nav-ind { width: 64px; height: 32px; display: flex; align-items: center; justify-content: center; border-radius: 9999px; transition: background 0.2s; } .ds-nav-item:hover .ds-nav-ind { background: #2A2F37; } .ds-nav-item:focus-visible { outline: 2px solid #F6B400; outline-offset: 2px; } .ds-nav-on { color: #F6B400; } .ds-nav-on .ds-nav-ind, .ds-nav-on:hover .ds-nav-ind { background: #F6B400; color: #15181D; }"
+    },
+    {
+      "name": "Chat Bubbles",
+      "kind": "custom",
+      "refersTo": "bubble-out",
+      "description": "문제·내 답을 대화처럼. 보낸 말은 먹색, 받은 말은 흰 용지에 가는 테두리. 한 모서리만 2dp 꼬리.",
+      "html": "<div class=\"ds-chat\"><div class=\"ds-bub ds-bub-in\">¿Qué haces mañana?</div><div class=\"ds-bub ds-bub-out\">Me encanta tu idea</div></div>",
+      "css": ".ds-chat { display: flex; flex-direction: column; gap: 8px; background: #F2F3F5; padding: 16px; font: 400 16px/24px sans-serif; } .ds-bub { max-width: 88%; padding: 14px 18px; } .ds-bub-in { align-self: flex-start; background: #FFFFFF; color: #15181D; border: 1px solid #E1E3E7; border-radius: 12px 12px 12px 2px; } .ds-bub-out { align-self: flex-end; background: #15181D; color: #FFFFFF; border-radius: 12px 12px 2px 12px; }"
+    },
+    {
+      "name": "Segment Lamps",
+      "kind": "custom",
+      "refersTo": "",
+      "description": "SegmentBar: 셀 수 있는 양(목표·익힌 단계·힌트 단계)을 켜진 칸으로.",
+      "html": "<div class=\"ds-lamps\" role=\"img\" aria-label=\"오늘 목표 10장 중 6장\"><i class=\"on\"></i><i class=\"on\"></i><i class=\"on\"></i><i class=\"on\"></i><i class=\"on\"></i><i class=\"on\"></i><i></i><i></i><i></i><i></i></div>",
+      "css": ".ds-lamps { display: flex; gap: 3px; height: 10px; background: #F2F3F5; padding: 12px; } .ds-lamps i { flex: 1; border-radius: 4px; background: #E1E3E7; } .ds-lamps i.on { background: #F6B400; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "출국장의 출발 안내판",
+    "overview": "문장 하나하나는 친구에게 가는 탑승권이고, 라이브러리는 출국장의 출발 안내판이다. 화면의 위 막대·아래 탭·열 머리는 안내판 검정으로 칠하고, 그 사이 대합실 회색 바탕에 흰 용지 줄이 가는 구분선으로 놓인다. 둥근 카드 목록과 크림·보라 계열 공부 앱의 기본 배치는 쓰지 않는다. 교과서·시험지 느낌이 아니라, 지금 떠나야 할 편이 한눈에 보이는 운영 화면(Operate)이다.\n\n밀도는 안내판처럼 촘촘하다. 줄마다 시간·외국어 문장·뜻·친구와 나라·편 코드(EN/ES)·상태가 한 줄에 들어가고, 상태는 색과 함께 선 모양(실선·점선·빈 칸)으로도 구분된다. 숫자·시간·편 코드·상태는 응축체 대문자와 폭이 같은 숫자로, 한국어 문장은 시스템 산세리프로 쓴다. 호박색은 드물게 나온다: 지금 할 일 하나와 선택 표시에만 켜진다.\n\n움직임은 하나의 문법만 쓴다. 상태 글자가 바뀔 때 안내판 플랩처럼 위에서 넘어 들어오고(약 180ms), 오늘 목표를 채우면 안내판 한 칸이 위에서 펼쳐진다. 그 밖의 버튼·칩·내비게이션 전환은 Material 3 Expressive 스프링에 맡긴다.",
+    "keyCharacteristics": [
+      "검은 안내판 막대(위·아래·열 머리)와 대합실 회색 바탕, 흰 용지 줄의 3층 구조.",
+      "호박색 = \"지금\"과 \"선택\"만. 초록 = 정시·통과, 빨강 = 틀림·삭제만.",
+      "응축체(Roboto Condensed, 앱에 내장) 대문자·고정폭 숫자로 시간·편·상태를 적는다.",
+      "그림자 없이 색 단계와 1dp 선으로 층을 나눈다.",
+      "모서리는 반듯하게 4/8dp, 알약 모양은 상태 알약과 내비게이션 표시에만.",
+      "탑승권: 검은 머리띠의 경로, 절취선과 반원 홈, 떼어 가는 칸(저장)."
+    ],
+    "rules": [
+      { "name": "The Flap Only Means Now Rule", "body": "호박색은 \"지금 할 일 하나\"와 \"선택된 것\"에만 켠다. 장식, 제목 강조, 일반 버튼에는 쓰지 않는다. 한 화면에서 호박으로 켜진 행동 버튼은 하나다.", "section": "colors" },
+      { "name": "The Amber Text Rule", "body": "밝은 바탕에 플랩 호박을 글자로 쓰지 않는다(흰 바탕 대비 약 1.8:1). 글자는 짙은 호박(flap-ink, 약 6.8:1)으로 쓰고, 플랩 호박 글자는 검은 판 위에서만 쓴다(약 9.7:1). 호박 바탕 위 글자는 늘 먹색이다.", "section": "colors" },
+      { "name": "The Three Signals Rule", "body": "상태 색은 셋뿐이다: 호박 = 지금, 초록 = 정시·통과, 빨강 = 틀림·오류·삭제. 빨강을 \"주의\"나 강조에 빌려 쓰지 않는다.", "section": "colors" },
+      { "name": "The No Purple Leak Rule", "body": "M3 스킴의 surfaceContainer 다섯 단계와 inverse 색까지 모두 정해 둔다. 비워 두면 M3 기본 보라가 섞인다. 동적 색(배경화면 색)은 기본으로 끈다.", "section": "colors" },
+      { "name": "The Board Voice Rule", "body": "응축체는 시간·편 코드·상태·개수·큰 숫자에만 쓴다. 문장, 설명, 버튼 글자는 시스템 산세리프다. 라틴 글자는 부르는 쪽에서 대문자로 넘긴다.", "section": "typography" },
+      { "name": "The Steady Digits Rule", "body": "바뀌는 숫자(시간, 장수, 개수, 설정값)는 폭이 같은 숫자(tnum)로 써서 자릿수가 바뀌어도 흔들리지 않게 한다.", "section": "typography" },
+      { "name": "The Tone Not Shadow Rule", "body": "층은 색 단계와 1dp 선으로만 나눈다. 받은 말풍선도 그림자 대신 가는 테두리를 쓴다. 떠 있는 그림자나 단단한 오프셋 그림자를 넣지 않는다.", "section": "elevation" }
+    ],
+    "dos": [
+      "Do 위 막대·아래 탭·열 머리·탑승권 머리띠를 안내판 검정(#15181D)으로 칠하고, 그 사이 바탕은 대합실 회색, 내용은 흰 용지 줄로 둔다.",
+      "Do 호박색은 화면의 \"지금 할 일 하나\"와 선택 표시에만 켜고, 그 위 글자는 늘 먹색으로 쓴다.",
+      "Do 밝은 바탕에서 호박을 글자로 써야 하면 짙은 호박(flap-ink #7A5400)을 쓴다.",
+      "Do 초록은 \"출발 예정(정시)\"과 \"통과(맞음)\"에, 빨강은 틀림·오류·삭제에만 쓴다.",
+      "Do 시간·편·상태·개수는 안내판 표기(Roboto Condensed, tnum, 자간 0.04em, 라틴 대문자)로 쓴다.",
+      "Do 상태는 색과 함께 모양으로도 구분한다(실선·점선·빈 칸, 채운 알약·점·윤곽 알약).",
+      "Do 버튼에 `MaterialTheme.shapes.medium`(8dp)을 명시해 넘긴다.",
+      "Do 새 결과 화면은 탑승권(머리띠 경로 + 본문 + 절취선 아래 떼어 가는 칸)으로 만든다.",
+      "Do 글자색은 배경 대비 4.5:1 이상, 그림 요소는 3:1 이상(outline)을 지킨다."
+    ],
+    "donts": [
+      "Don't 둥근 카드 목록과 크림·보라 계열의 공부 앱 배치로 돌아가지 않는다.",
+      "Don't M3 스킴의 색 슬롯(surfaceContainer 단계, inverse 색)을 비워 두지 않는다. 비우면 기본 보라가 섞인다.",
+      "Don't 플랩 호박(#F6B400)을 흰·회색 바탕 위 글자색으로 쓰지 않는다.",
+      "Don't 호박을 장식이나 제목 강조, 일반 버튼에 쓰지 않는다. 한 화면에 호박 행동 버튼은 하나다.",
+      "Don't 빨강을 강조나 주의 표시에 빌려 쓰지 않는다.",
+      "Don't 그림자로 층을 나누지 않는다. 색 단계와 1dp 선을 쓴다.",
+      "Don't 알약 모양을 상태 알약과 내비게이션 표시 밖에서 쓰지 않는다.",
+      "Don't 응축체를 한국어 문장이나 설명 글에 쓰지 않는다."
+    ]
+  }
+}
