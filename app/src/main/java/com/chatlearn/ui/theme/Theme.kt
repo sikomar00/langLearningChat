@@ -73,6 +73,8 @@ data class StatusColors(
     val onFlap: Color = Ink,
     val flapGraphic: Color = FlapGraphic,
     val segmentOff: Color = SegmentOff,
+    /** 학습 기록 2~4단계 채움(빈 칸과 3:1 이상). 1단계는 [flapGraphic] 테두리. */
+    val heat: List<Color> = listOf(FlapGraphic, FlapInk, FlapDeep),
 )
 
 private val LocalStatusColors = staticCompositionLocalOf { StatusColors(OnTime) }
@@ -92,7 +94,10 @@ fun AppTheme(darkTheme: Boolean = isSystemInDarkTheme(), dynamicColor: Boolean =
         darkTheme -> DarkScheme
         else -> LightScheme
     }
-    val status = if (darkTheme) StatusColors(success = OnTimeLight, board = NightBoard, flapGraphic = Flap, segmentOff = NightSegmentOff)
+    val status = if (darkTheme) StatusColors(
+        success = OnTimeLight, board = NightBoard, flapGraphic = Flap, segmentOff = NightSegmentOff,
+        heat = listOf(Flap.copy(alpha = 0.6f), Flap.copy(alpha = 0.8f), Flap),
+    )
     else StatusColors(success = OnTime)
     CompositionLocalProvider(LocalStatusColors provides status) {
         // Expressive 모션 스킴: 버튼·칩·내비게이션 등 컴포넌트의 상태 전환이 스프링 물리로 움직인다.

@@ -1,5 +1,7 @@
 package com.chatlearn.ui.review
 
+import com.chatlearn.domain.langLabel
+import com.chatlearn.ui.components.Ticket
 import androidx.compose.material3.Icon
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.ExpandLess
@@ -61,7 +63,11 @@ internal fun GradedBody(s: ReviewUi.Graded, vm: ReviewViewModel, canListen: Bool
     }
     verdict?.let { VerdictBanner(it) }
     // 정답이 나타나면 스크린리더가 읽는다(채점이 없는 "모르겠어요"·스스로 채점에서도).
-    ChatBubble(outgoing = false, modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }) {
+    Ticket(
+        route = "정답 · ${langLabel(s.item.card.answerLang)}",
+        modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+        stub = s.item.context?.let { ctx -> { ContextFold(ctx) } },
+    ) {
         when (val o = s.outcome) {
             is GradeOutcome.Ai -> {
                 LabeledText("더 자연스러운 표현", o.result.corrected, valueColor = MaterialTheme.statusColors.success, valueStyle = MaterialTheme.typography.titleMedium)
@@ -74,7 +80,6 @@ internal fun GradedBody(s: ReviewUi.Graded, vm: ReviewViewModel, canListen: Bool
             is GradeOutcome.Local -> LabeledText("정답", o.reference, valueColor = MaterialTheme.statusColors.success, valueStyle = MaterialTheme.typography.titleMedium)
         }
         s.item.keyPhrase?.let { LabeledText("핵심 표현", it, valueColor = MaterialTheme.colorScheme.tertiary) }
-        s.item.context?.let { ContextFold(it) }
         if (s.item.note.isNotBlank()) LabeledText("설명", s.item.note, valueStyle = MaterialTheme.typography.bodyMedium)
     }
     ShadowingRow(vm, canListen, heard, s.item.reference, onShadow)

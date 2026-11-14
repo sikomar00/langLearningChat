@@ -315,7 +315,7 @@ internal fun SentenceTicket(item: LibraryItem, vm: LibraryViewModel) {
     val p = progress[item.entry.id]
     val now = System.currentTimeMillis()
     val zone = ZoneId.systemDefault()
-    fun at(ms: Long?) = ms?.let { REVIEWED_AT.format(Instant.ofEpochMilli(it).atZone(zone)) } ?: "없음"
+    fun at(ms: Long?) = ms?.let { SAVED_AT.format(Instant.ofEpochMilli(it).atZone(zone)) } ?: "없음"
     val saved = Instant.ofEpochMilli(item.entry.createdAt).atZone(zone).format(SAVED_AT)
     // 기록을 읽기 전에는 떼는 칸을 비워 둔다(0회로 보였다가 바뀌지 않게).
     val stub: (@Composable ColumnScope.() -> Unit)? = st?.let { r -> {
@@ -330,7 +330,13 @@ internal fun SentenceTicket(item: LibraryItem, vm: LibraryViewModel) {
         }
         Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
             LabeledText("마지막 복습", at(r.lastReviewedAt), Modifier.weight(1f), valueStyle = MaterialTheme.typography.bodyLarge.board())
-            LabeledText("다음 복습", if (item.entry.known) "없음 · 알아요" else if ((r.dueAt ?: 0) <= now) "지금 가능" else at(r.dueAt), Modifier.weight(1f), valueStyle = MaterialTheme.typography.bodyLarge.board())
+            LabeledText("다음 복습", when {
+                item.entry.known -> "없음 · 알아요"
+                r.dueAt == null -> "없음"
+                p?.state == EntryState.NEW -> "처음 복습 전"
+                r.dueAt <= now -> "지금 가능"
+                else -> at(r.dueAt)
+            }, Modifier.weight(1f), valueStyle = MaterialTheme.typography.bodyLarge.board())
         }
     } }
     Ticket(route = "${langLabel(item.entry.chatLang)} → 한국어 · $saved", stub = stub) {
@@ -417,5 +423,5 @@ internal fun NameDialog(title: String, initial: String, confirmLabel: String, on
     )
 }
 
+// 저장한 때·복습한 때 모두 안내판 꼴 하나.
 private val SAVED_AT = DateTimeFormatter.ofPattern("MM/dd HH:mm")
-private val REVIEWED_AT = DateTimeFormatter.ofPattern("MM/dd HH:mm")

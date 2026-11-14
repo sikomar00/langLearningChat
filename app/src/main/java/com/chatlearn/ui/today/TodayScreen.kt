@@ -4,10 +4,8 @@ import com.chatlearn.ui.components.weekdayLabel
 import com.chatlearn.ui.components.FlightCode
 import com.chatlearn.ui.components.SectionCard
 import com.chatlearn.ui.components.SecondaryButton
-import com.chatlearn.domain.MAX_STAGE
 import com.chatlearn.ui.theme.board
 import com.chatlearn.ui.components.BoardLabel
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -17,23 +15,17 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.chatlearn.domain.Lang
 import com.chatlearn.stats.DayCount
 import com.chatlearn.ui.components.DayBars
-import com.chatlearn.ui.components.StreakBadge
 import com.chatlearn.ui.components.LoadingBox
 import com.chatlearn.ui.theme.statusColors
 import com.chatlearn.ui.components.SegmentBar
 import com.chatlearn.ui.components.FlapText
-import java.time.format.TextStyle
-import java.util.Locale
 
 /** 앱을 열면 처음 보는 화면: 오늘 할 일을 친구가 보낸 말풍선처럼 보여 주고, 한 번에 복습을 시작한다. */
 @Composable
@@ -52,7 +44,6 @@ fun TodayScreen(
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         val s = ui ?: return@Column LoadingBox()
         Hero(s, onStartReview, onLearnMore, onGoTranslate)
-        if (s.goal.enabled) GoalRow(s)
         // 성장 탭과 같은 구역 이름·같은 행동 이름. 빨강은 쓰지 않는다(첫 화면에서 실패 숫자를 먼저 보지 않게).
         s.weakGrammar?.let { w ->
             SectionCard("내 문법 약점") {
@@ -113,6 +104,14 @@ private fun Hero(s: TodayUi, onStart: () -> Unit, onLearnMore: () -> Unit, onGoT
                 }
             }
         }
+        if (s.hasEntries && s.goal.enabled) {
+            Spacer(Modifier.height(8.dp))
+            GoalRow(s)
+        }
+        if (s.hasEntries) Text(
+            "한 문장에 영어·스페인어 카드가 하나씩 있을 수 있어 라이브러리의 문장 수와 다를 수 있어요.",
+            style = MaterialTheme.typography.bodySmall, color = world.onBoardMuted,
+        )
     }
     }
 }
@@ -120,15 +119,13 @@ private fun Hero(s: TodayUi, onStart: () -> Unit, onLearnMore: () -> Unit, onGoT
 @Composable
 private fun GoalRow(s: TodayUi) {
     // 목표는 셀 수 있는 양이라 안내판 불빛 칸으로(한 장 = 한 칸).
-    Column(Modifier.fillMaxWidth().semantics(mergeDescendants = true) {}, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        SegmentBar(s.goal.done, s.goal.goal, Modifier.fillMaxWidth().height(10.dp))
-        Column {
-            Text("오늘 목표 ${s.goal.goal}장 중 ${minOf(s.goal.done, s.goal.goal)}장", style = MaterialTheme.typography.titleMedium.board())
-            Text(
-                if (s.goal.reached) "달성했어요. 더 해도 좋아요." else "${s.goal.goal - s.goal.done}장 남았어요.",
-                style = MaterialTheme.typography.bodyMedium,
-                color = if (s.goal.reached) MaterialTheme.statusColors.success else MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+    // 검은 판 안: 켜진 칸은 플랩, 남은 칸은 판 위 흐린 테두리. 글자는 판 위 색.
+    val world = MaterialTheme.statusColors
+    Column(Modifier.fillMaxWidth().semantics(mergeDescendants = true) {}, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        SegmentBar(s.goal.done, s.goal.goal, Modifier.fillMaxWidth().height(10.dp), onBoard = true)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("오늘 목표 ${minOf(s.goal.done, s.goal.goal)}/${s.goal.goal}장", Modifier.weight(1f), style = MaterialTheme.typography.titleSmall.board(), color = world.onBoard)
+            Text(if (s.goal.reached) "달성했어요" else "${s.goal.goal - s.goal.done}장 남았어요", style = MaterialTheme.typography.bodyMedium, color = world.onBoardMuted)
         }
     }
 }
@@ -153,7 +150,7 @@ private fun Recent(s: TodayUi, onOpenLibrary: () -> Unit, onOpenSentence: (Long)
         s.recent.forEach { item ->
             com.chatlearn.ui.library.CompactRow(
                 item, s.recentProgress[item.entry.id], now, null, selectionMode = false, checked = false,
-                onClick = { onOpenSentence(item.entry.id) }, onLongClick = {},
+                onClick = { onOpenSentence(item.entry.id) }, onLongClick = null,
             )
         }
     }

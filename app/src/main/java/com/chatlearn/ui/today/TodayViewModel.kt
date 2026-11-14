@@ -26,7 +26,6 @@ data class TodayUi(
     /** 오늘 한도 밖에서 더 배울 수 있는 새 카드 수. */
     val moreNew: Int,
     val goal: GoalProgress,
-    val streak: Int,
     val forecast: List<DayCount>,
     val recent: List<LibraryItem>,
     /** 최근 문장별 익힌 단계 0~5(라이브러리와 같은 계산). */
@@ -55,7 +54,14 @@ class TodayViewModel(
     }
 
     /** 화면에 들어올 때와 복습을 마치고 돌아올 때 다시 읽는다. */
-    fun refresh(): Job = viewModelScope.launch {
+    // 겹친 읽기 중 늦게 끝난 옛 결과가 새 결과를 덮지 않게, 새로 읽을 때 앞의 읽기를 멈춘다.
+    private var refreshing: Job? = null
+    fun refresh(): Job {
+        refreshing?.cancel()
+        return viewModelScope.launch { load() }.also { refreshing = it }
+    }
+
+    private suspend fun load() {
         val now = clock()
         val queue = session.loadQueue()
         val newCards = queue.count { it.card.lastReviewedAt == null }
@@ -67,7 +73,6 @@ class TodayViewModel(
             newCards = newCards,
             moreNew = (session.newCardsWaiting() - newCards).coerceAtLeast(0),
             goal = session.todayProgress(),
-            streak = session.streak(),
             forecast = StatsCalculator.forecast(repo.reviewDueTimes(now + 7 * DAY_MS), now, zone),
             recent = recent,
             recentProgress = repo.cardsFor(recent.map { it.entry.id }.toSet(), null)

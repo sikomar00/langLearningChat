@@ -1,5 +1,7 @@
 package com.chatlearn
 
+import com.chatlearn.ui.library.LibrarySelectionBar
+import com.chatlearn.ui.library.LibrarySelectionTopBar
 import com.chatlearn.ui.library.LibraryDrawer
 import kotlinx.coroutines.flow.map
 import com.chatlearn.ui.components.BoardSearchBar
@@ -235,20 +237,27 @@ class MainActivity : ComponentActivity() {
                         ModalNavigationDrawer(
                             drawerState = libraryDrawer, gesturesEnabled = libraryDrawer.isOpen,
                             drawerContent = {
-                                LibraryDrawer(libraryVm, onNewFolder = { libraryVm.newFolderRequest.value = true }, close = { drawerScope.launch { libraryDrawer.close() } })
+                                // 서랍 판은 늘 같은 너비로 그린다(비우면 닫힌 자리와 열린 자리가 같아져 탭을 옮길 때 열린 채로 보인다).
+                                // 무거운 목록 계산은 열리는 동안에만 한다.
+                                LibraryDrawer(libraryVm, active = tab == Tab.LIBRARY && (libraryDrawer.isOpen || libraryDrawer.targetValue == DrawerValue.Open), onNewFolder = { libraryVm.newFolderRequest.value = true }, close = { drawerScope.launch { libraryDrawer.close() } })
                             },
                         ) {
+                        val librarySelection by libraryVm.selection.collectAsStateWithLifecycle()
+                        val selecting = tab == Tab.LIBRARY && librarySelection != null
                         Scaffold(
                             topBar = {
                                 val query by libraryVm.query.collectAsStateWithLifecycle()
-                                if (tab == Tab.LIBRARY) BoardSearchBar(query, { libraryVm.query.value = it }) {
+                                if (selecting) LibrarySelectionTopBar(libraryVm)
+                                else if (tab == Tab.LIBRARY) BoardSearchBar(query, { libraryVm.query.value = it }) {
                                     IconButton(onClick = { overlay = Overlay.SETTINGS }) { Icon(Icons.Default.Settings, contentDescription = "설정") }
                                 } else BoardTopBar(tab.label) {
                                     IconButton(onClick = { overlay = Overlay.SETTINGS }) { Icon(Icons.Default.Settings, contentDescription = "설정") }
                                 }
                             },
                             bottomBar = {
-                                NavigationBar(containerColor = world.board) {
+                                // 라이브러리에서 고르는 동안은 아래 탭 자리가 행동 막대가 된다.
+                                if (selecting) LibrarySelectionBar(libraryVm) { ids, lang -> openReview { reviewVm.startWith(ids, lang) } }
+                                else NavigationBar(containerColor = world.board) {
                                     Tab.entries.forEach { t ->
                                         NavigationBarItem(
                                             selected = tab == t, onClick = { tab = t }, label = { Text(t.label) }, colors = navColors,

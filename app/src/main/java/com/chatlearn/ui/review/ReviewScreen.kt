@@ -1,5 +1,6 @@
 package com.chatlearn.ui.review
 
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import com.chatlearn.ui.components.SecondaryButton
@@ -96,7 +97,7 @@ fun ReviewScreen(vm: ReviewViewModel, voice: VoicePrefs, onClose: () -> Unit) {
                 IconButton(onClick = onClose) { Icon(Icons.Default.Close, contentDescription = "복습 닫기") }
                 if (inSession && progress.total > 0) {
                     SegmentBar(progress.done, progress.total, Modifier.weight(1f).height(8.dp).padding(horizontal = 8.dp), onBoard = true)
-                    Text("${minOf(progress.done + 1, progress.total)}/${progress.total}", style = MaterialTheme.typography.labelLarge.board())
+                    Text("이번 묶음 ${minOf(progress.done + 1, progress.total)}/${progress.total}", style = MaterialTheme.typography.labelLarge.board())
                 } else Spacer(Modifier.weight(1f))
                 if (state is ReviewUi.Prompt) {
                     Box {
@@ -193,7 +194,7 @@ fun ReviewScreen(vm: ReviewViewModel, voice: VoicePrefs, onClose: () -> Unit) {
                             val content: @Composable RowScope.() -> Unit = {
                                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                     Text(ratingLabel(r))
-                                    s.previews[r]?.let { Text(it, style = MaterialTheme.typography.labelSmall.board()) }
+                                    s.previews[r]?.let { Text(it, Modifier.semantics { contentDescription = "다음 복습 $it 뒤" }, style = MaterialTheme.typography.labelSmall.board()) }
                                 }
                             }
                             val m = Modifier.weight(1f).heightIn(min = 56.dp)

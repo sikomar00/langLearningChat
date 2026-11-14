@@ -1,5 +1,6 @@
 package com.chatlearn.ui.library
 
+import com.chatlearn.ui.components.bleed
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import com.chatlearn.ui.theme.statusColors
@@ -39,9 +40,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.chatlearn.data.LibraryItem
 import com.chatlearn.domain.Lang
 
-private val PickedSaver = androidx.compose.runtime.saveable.Saver<Set<Long>?, LongArray>(
-    save = { it?.toLongArray() }, restore = { it.toSet() },
-)
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -98,24 +96,26 @@ fun LibraryScreen(
         } else snackbar.currentSnackbarData?.dismiss()
     }
     // 길게 눌러 들어가는 선택 모드. 필터가 바뀌어 사라진 항목은 선택에서 뺀다.
-    var picked by rememberSaveable(stateSaver = PickedSaver) { mutableStateOf<Set<Long>?>(null) }
-    BackHandler(enabled = picked != null) { picked = null }
+    val picked by vm.selection.collectAsStateWithLifecycle()
+    BackHandler(enabled = picked != null) { vm.selection.value = null }
     val visibleIds = remember(items) { items.map { it.entry.id }.toSet() }
-    val chosen = picked?.intersect(visibleIds).orEmpty()
+    // 고른 문장은 검색·필터로 잠시 안 보여도 남는다(지워진 문장만 뺀다).
+    val everythingIds = remember(everything) { everything.mapTo(HashSet()) { it.entry.id } }
+    val chosen = picked?.intersect(everythingIds).orEmpty()
+    val selectionRequest by vm.selectionRequest.collectAsStateWithLifecycle()
+    LaunchedEffect(selectionRequest) {
+        when (selectionRequest) {
+            SelectionRequest.MOVE -> moveTargets = chosen
+            SelectionRequest.DELETE -> confirmBulkDelete = true
+            null -> Unit
+        }
+        vm.selectionRequest.value = null
+    }
 
     val newFolderRequest by vm.newFolderRequest.collectAsStateWithLifecycle()
     LaunchedEffect(newFolderRequest) { if (newFolderRequest) { folderDialog = FolderDialogKind.Create; vm.newFolderRequest.value = false } }
     Box(Modifier.fillMaxSize()) {
     Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        if (picked != null) {
-            Row(Modifier.heightIn(min = 48.dp), verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = { picked = null }) { Icon(Icons.Default.Close, contentDescription = "선택 끝내기") }
-                Text("${chosen.size}개 선택", style = MaterialTheme.typography.titleMedium.board(), modifier = Modifier.weight(1f))
-                TextButton(onClick = { picked = if (chosen.size == visibleIds.size) emptySet() else visibleIds }) {
-                    Text(if (chosen.size == visibleIds.size) "선택 해제" else "전체 선택")
-                }
-            }
-        }
         val unexpanded by vm.unexpanded.collectAsStateWithLifecycle()
         val missingKeys by vm.missingKeyPhrases.collectAsStateWithLifecycle()
         val expanding by vm.expanding.collectAsStateWithLifecycle()
@@ -184,7 +184,7 @@ fun LibraryScreen(
             }
         }
         if (showFilters && picked == null) {
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            LazyRow(Modifier.bleed(16.dp), contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                 item { Text("언어", style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(end = 4.dp)) }
                 items(listOf(Lang.EN to "영어", Lang.ES to "스페인어")) { (l, label) ->
                     ChoiceChip(
@@ -194,13 +194,13 @@ fun LibraryScreen(
                 }
             }
             val topics = tags - people.toSet()
-            if (topics.isNotEmpty()) LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            if (topics.isNotEmpty()) LazyRow(Modifier.bleed(16.dp), contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                 item { Text("태그", style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(end = 4.dp)) }
                 items(topics) { t ->
                     ChoiceChip(selected = tag == t, onClick = { vm.tagFilter.value = if (tag == t) null else t }, label = { Text(t) })
                 }
             }
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            LazyRow(Modifier.bleed(16.dp), contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                 item { Text("정렬", style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(end = 4.dp)) }
                 items(LibrarySort.entries.toList()) { o ->
                     ChoiceChip(radio = true, selected = sort == o, onClick = { vm.sort.value = o }, label = { Text(o.label) })
@@ -212,13 +212,13 @@ fun LibraryScreen(
                     }) { Text("초기화") }
                 }
             }
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            LazyRow(Modifier.bleed(16.dp), contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                 item { Text("묶기", style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(end = 4.dp)) }
                 items(GroupBy.entries.toList()) { g ->
                     ChoiceChip(radio = true, selected = groupBy == g, onClick = { groupBy = g; showFilters = false; uiPrefs.edit().putString("library_group", g.name).apply() }, label = { Text(g.label) })
                 }
             }
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            LazyRow(Modifier.bleed(16.dp), contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                 item { Text("보기", style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(end = 4.dp)) }
                 item { ChoiceChip(radio = true, selected = compact, onClick = { compact = true; showFilters = false; uiPrefs.edit().putBoolean("library_compact", true).apply() }, label = { Text("촘촘히") }) }
                 item { ChoiceChip(radio = true, selected = !compact, onClick = { compact = false; showFilters = false; uiPrefs.edit().putBoolean("library_compact", false).apply() }, label = { Text("넓게") }) }
@@ -254,7 +254,7 @@ fun LibraryScreen(
                 onPick = { fid ->
                     vm.moveToFolder(ids, fid)
                     notice = folderMoveNotice(ids.size, fid?.let { folderNames[it].orEmpty() })
-                    moveTargets = null; picked = null
+                    moveTargets = null; vm.selection.value = null
                 },
                 onCreate = { name ->
                     scope.launch {
@@ -262,7 +262,7 @@ fun LibraryScreen(
                         if (fid != null) {
                             vm.moveToFolder(ids, fid).join()
                             notice = folderMoveNotice(ids.size, name.trim())
-                            moveTargets = null; picked = null
+                            moveTargets = null; vm.selection.value = null
                         }
                     }
                 },
@@ -274,7 +274,7 @@ fun LibraryScreen(
             title = { Text("${chosen.size}개를 삭제할까요?") },
             text = { Text("복습 기록도 함께 지워지고 되돌릴 수 없어요.") },
             confirmButton = {
-                TextButton(onClick = { vm.deleteMany(chosen); confirmBulkDelete = false; picked = null }) {
+                TextButton(onClick = { vm.deleteMany(chosen); confirmBulkDelete = false; vm.selection.value = null }) {
                     Text("삭제", color = MaterialTheme.colorScheme.error)
                 }
             },
@@ -329,10 +329,8 @@ fun LibraryScreen(
             }
         }
         if (compact && items.isNotEmpty() && picked == null) BoardColumns()
-        // 선택 중에는 아래 행동 막대가 마지막 줄을 가리지 않게 여백을 둔다.
         LazyColumn(
             state = listState, verticalArrangement = Arrangement.spacedBy(if (compact) 0.dp else 8.dp),
-            contentPadding = PaddingValues(bottom = if (picked != null) 88.dp else 0.dp),
         ) {
             groups.forEach { g ->
                 if (g.title != null) stickyHeader(key = "header-${g.key}") { GroupHeader(g.title, g.items.size) }
@@ -341,8 +339,8 @@ fun LibraryScreen(
                     val p = progress[id]
                     // 묶음 제목이 상태를 말해 주면 배지는 중복이라 생략한다. "나중에" 묶음은 남은 기간을 보여 준다.
                     val badge = p?.let { if (g.state == null || g.state == EntryState.LATER) dueBadge(it, now) else null }
-                    val onClick = { if (picked != null) picked = if (id in chosen) chosen - id else chosen + id else selectedId = id }
-                    val onLongClick = { if (picked == null) picked = setOf(id) }
+                    val onClick = { if (picked != null) vm.selection.value = if (id in chosen) chosen - id else chosen + id else selectedId = id }
+                    val onLongClick = { if (picked == null) vm.selection.value = setOf(id) }
                     val folderName = item.entry.folderId?.let { folderNames[it] }
                     SwipeRow(
                         enabled = picked == null,
@@ -357,12 +355,6 @@ fun LibraryScreen(
         }
     }
 
-    if (picked != null) SelectionBar(
-        enabled = chosen.isNotEmpty(), sendingToNotion = vm.sendingToNotion.collectAsStateWithLifecycle().value,
-        onReview = { onStartReview(chosen, lang); picked = null }, onMove = { moveTargets = chosen },
-        onNotion = { vm.sendToNotion(chosen) }, onDelete = { confirmBulkDelete = true },
-        modifier = Modifier.align(Alignment.BottomCenter),
-    )
     SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter))
     }
     selected?.let { item -> DetailDialog(item, item.entry.id in expandedIds, recentTags, folders, vm, onReview = { onStartReview(setOf(item.entry.id), null); selectedId = null }) { selectedId = null } }
@@ -370,39 +362,3 @@ fun LibraryScreen(
 }
 
 private class LibGroup(val key: String, val title: String?, val items: List<LibraryItem>, val state: EntryState?)
-
-/** 선택 모드의 행동 막대: 엄지가 닿는 아래쪽 검은 판 한 줄. 선택 복습 · 폴더로 · ⋮(노션에 보내기 · 삭제). */
-@Composable
-private fun SelectionBar(
-    enabled: Boolean, sendingToNotion: Boolean,
-    onReview: () -> Unit, onMove: () -> Unit, onNotion: () -> Unit, onDelete: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val c = MaterialTheme.statusColors
-    var more by remember { mutableStateOf(false) }
-    Surface(color = c.board, contentColor = c.onBoard, shape = MaterialTheme.shapes.medium, modifier = modifier.padding(12.dp).fillMaxWidth()) {
-        Row(Modifier.padding(horizontal = 8.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-            Button(
-                onClick = onReview, enabled = enabled, shape = MaterialTheme.shapes.medium, modifier = Modifier.weight(1f),
-                colors = ButtonDefaults.buttonColors(containerColor = c.onBoard, contentColor = c.board),
-            ) { Text("선택 복습") }
-            TextButton(onClick = onMove, enabled = enabled, colors = ButtonDefaults.textButtonColors(contentColor = c.onBoard)) {
-                Icon(Icons.Default.Folder, contentDescription = null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("폴더로")
-            }
-            Box {
-                IconButton(onClick = { more = true }, enabled = enabled) { Icon(Icons.Default.MoreVert, contentDescription = "더 보기", tint = c.onBoard) }
-                DropdownMenu(expanded = more, onDismissRequest = { more = false }) {
-                    DropdownMenuItem(
-                        text = { Text(if (sendingToNotion) "보내는 중…" else "노션에 보내기") }, enabled = !sendingToNotion,
-                        onClick = { more = false; onNotion() },
-                    )
-                    DropdownMenuItem(
-                        text = { Text("삭제", color = MaterialTheme.colorScheme.error) },
-                        leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
-                        onClick = { more = false; onDelete() },
-                    )
-                }
-            }
-        }
-    }
-}

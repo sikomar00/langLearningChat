@@ -596,4 +596,13 @@ class TranslateViewModelTest {
         vm.togglePerson("Lucia"); vm.toggleCountry("멕시코"); vm.togglePerson("Lucia")
         assertEquals(setOf("멕시코"), vm.state.value.countries - "스페인")
     }
+
+    @Test fun anAutoPickedCountryFollowsTheNextFriend() = runBlocking {
+        repo.saveEntry(EntryDraft(Direction.RECEIVED, Lang.ES, "Hola", "안녕", "", null, emptyList(), people = listOf("Lucia"), countries = listOf("스페인")), 500)
+        repo.saveEntry(EntryDraft(Direction.RECEIVED, Lang.ES, "Qué onda", "뭐해", "", null, emptyList(), people = listOf("Juan"), countries = listOf("멕시코")), 600)
+        vm.togglePerson("Lucia")
+        withTimeout(5_000) { vm.state.first { it.countries == setOf("스페인") } }
+        vm.togglePerson("Lucia"); vm.togglePerson("Juan")
+        assertEquals(setOf("멕시코"), withTimeout(5_000) { vm.state.first { it.countries == setOf("멕시코") } }.countries)
+    }
 }

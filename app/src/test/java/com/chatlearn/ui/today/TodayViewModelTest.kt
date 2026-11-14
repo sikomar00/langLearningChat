@@ -64,7 +64,6 @@ class TodayViewModelTest {
         assertEquals(1, ui.newCards) // 하루 새 카드 2장 중 1장을 이미 씀
         assertEquals(1, ui.moreNew)
         assertEquals(1, ui.goal.done); assertEquals(3, ui.goal.goal)
-        assertEquals(1, ui.streak)
         assertEquals(7, ui.forecast.size)
         assertEquals(1, ui.forecast.sumOf { it.reviews })
         assertEquals(listOf("three", "two", "one"), ui.recent.map { it.texts[Lang.EN] })

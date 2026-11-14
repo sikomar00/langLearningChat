@@ -1,5 +1,6 @@
 package com.chatlearn.ui.translate
 
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.material.icons.filled.ExpandMore
@@ -99,7 +100,10 @@ fun TranslateScreen(
                 })
             },
             trailingIcon = {
-                if (s.input.isNotEmpty()) {
+                if (showSaveBar) Row {
+                    IconButton(onClick = { vm.translate() }, enabled = s.input.isNotBlank() && !s.loading) { Icon(Icons.Default.Refresh, contentDescription = "다시 번역") }
+                    IconButton(onClick = { vm.clearInput() }) { Icon(Icons.Default.Clear, contentDescription = "입력 지우기") }
+                } else if (s.input.isNotEmpty()) {
                     IconButton(onClick = { vm.clearInput() }) { Icon(Icons.Default.Clear, contentDescription = "입력 지우기") }
                 } else {
                     // 비어 있을 때는 붙여넣기: 붙여넣자마자 지금 모드로 번역(첨삭)까지 한다.
@@ -158,12 +162,8 @@ fun TranslateScreen(
         val details: @Composable () -> Unit = { detailsBody(true) }
         // 키보드가 결과와 저장 버튼을 가리지 않게 번역을 누르면 내린다.
         val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
-        if (showSaveBar) {
-            // 이미 번역했으면 다시 하는 일은 보조: 주 버튼은 아래 "저장" 하나.
-            TextButton(onClick = { focusManager.clearFocus(); vm.translate() }, enabled = s.input.isNotBlank() && !s.loading, modifier = Modifier.align(Alignment.End)) {
-                if (s.loading) ButtonSpinner() else Text("다시 번역")
-            }
-        } else Button(shape = MaterialTheme.shapes.medium, onClick = { focusManager.clearFocus(); vm.translate() }, enabled = s.input.isNotBlank() && !s.loading, modifier = Modifier.fillMaxWidth()) {
+        // 이미 번역했으면 "다시 번역"은 입력칸 오른쪽 아이콘: 주 버튼은 아래 "저장" 하나.
+        if (!showSaveBar) Button(shape = MaterialTheme.shapes.medium, onClick = { focusManager.clearFocus(); vm.translate() }, enabled = s.input.isNotBlank() && !s.loading, modifier = Modifier.fillMaxWidth()) {
             val lineCount = if (s.mode == TranslateMode.RECEIVED) splitMessages(s.input).size else 0
             if (s.loading) ButtonSpinner()
             else Text(if (lineCount >= 2) "문장별로 번역 (${lineCount}개)" else if (s.mode == TranslateMode.CORRECT) "확인" else "번역")

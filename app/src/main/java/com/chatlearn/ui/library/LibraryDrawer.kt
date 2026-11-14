@@ -28,7 +28,15 @@ import com.chatlearn.ui.theme.statusColors
  * 고르면 닫힌다. 폴더와 상태는 하나씩, 친구는 태그 필터를 쓴다.
  */
 @Composable
-internal fun LibraryDrawer(vm: LibraryViewModel, onNewFolder: () -> Unit, close: () -> Unit) {
+internal fun LibraryDrawer(vm: LibraryViewModel, active: Boolean, onNewFolder: () -> Unit, close: () -> Unit) {
+    val c = MaterialTheme.statusColors
+    ModalDrawerSheet(Modifier.width(288.dp), drawerContainerColor = c.board, drawerContentColor = c.onBoard, drawerShape = MaterialTheme.shapes.medium) {
+        if (active) DrawerList(vm, onNewFolder, close)
+    }
+}
+
+@Composable
+private fun DrawerList(vm: LibraryViewModel, onNewFolder: () -> Unit, close: () -> Unit) {
     val folders by vm.folders.collectAsStateWithLifecycle()
     val folderCounts by vm.folderCounts.collectAsStateWithLifecycle()
     val folderFilter by vm.folderFilter.collectAsStateWithLifecycle()
@@ -37,35 +45,31 @@ internal fun LibraryDrawer(vm: LibraryViewModel, onNewFolder: () -> Unit, close:
     val statusFilter by vm.statusFilter.collectAsStateWithLifecycle()
     val statusCounts by vm.statusCounts.collectAsStateWithLifecycle()
     val personCounts by vm.personCounts.collectAsStateWithLifecycle()
-    val c = MaterialTheme.statusColors
     val pick = { action: () -> Unit -> action(); close() }
-
-    ModalDrawerSheet(Modifier.width(288.dp), drawerContainerColor = c.board, drawerContentColor = c.onBoard, drawerShape = MaterialTheme.shapes.medium) {
-        LazyColumn(contentPadding = PaddingValues(vertical = 16.dp)) {
-            item { DrawerHeading("폴더") }
-            item {
-                DrawerRow("전체", folderCounts.values.sum(), folderFilter == null, Icons.Default.FolderOpen) { pick { vm.folderFilter.value = null } }
+    LazyColumn(contentPadding = PaddingValues(vertical = 16.dp)) {
+        item { DrawerHeading("폴더") }
+        item {
+            DrawerRow("전체", folderCounts.values.sum(), folderFilter == null, Icons.Default.FolderOpen) { pick { vm.folderFilter.value = null } }
+        }
+        if (folders.isNotEmpty() && (folderCounts[FOLDER_UNFILED] ?: 0) > 0) item {
+            DrawerRow("폴더 없음", folderCounts[FOLDER_UNFILED] ?: 0, folderFilter == FOLDER_UNFILED, Icons.Default.Folder) {
+                pick { vm.folderFilter.value = FOLDER_UNFILED }
             }
-            if (folders.isNotEmpty() && (folderCounts[FOLDER_UNFILED] ?: 0) > 0) item {
-                DrawerRow("폴더 없음", folderCounts[FOLDER_UNFILED] ?: 0, folderFilter == FOLDER_UNFILED, Icons.Default.Folder) {
-                    pick { vm.folderFilter.value = FOLDER_UNFILED }
-                }
+        }
+        items(folders, key = { it.id }) { f ->
+            DrawerRow(f.name, folderCounts[f.id] ?: 0, folderFilter == f.id, Icons.Default.Folder) { pick { vm.folderFilter.value = f.id } }
+        }
+        item { DrawerRow("새 폴더", null, false, Icons.Default.CreateNewFolder) { pick(onNewFolder) } }
+        if (people.isNotEmpty()) {
+            item { DrawerHeading("친구") }
+            items(people) { p ->
+                DrawerRow(p, personCounts[p] ?: 0, person == p, Icons.Default.Person) { pick { vm.personFilter.value = if (person == p) null else p } }
             }
-            items(folders, key = { it.id }) { f ->
-                DrawerRow(f.name, folderCounts[f.id] ?: 0, folderFilter == f.id, Icons.Default.Folder) { pick { vm.folderFilter.value = f.id } }
-            }
-            item { DrawerRow("새 폴더", null, false, Icons.Default.CreateNewFolder) { pick(onNewFolder) } }
-            if (people.isNotEmpty()) {
-                item { DrawerHeading("친구") }
-                items(people) { p ->
-                    DrawerRow(p, personCounts[p] ?: 0, person == p, Icons.Default.Person) { pick { vm.personFilter.value = if (person == p) null else p } }
-                }
-            }
-            item { DrawerHeading("상태") }
-            item { DrawerRow("모든 상태", null, statusFilter == StatusFilter.ALL, null) { pick { vm.statusFilter.value = StatusFilter.ALL } } }
-            items(StatusFilter.entries.filter { it != StatusFilter.ALL && (it == statusFilter || (statusCounts[it] ?: 0) > 0) }) { f ->
-                DrawerRow(f.label, statusCounts[f] ?: 0, statusFilter == f, null) { pick { vm.statusFilter.value = if (statusFilter == f) StatusFilter.ALL else f } }
-            }
+        }
+        item { DrawerHeading("상태") }
+        item { DrawerRow("모든 상태", null, statusFilter == StatusFilter.ALL, null) { pick { vm.statusFilter.value = StatusFilter.ALL } } }
+        items(StatusFilter.entries.filter { it != StatusFilter.ALL && (it == statusFilter || (statusCounts[it] ?: 0) > 0) }) { f ->
+            DrawerRow(f.label, statusCounts[f] ?: 0, statusFilter == f, null) { pick { vm.statusFilter.value = if (statusFilter == f) StatusFilter.ALL else f } }
         }
     }
 }

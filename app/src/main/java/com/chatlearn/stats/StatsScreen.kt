@@ -1,6 +1,5 @@
 package com.chatlearn.stats
 
-import androidx.compose.ui.graphics.luminance
 import com.chatlearn.ui.components.ChoiceChip
 import com.chatlearn.domain.langLabel
 import androidx.compose.foundation.layout.FlowRow
@@ -120,9 +119,7 @@ private fun Heatmap(days: List<DayCount>, monthDays: Int, streak: Int) {
     // 빈 날은 옅은 선 색. 복습한 날은 빈 칸과 3:1 이상이 되게 불투명 단계로: 1단계는 호박 테두리(모양으로도 구분),
     // 2~4단계는 점점 짙은 호박(밤에는 점점 밝은 호박).
     val emptyCell = MaterialTheme.colorScheme.outlineVariant
-    val night = MaterialTheme.colorScheme.surface.luminance() < 0.5f
-    val fills = if (night) listOf(lamp.copy(alpha = 0.6f), lamp.copy(alpha = 0.8f), lamp)
-    else listOf(lamp, com.chatlearn.ui.theme.FlapInk, androidx.compose.ui.graphics.Color(0xFF4D3500))
+    val fills = MaterialTheme.statusColors.heat
     val cellShape = RoundedCornerShape(3.dp)
     fun Modifier.heat(level: Int) = when (level) {
         0 -> background(emptyCell, cellShape)

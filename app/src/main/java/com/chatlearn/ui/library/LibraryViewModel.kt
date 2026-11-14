@@ -214,13 +214,17 @@ class LibraryViewModel(
         query.value = text
     }
 
+    /** 길게 눌러 들어가는 선택 모드에서 고른 문장. null이면 선택 중이 아님. 검색을 바꿔도 고른 문장은 남는다. */
+    val selection = MutableStateFlow<Set<Long>?>(null)
+    /** 아래 행동 막대에서 누른 일 중 목록 화면의 창이 필요한 것(폴더 고르기·삭제 확인). 화면이 열고 비운다. */
+    val selectionRequest = MutableStateFlow<SelectionRequest?>(null)
+
     /** 서랍의 "새 폴더": 화면이 이름 창을 열고 비운다. */
     val newFolderRequest = MutableStateFlow(false)
 
-    /** 다른 화면(성장)에서 문장 하나를 열어 달라고 할 때. 필터를 풀어 목록에 보이게 하고, 화면이 상세를 연 뒤 비운다. */
+    /** 다른 화면(오늘·성장)에서 문장 하나를 열어 달라고 할 때. 화면이 상세를 연 뒤 비운다. 걸어 둔 필터는 그대로 둔다. */
     val openRequest = MutableStateFlow<Long?>(null)
     fun open(id: Long) {
-        showOnly("")
         openRequest.value = id
     }
 
@@ -281,3 +285,5 @@ class LibraryViewModel(
     /** 알게 된 날(저장일)을 고친다. */
     fun saveLearnedAt(id: Long, at: Long) = viewModelScope.launch { repo.setLearnedAt(id, at) }
 }
+
+enum class SelectionRequest { MOVE, DELETE }

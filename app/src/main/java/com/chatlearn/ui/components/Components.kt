@@ -1,5 +1,6 @@
 package com.chatlearn.ui.components
 
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.role
 import com.chatlearn.ui.theme.board
@@ -137,6 +138,16 @@ fun ChoiceChip(
     selected, onClick, label, if (radio) modifier.semantics { role = Role.RadioButton } else modifier, enabled, leadingIcon, trailingIcon,
     colors = FilterChipDefaults.filterChipColors(labelColor = MaterialTheme.colorScheme.onSurface, iconColor = MaterialTheme.colorScheme.onSurface),
 )
+
+/**
+ * 바깥 Column의 좌우 여백([inset])을 넘어 화면 끝까지 펼친다. 가로로 넘기는 줄에 쓰고, 줄 안에 같은 여백을 contentPadding으로 준다.
+ * 그래야 넘길 때 칩이 여백 선에서 잘려 보이지 않는다.
+ */
+fun Modifier.bleed(inset: androidx.compose.ui.unit.Dp): Modifier = layout { measurable, constraints ->
+    val extra = (inset * 2).roundToPx()
+    val p = measurable.measure(constraints.copy(minWidth = constraints.minWidth + extra, maxWidth = constraints.maxWidth + extra))
+    layout(p.width - extra, p.height) { p.place(-inset.roundToPx(), 0) }
+}
 
 /** 작은 라벨 + 값. 구역 안에서 항목끼리 구분이 되게 한다. */
 @Composable

@@ -19,6 +19,8 @@ internal val Rule = Color(0xFFE1E3E7)
 // 불빛 칸의 꺼진 칸 테두리: 바탕(흰 용지·대합실)과 3:1 이상. 칠하지 않고 테두리만 그린다.
 internal val SegmentOff = Color(0xFF7D838C)
 internal val FlapInk = Color(0xFF7A5400)
+// 학습 기록에서 가장 많이 한 날(밝은 바탕).
+internal val FlapDeep = Color(0xFF4D3500)
 // 밝은 바탕 위 호박 그림(오늘 막대·켜진 칸·지금 복습 선): 바탕 대비 3.5:1, 꺼진 칸 대비 3:1.
 internal val FlapGraphic = Color(0xFFA87800)
 internal val Delayed = Color(0xFFC0322A)

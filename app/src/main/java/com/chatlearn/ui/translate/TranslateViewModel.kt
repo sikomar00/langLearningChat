@@ -119,12 +119,19 @@ class TranslateViewModel(
         fillCountryFor(name.trim())
     }
 
-    /** 나라를 아직 안 골랐으면, 그 친구와 마지막으로 붙였던 나라를 고른다(같은 친구는 대개 같은 나라). */
+    // 친구를 따라 자동으로 넣은 나라. 직접 고른 나라가 없으면 다음 친구의 나라로 바꾼다.
+    private var autoCountry: String? = null
+
+    /** 그 친구와 마지막으로 붙였던 나라를 고른다(같은 친구는 대개 같은 나라). 직접 고른 나라가 있으면 건드리지 않는다. */
     private fun fillCountryFor(person: String) {
-        if (person !in _state.value.people || _state.value.countries.isNotEmpty()) return
+        if (person !in _state.value.people) return
         viewModelScope.launch {
             val country = repo.lastCountryWith(person) ?: return@launch
-            _state.update { if (person in it.people && it.countries.isEmpty()) it.copy(countries = setOf(country)) else it }
+            _state.update { st ->
+                val manual = st.countries - setOfNotNull(autoCountry)
+                if (person !in st.people || manual.isNotEmpty()) st
+                else { autoCountry = country; st.copy(countries = setOf(country)) }
+            }
         }
     }
     fun toggleCountry(name: String) = _state.update { it.copy(countries = it.countries.toggle(name.trim())) }
