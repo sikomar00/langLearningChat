@@ -36,7 +36,7 @@ internal fun PromptBody(s: ReviewUi.Prompt, vm: ReviewViewModel, canListen: Bool
     if (isLeech(s.item.card)) {
         Surface(color = MaterialTheme.colorScheme.tertiaryContainer, shape = MaterialTheme.shapes.medium) {
             Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text("이 카드를 ${s.item.card.lapses}번 틀렸어요", style = MaterialTheme.typography.labelLarge)
+                Text("이 카드 ${s.item.card.lapses}번 틀림", style = MaterialTheme.typography.labelLarge)
                 Text("정답을 확인한 뒤 설명을 읽어 보거나, 한 달 쉬었다가 다시 만나 볼 수 있어요.", style = MaterialTheme.typography.bodySmall)
                 Row {
                     TextButton(onClick = { vm.restartCurrent() }, contentPadding = PaddingValues(horizontal = 4.dp)) { Text("처음부터 다시") }

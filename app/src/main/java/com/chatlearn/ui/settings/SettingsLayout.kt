@@ -38,7 +38,7 @@ internal fun SettingsGroup(title: String, content: @Composable ColumnScope.() ->
 internal fun SettingItem(label: String, help: String? = null, first: Boolean = false, content: @Composable ColumnScope.() -> Unit = {}) {
     if (!first) HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
     Column(Modifier.fillMaxWidth().padding(vertical = 14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(label, style = MaterialTheme.typography.titleMedium)
+        Text(label, style = MaterialTheme.typography.bodyLarge)
         help?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
         content()
     }

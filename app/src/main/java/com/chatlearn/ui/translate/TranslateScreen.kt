@@ -54,7 +54,7 @@ fun TranslateScreen(
         if (android.os.Build.VERSION.SDK_INT < 33) android.widget.Toast.makeText(ctx, "복사했어요", android.widget.Toast.LENGTH_SHORT).show()
     }
 
-    Column(Modifier.fillMaxSize().imePadding().padding(16.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    Column(Modifier.fillMaxSize().imePadding().padding(16.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
             TranslateMode.entries.forEachIndexed { i, m ->
                 SegmentedButton(
@@ -158,7 +158,7 @@ fun TranslateScreen(
                 when (s.mode) {
                     TranslateMode.RECEIVED -> {
                         Text("입력칸 오른쪽 붙여넣기 버튼을 누르면 복사한 메시지를 바로 번역해요.", style = MaterialTheme.typography.bodyMedium)
-                        Text("여러 줄을 한꺼번에 붙여넣으면 문장별로 골라 저장할 수 있어요.", style = MaterialTheme.typography.bodyMedium)
+                        Text("여러 줄을 한꺼번에 붙여 넣으면 문장별로 골라 저장할 수 있어요.", style = MaterialTheme.typography.bodyMedium)
                         Text("결과에서 단어를 누르면 그 문장에서의 뜻을 볼 수 있어요.", style = MaterialTheme.typography.bodyMedium)
                     }
                     TranslateMode.SENT -> {

@@ -30,7 +30,8 @@ data class TodayUi(
     val forecast: List<DayCount>,
     val recent: List<LibraryItem>,
     /** 최근 문장별 익힌 단계 0~5(라이브러리와 같은 계산). */
-    val recentStages: Map<Long, Int> = emptyMap(),
+    /** 최근 문장의 복습 상태(라이브러리 줄과 같은 모양으로 그린다). */
+    val recentProgress: Map<Long, com.chatlearn.stats.EntryProgress> = emptyMap(),
     val hasEntries: Boolean,
     /** 가장 많이 틀린 문법(틀린 적이 없으면 null). */
     val weakGrammar: com.chatlearn.stats.GrammarWeakness? = null,
@@ -69,9 +70,10 @@ class TodayViewModel(
             streak = session.streak(),
             forecast = StatsCalculator.forecast(repo.reviewDueTimes(now + 7 * DAY_MS), now, zone),
             recent = recent,
-            recentStages = repo.cardsFor(recent.map { it.entry.id }.toSet(), null)
+            recentProgress = repo.cardsFor(recent.map { it.entry.id }.toSet(), null)
                 .groupBy({ it.card.entryId }, { it.card }).mapValues { (id, cards) ->
-                    if (recent.any { it.entry.id == id && it.entry.known }) MAX_STAGE else progressOf(cards, now).stage
+                    val p = progressOf(cards, now)
+                    if (recent.any { it.entry.id == id && it.entry.known }) p.copy(state = com.chatlearn.stats.EntryState.KNOWN, stage = MAX_STAGE) else p
                 },
             hasEntries = library.isNotEmpty(),
             weakGrammar = com.chatlearn.stats.GrammarStats.weakest(repo.observeGrammarEvents().first()).firstOrNull { it.errors > 0 },

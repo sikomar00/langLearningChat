@@ -76,7 +76,7 @@ fun SettingsScreen(vm: SettingsViewModel, onPreviewVoice: (com.chatlearn.domain.
         var checkResult by remember { mutableStateOf<String?>(null) }
         var checkOk by remember { mutableStateOf(false) }
         SettingsGroup("Gemini") {
-            SettingItem("API 키", "Google AI Studio에서 무료 키를 발급받아 붙여넣으세요.", first = true) {
+            SettingItem("API 키", "Google AI Studio에서 무료 키를 발급받아 붙여 넣어 주세요.", first = true) {
                 OutlinedTextField(
                     key, { key = it }, Modifier.fillMaxWidth(), singleLine = true, label = { Text("붙여넣은 키") },
                     visualTransformation = if (showKey) VisualTransformation.None else PasswordVisualTransformation(),
@@ -254,7 +254,7 @@ fun SettingsScreen(vm: SettingsViewModel, onPreviewVoice: (com.chatlearn.domain.
                     SecondaryButton(shape = MaterialTheme.shapes.medium, onClick = { exportLauncher.launch("chatlearn-backup.json") }, modifier = Modifier.weight(1f)) { Text("내보내기") }
                     SecondaryButton(shape = MaterialTheme.shapes.medium, onClick = { importLauncher.launch(arrayOf("application/json", "*/*")) }, modifier = Modifier.weight(1f)) { Text("가져오기") }
                 }
-                Text("가져오면 지금 있는 데이터가 백업 파일의 내용으로 바뀝니다.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("가져오면 지금 있는 데이터가 백업 파일의 내용으로 바뀌어요.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             ItemDivider()
             Column(Modifier.padding(vertical = 14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) { AutoBackupFolder(s.autoBackupFolder, vm) }

@@ -51,11 +51,11 @@ class StatsCalculatorTest {
         assertNull(compute(listOf(logEx(1, Rating.GOOD, ExerciseKind.TRANSLATE, null))).avgResponseMs)
     }
 
-    @Test fun weakestShowsTheSentenceInTheCardsAnswerLanguage() {
+    @Test fun weakestCountsSentencesNotCardsInTheSentencesOwnLanguage() {
         val enEntry = LibraryItem(EntryEntity(1, 0, Direction.RECEIVED, Lang.EN, "", null),
             mapOf(Lang.EN to "How are you?", Lang.ES to "¿Cómo estás?", Lang.KO to "한"), emptyList())
-        val weak = compute(emptyList(), listOf(card(1, 1, Lang.ES, lapses = 2)), listOf(enEntry)).weakest
-        assertEquals("¿Cómo estás?", weak.single().text)
+        val weak = compute(emptyList(), listOf(card(1, 1, Lang.ES, lapses = 2), card(2, 1, Lang.EN, lapses = 1)), listOf(enEntry)).weakest
+        assertEquals(WeakItem(1, "How are you?", 3, Lang.EN), weak.single())
     }
 
     @Test fun emptyDataGivesZerosAndNullRate() {

@@ -20,7 +20,7 @@ import java.util.Locale
 enum class LibrarySort(val label: String) { RECENT("최근 저장"), DUE("복습 기한"), LAPSES("많이 틀린 순") }
 enum class StatusFilter(val label: String) {
     ALL("전체"), UNREVIEWED(stageName(0)), LEARNING(stageName(1)), ALMOST(stageName(3)), MASTERED(stageName(MAX_STAGE)),
-    RECENT_MISS("최근 틀림"), DUE_SOON("곧 복습"), STRUGGLING("자주 틀린 것"), KNOWN("알아요"), EXCLUDED("통계 제외"),
+    RECENT_MISS("최근 틀림"), DUE_SOON("곧 복습"), STRUGGLING("자주 틀린 문장"), KNOWN("알아요"), EXCLUDED("통계 제외"),
 }
 
 const val STRUGGLING_LAPSES = 2

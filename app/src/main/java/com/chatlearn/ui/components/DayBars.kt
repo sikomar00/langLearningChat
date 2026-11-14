@@ -16,10 +16,15 @@ import com.chatlearn.stats.DayCount
 import com.chatlearn.ui.theme.statusColors
 import java.time.LocalDate
 
+/** 7일 그래프의 날짜 이름: 오늘은 "오늘", 나머지는 요일 한 글자. 오늘·성장의 두 7일 그래프가 같은 표기를 쓴다. */
+fun weekdayLabel(date: LocalDate, today: LocalDate): String =
+    if (date == today) "오늘" else date.dayOfWeek.getDisplayName(java.time.format.TextStyle.SHORT, java.util.Locale.KOREAN)
+
 /** 날짜별 복습 수 막대(지난 7일, 앞으로 7일). [today] 칸만 진하게. 스크린리더에는 한 문장으로 읽힌다. */
 @Composable
 fun DayBars(days: List<DayCount>, label: (DayCount) -> String, today: LocalDate, modifier: Modifier = Modifier) {
     val max = (days.maxOfOrNull { it.reviews } ?: 0).coerceAtLeast(1)
+    val sparse = androidx.compose.ui.platform.LocalDensity.current.fontScale >= 1.3f
     // 큰 글씨 설정에서도 날짜가 잘리지 않게 높이는 최소값만 정한다.
     Row(
         modifier.fillMaxWidth().heightIn(min = 96.dp).clearAndSetSemantics { contentDescription = days.joinToString { "${label(it)} ${it.reviews}장" } },
@@ -34,7 +39,9 @@ fun DayBars(days: List<DayCount>, label: (DayCount) -> String, today: LocalDate,
                     Modifier.fillMaxWidth().height((4 + 52f * d.reviews / max).dp)
                         .background(color, RoundedCornerShape(topStart = 2.dp, topEnd = 2.dp)),
                 )
-                Text(label(d), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+                // 큰 글씨(1.3배 이상)에서는 날짜 이름이 붙지 않게 하루씩 건너뛴다(오늘은 늘 쓴다).
+                val show = !sparse || d.date == today || (days.indexOf(d) - days.indexOfFirst { it.date == today }) % 2 == 0
+                Text(if (show) label(d) else "", style = MaterialTheme.typography.labelSmall.board(), color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
             }
         }
     }

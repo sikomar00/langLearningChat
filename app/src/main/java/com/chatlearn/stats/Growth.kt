@@ -17,6 +17,8 @@ data class Growth(
     val weekReviews: Int,
     val prevWeekReviews: Int,
     val week: Retention,
+    /** 그 앞 7일의 정답률(통계 제외 문장은 뺌). */
+    val prevWeek: Retention = Retention(0, 0),
     /** 익힘 → 거의 → 익히는 중 → 새 문장 순서의 (이름, 문장 수). */
     val stages: List<Pair<String, Int>>,
     val monthDays: Int,
@@ -55,6 +57,7 @@ object GrowthCalculator {
             weekReviews = weekActivity,
             prevWeekReviews = activity.count { it.reviewedAt in prevStart until weekStart },
             week = Retention(weekLogs.size, weekLogs.count { it.rating != Rating.AGAIN }),
+            prevWeek = logs.filter { it.reviewedAt in prevStart until weekStart }.let { l -> Retention(l.size, l.count { it.rating != Rating.AGAIN }) },
             stages = STAGE_ORDER.map { it to (stageCounts[it] ?: 0) },
             monthDays = monthDays,
             line = factLine(masteredItems),

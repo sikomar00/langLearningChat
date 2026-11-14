@@ -233,7 +233,6 @@ class MainActivity : ComponentActivity() {
                                 if (tab == Tab.LIBRARY) BoardSearchBar(query, { libraryVm.query.value = it }) {
                                     IconButton(onClick = { overlay = Overlay.SETTINGS }) { Icon(Icons.Default.Settings, contentDescription = "설정") }
                                 } else BoardTopBar(tab.label) {
-                                    todayUi?.streak?.takeIf { it > 0 && tab == Tab.TODAY }?.let { BoardLabel("${it}일 연속", color = world.onBoardMuted) }
                                     IconButton(onClick = { overlay = Overlay.SETTINGS }) { Icon(Icons.Default.Settings, contentDescription = "설정") }
                                 }
                             },
@@ -268,6 +267,7 @@ class MainActivity : ComponentActivity() {
                                                 onGoTranslate = { tab = Tab.TRANSLATE },
                                                 onOpenLibrary = { tab = Tab.LIBRARY },
                                                 onPractice = practice,
+                                                onOpenSentence = { id -> libraryVm.open(id); tab = Tab.LIBRARY },
                                             )
                                             Tab.TRANSLATE -> TranslateScreen(
                                                 translateVm, onSpeak = { text, lang -> c.tts.speak(text, lang, false) }, onOpenSettings = { overlay = Overlay.SETTINGS },

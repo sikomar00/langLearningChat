@@ -46,7 +46,7 @@ fun StatsScreen(vm: StatsViewModel, onPractice: (com.chatlearn.domain.GrammarPoi
         return
     }
     val g = s.growth
-    Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         // 맨 위는 출석이 아니라 지난주의 나와 견준 수. 줄어도 빨간 손실 표시는 쓰지 않는다.
         val diff = g.weekReviews - g.prevWeekReviews
         BoardStrip(listOf(
@@ -57,24 +57,33 @@ fun StatsScreen(vm: StatsViewModel, onPractice: (com.chatlearn.domain.GrammarPoi
                 diff < 0 -> "전주보다 −${-diff}"
                 else -> "전주와 같음"
             }, up = diff > 0),
-            BoardCell("7일 정답률", percent(g.week), null),
+            BoardCell("7일 정답률", percent(g.week), g.prevWeek.rate?.let { "전주 ${percent(g.prevWeek)}" }),
         ))
         Text(g.line, style = MaterialTheme.typography.bodyLarge)
-        if (g.friends.isNotEmpty()) SectionCard("친구별") { FriendBars(g.friends) }
-        GrammarSection(grammar, onPractice)
-        SectionCard("최근 7일") { com.chatlearn.ui.components.DayBars(s.last7, { "${it.date.monthValue}/${it.date.dayOfMonth}" }, s.last7.last().date) }
-        if (outlook.isNotEmpty()) SectionCard("앞으로 30일") { OutlookBars(outlook) }
-        if (s.heatmap.isNotEmpty()) SectionCard("${StatsCalculator.HEATMAP_WEEKS}주 학습 기록") { Heatmap(s.heatmap, g.monthDays, s.streak) }
+        // 순서: 내 실력(익힌 정도·약점·틀린 문장) → 누구와(친구별) → 언제(지난·앞으로·12주) → 세부(정답률).
         SectionCard("익힌 정도") {
             MasteryBar(g.stages)
             Text("익힘은 21일 넘게 기억했거나 '이미 알아요'로 표시한 문장이에요.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
-        SectionCard("자주 틀리는 문장") {
+        GrammarSection(grammar, onPractice)
+        SectionCard("자주 틀린 문장") {
             if (s.weakest.isEmpty()) Text("아직 틀린 문장이 없어요.")
             s.weakest.forEachIndexed { i, w ->
-                StatRow(w.text, "${w.lapses}회", Modifier.clickable(onClickLabel = "문장 열기") { onOpenSentence(w.entryId) }, showDivider = i < s.weakest.lastIndex)
+                if (i > 0) HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                Row(
+                    Modifier.fillMaxWidth().heightIn(min = 48.dp).clickable(onClickLabel = "문장 열기") { onOpenSentence(w.entryId) },
+                    verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    FlightCode(w.lang.code)
+                    Text(w.text, Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge, maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                    Text("${w.lapses}번 틀림", style = MaterialTheme.typography.titleSmall.board())
+                }
             }
         }
+        if (g.friends.isNotEmpty()) SectionCard("친구별") { FriendBars(g.friends) }
+        SectionCard("최근 7일") { com.chatlearn.ui.components.DayBars(s.last7, { com.chatlearn.ui.components.weekdayLabel(it.date, s.last7.last().date) }, s.last7.last().date) }
+        if (outlook.isNotEmpty()) SectionCard("앞으로 30일") { OutlookBars(outlook) }
+        if (s.heatmap.isNotEmpty()) SectionCard("${StatsCalculator.HEATMAP_WEEKS}주 학습 기록") { Heatmap(s.heatmap, g.monthDays, s.streak) }
         AccuracySection(s)
     }
 }
@@ -140,8 +149,11 @@ private fun Heatmap(days: List<DayCount>, monthDays: Int, streak: Int) {
             // 달이 바뀌는 주 위에 달 이름
             Row(horizontalArrangement = Arrangement.spacedBy(gap)) {
                 Spacer(Modifier.width(labelWidth))
+                val starts = weeks.mapIndexed { i, w -> w.firstOrNull { it.date.dayOfMonth == 1 }?.date ?: w.first().date.takeIf { i == 0 } }
+                // 첫 주 이름 바로 다음 주에 새 달이 시작하면 첫 주 이름은 뺀다(이름끼리 붙지 않게).
+                val shown = starts.mapIndexed { i, d -> d.takeIf { i > 0 || starts.getOrNull(1) == null } }
                 weeks.forEachIndexed { i, w ->
-                    val first = w.firstOrNull { it.date.dayOfMonth == 1 }?.date ?: w.first().date.takeIf { i == 0 }
+                    val first = shown[i]
                     Box(Modifier.width(cell)) {
                         if (first != null) Text(
                             "${first.monthValue}월", style = MaterialTheme.typography.labelSmall, softWrap = false,

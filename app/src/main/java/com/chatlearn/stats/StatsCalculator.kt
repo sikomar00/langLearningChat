@@ -18,7 +18,7 @@ data class Retention(val reviews: Int, val remembered: Int) {
 }
 
 data class DayCount(val date: LocalDate, val reviews: Int)
-data class WeakItem(val entryId: Long, val text: String, val lapses: Int)
+data class WeakItem(val entryId: Long, val text: String, val lapses: Int, val lang: Lang = Lang.EN)
 
 data class Stats(
     val last7: List<DayCount>,
@@ -87,13 +87,13 @@ object StatsCalculator {
         val itemById = items.associateBy { it.entry.id }
         // 이미 알아요로 뺀 문장은 자주 틀리는 문장에서도 뺀다.
         val known = items.knownIds()
+        // 문장 단위로 센다: 영어·스페인어 카드가 함께 틀려도 한 줄(같은 문장이 두 줄로 나오지 않게).
         val weakest = cards.filter { it.lapses > 0 && it.entryId !in known }
-            .sortedWith(compareByDescending<ReviewCardEntity> { it.lapses }.thenBy { it.entryId })
-            .mapNotNull { c ->
-                itemById[c.entryId]?.let {
-                    WeakItem(c.entryId, it.texts[c.answerLang] ?: it.texts[it.entry.chatLang].orEmpty(), c.lapses)
-                }
+            .groupBy { it.entryId }
+            .mapNotNull { (id, cs) ->
+                itemById[id]?.let { WeakItem(id, it.texts[it.entry.chatLang].orEmpty(), cs.sumOf { c -> c.lapses }, it.entry.chatLang) }
             }
+            .sortedWith(compareByDescending<WeakItem> { it.lapses }.thenBy { it.entryId })
             .take(WEAK_LIMIT)
 
         val cardById = cards.associateBy { it.id }

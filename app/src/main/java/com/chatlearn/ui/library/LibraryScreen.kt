@@ -121,7 +121,7 @@ fun LibraryScreen(
             @OptIn(ExperimentalLayoutApi::class)
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Button(shape = MaterialTheme.shapes.medium, enabled = chosen.isNotEmpty(), onClick = { onStartReview(chosen, lang); picked = null }) { Text("선택 복습") }
-                SecondaryButton(shape = MaterialTheme.shapes.medium, enabled = chosen.isNotEmpty() && !sendingToNotion, onClick = { vm.sendToNotion(chosen) }) { Text(if (sendingToNotion) "보내는 중…" else "노션") }
+                SecondaryButton(shape = MaterialTheme.shapes.medium, enabled = chosen.isNotEmpty() && !sendingToNotion, onClick = { vm.sendToNotion(chosen) }) { Text(if (sendingToNotion) "보내는 중…" else "노션에 보내기") }
                 SecondaryButton(shape = MaterialTheme.shapes.medium, enabled = chosen.isNotEmpty(), onClick = { moveTargets = chosen }) {
                     Icon(Icons.Default.Folder, contentDescription = null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("폴더로")
                 }
@@ -228,7 +228,7 @@ fun LibraryScreen(
             LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                 item { Text("보기", style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(end = 4.dp)) }
                 item { ChoiceChip(selected = compact, onClick = { compact = true; showFilters = false; uiPrefs.edit().putBoolean("library_compact", true).apply() }, label = { Text("촘촘히") }) }
-                item { ChoiceChip(selected = !compact, onClick = { compact = false; showFilters = false; uiPrefs.edit().putBoolean("library_compact", false).apply() }, label = { Text("카드") }) }
+                item { ChoiceChip(selected = !compact, onClick = { compact = false; showFilters = false; uiPrefs.edit().putBoolean("library_compact", false).apply() }, label = { Text("넓게") }) }
             }
         } else if (activeFilters > 0) {
             // 접어 둔 상태에서도 걸려 있는 조건을 알 수 있게 한 줄로 보여 준다.

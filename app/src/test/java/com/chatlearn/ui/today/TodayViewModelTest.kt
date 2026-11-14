@@ -69,6 +69,6 @@ class TodayViewModelTest {
         assertEquals(1, ui.forecast.sumOf { it.reviews })
         assertEquals(listOf("three", "two", "one"), ui.recent.map { it.texts[Lang.EN] })
         // 복습한 문장 하나만 익힌 단계가 1 이상, 나머지는 새 문장(0).
-        assertEquals(1, ui.recent.count { (ui.recentStages[it.entry.id] ?: 0) >= 1 })
+        assertEquals(1, ui.recent.count { (ui.recentProgress[it.entry.id]?.stage ?: 0) >= 1 })
     }
 }
